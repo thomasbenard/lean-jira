@@ -9,10 +9,10 @@ export interface CycleTimeNormalizedResult extends DurationStats {
 export const cycleTimeNormalizedMetric: Metric<CycleTimeNormalizedResult> = {
   name: "cycle-time-normalized",
   description:
-    "Cycle-time réel divisé par l'estimation originale. Indique la dérive vs estimation (1 = on time, 2 = 2× plus long).",
+    "Cycle-time dev (1er 'Développement en cours' -> livraison) divisé par l'estimation. 1 = conforme, 2 = 2× plus long.",
 
   compute(db: Database.Database, config: MetricConfig): CycleTimeNormalizedResult {
-    const inProgressPh = config.inProgressStatuses.map(() => "?").join(",");
+    const devStartPh = config.devStartStatuses.map(() => "?").join(",");
     const cutoffSql = config.cutoffDate ? "AND i.resolved_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
     const bugPh = config.bugIssueTypes.length > 0 ? config.bugIssueTypes.map(() => "?").join(",") : null;
@@ -23,13 +23,13 @@ export const cycleTimeNormalizedMetric: Metric<CycleTimeNormalizedResult> = {
       SELECT t.issue_key, MIN(t.transitioned_at) AS started_at, i.resolved_at, i.original_estimate_seconds
       FROM transitions t
       JOIN issues i ON i.key = t.issue_key
-      WHERE t.to_status IN (${inProgressPh})
+      WHERE t.to_status IN (${devStartPh})
         AND i.resolved_at IS NOT NULL
         AND i.original_estimate_seconds > 0
         ${bugSql}
         ${cutoffSql}
       GROUP BY t.issue_key
-    `).all(...config.inProgressStatuses, ...bugArgs, ...cutoffArgs) as Array<{
+    `).all(...config.devStartStatuses, ...bugArgs, ...cutoffArgs) as Array<{
       started_at: string;
       resolved_at: string;
       original_estimate_seconds: number;

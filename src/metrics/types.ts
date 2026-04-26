@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 
 export interface MetricConfig {
   todoStatuses: string[];
+  devStartStatuses: string[];
   inProgressStatuses: string[];
   doneStatuses: string[];
   // Date ISO (YYYY-MM-DD). Issues résolues avant sont ignorées. Utile pour

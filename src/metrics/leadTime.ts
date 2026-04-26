@@ -15,7 +15,7 @@ export interface LeadTimeSummary extends DurationStats {
 
 export const leadTimeMetric: Metric<LeadTimeSummary> = {
   name: "lead-time",
-  description: "Délai entre engagement (entrée en TODO) et livraison. Indicateur de prévisibilité côté demandeur.",
+  description: "Délai total backlog -> livraison (entrée en TODO inclus). Inclut attente, design, dev. Cf. cycle-time pour dev seul.",
 
   compute(db: Database.Database, config: MetricConfig): LeadTimeSummary {
     const todoPh = config.todoStatuses.map(() => "?").join(",");

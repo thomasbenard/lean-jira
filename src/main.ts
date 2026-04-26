@@ -15,6 +15,7 @@ interface AppConfig {
     projectKey: string;
     boardId: number;
     todoStatuses: string[];
+    devStartStatuses: string[];
     inProgressStatuses: string[];
     doneStatuses: string[];
   };
@@ -58,6 +59,7 @@ program
     const db = openDb(config.db.path);
     const metricConfig = {
       todoStatuses: config.jira.todoStatuses,
+      devStartStatuses: config.jira.devStartStatuses,
       inProgressStatuses: config.jira.inProgressStatuses,
       doneStatuses: config.jira.doneStatuses,
       cutoffDate: config.metrics?.cutoffDate,

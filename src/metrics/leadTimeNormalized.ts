@@ -9,7 +9,7 @@ export interface LeadTimeNormalizedResult extends DurationStats {
 export const leadTimeNormalizedMetric: Metric<LeadTimeNormalizedResult> = {
   name: "lead-time-normalized",
   description:
-    "Lead-time réel divisé par l'estimation originale. Indique la dérive vs estimation (1 = on time, 2 = 2× plus long).",
+    "Lead-time total (backlog -> livraison) divisé par l'estimation. Inclut attente. Cf. cycle-time-normalized pour dérive dev seul.",
 
   compute(db: Database.Database, config: MetricConfig): LeadTimeNormalizedResult {
     const todoPh = config.todoStatuses.map(() => "?").join(",");

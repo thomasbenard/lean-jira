@@ -8,7 +8,7 @@ export interface LeadTimeBySizeResult {
 
 export const leadTimeBySizeMetric: Metric<LeadTimeBySizeResult> = {
   name: "lead-time-by-size",
-  description: "Lead-time agrégé par bucket de taille (estimation originale).",
+  description: "Lead-time total (backlog -> livraison) par bucket de taille. Inclut toute l'attente. Cf. cycle-time-by-size pour dev seul.",
 
   compute(db: Database.Database, config: MetricConfig): LeadTimeBySizeResult {
     const todoPh = config.todoStatuses.map(() => "?").join(",");

@@ -15,10 +15,10 @@ export interface CycleTimeSummary extends DurationStats {
 
 export const cycleTimeMetric: Metric<CycleTimeSummary> = {
   name: "cycle-time",
-  description: "Durée de travail actif (première mise en cours -> livraison). Mesure l'efficacité de l'équipe.",
+  description: "Durée de dev actif (1er passage en 'Développement en cours' -> livraison). Exclut attente backlog et design. Cf. lead-time pour délai total.",
 
   compute(db: Database.Database, config: MetricConfig): CycleTimeSummary {
-    const inProgressPh = config.inProgressStatuses.map(() => "?").join(",");
+    const devStartPh = config.devStartStatuses.map(() => "?").join(",");
     const cutoffSql = config.cutoffDate ? "AND i.resolved_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
 
@@ -28,9 +28,9 @@ export const cycleTimeMetric: Metric<CycleTimeSummary> = {
       SELECT t.issue_key, MIN(t.transitioned_at) AS started_at, i.resolved_at
       FROM transitions t
       JOIN issues i ON i.key = t.issue_key
-      WHERE t.to_status IN (${inProgressPh}) AND i.resolved_at IS NOT NULL ${cutoffSql}
+      WHERE t.to_status IN (${devStartPh}) AND i.resolved_at IS NOT NULL ${cutoffSql}
       GROUP BY t.issue_key
-    `).all(...config.inProgressStatuses, ...cutoffArgs) as Array<{ issue_key: string; started_at: string; resolved_at: string }>;
+    `).all(...config.devStartStatuses, ...cutoffArgs) as Array<{ issue_key: string; started_at: string; resolved_at: string }>;
 
     const issues: CycleTimeResult[] = [];
     for (const r of rows) {
