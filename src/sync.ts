@@ -8,6 +8,7 @@ interface SyncConfig {
     email: string;
     apiToken: string;
     projectKey: string;
+    boardId: number;
   };
   db: { path: string };
 }

@@ -12,6 +12,7 @@ interface AppConfig {
     email: string;
     apiToken: string;
     projectKey: string;
+    boardId: number;
     inProgressStatuses: string[];
     doneStatuses: string[];
   };

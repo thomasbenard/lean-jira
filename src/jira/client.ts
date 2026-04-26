@@ -6,16 +6,17 @@ interface JiraConfig {
   email: string;
   apiToken: string;
   projectKey: string;
+  boardId: number;
 }
 
 export class JiraClient {
   private http: AxiosInstance;
-  private projectKey: string;
+  private boardId: number;
 
   constructor(config: JiraConfig) {
-    this.projectKey = config.projectKey;
+    this.boardId = config.boardId;
     this.http = axios.create({
-      baseURL: `${config.baseUrl}/rest/api/2`,
+      baseURL: config.baseUrl,
       auth: { username: config.email, password: config.apiToken },
       headers: { "Content-Type": "application/json" },
     });
@@ -28,9 +29,8 @@ export class JiraClient {
     let total = 0;
 
     do {
-      const response = await this.http.get("/search", {
+      const response = await this.http.get(`/rest/agile/1.0/board/${this.boardId}/issue`, {
         params: {
-          jql: `project = ${this.projectKey} ORDER BY created ASC`,
           startAt,
           maxResults: pageSize,
           expand: "changelog",
@@ -45,7 +45,6 @@ export class JiraClient {
 
       startAt += pageSize;
 
-      // Avoid hammering Jira Server
       if (startAt < total) {
         await sleep(200);
       }

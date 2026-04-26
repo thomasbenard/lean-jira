@@ -20,7 +20,7 @@ export const throughputMetric: Metric<ThroughputSummary> = {
 
     const rows = db.prepare(`
       SELECT
-        strftime('%Y-W%W', transitioned_at) AS week,
+        strftime('%Y-W%W', substr(transitioned_at, 1, 10)) AS week,
         COUNT(DISTINCT issue_key) AS count
       FROM transitions
       WHERE to_status IN (${placeholders})
