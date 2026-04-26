@@ -7,6 +7,7 @@
     "metrics": "ts-node src/main.ts metrics",
     "metrics:raw": "ts-node src/main.ts metrics --include-outliers",
     "snapshots": "ts-node src/main.ts snapshots",
+    "report": "ts-node src/main.ts report",
     "build": "tsc",
     "start": "node dist/main.js"
   },

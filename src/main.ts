@@ -7,6 +7,7 @@ import { openDb } from "./db/store";
 import { runAllMetrics, runMetric, ALL_METRICS } from "./metrics/index";
 import { BUCKET_LABELS, BUCKET_ORDER, SizeBucket } from "./metrics/utils";
 import { backfillSnapshots } from "./snapshots/compute";
+import { generateReport } from "./report/generate";
 
 interface AppConfig {
   jira: {
@@ -97,6 +98,18 @@ program
     };
     const count = backfillSnapshots(db, metricConfig);
     console.log(`Snapshots recalculés : ${count} dates hebdomadaires.`);
+  });
+
+program
+  .command("report")
+  .description("Génère un rapport HTML autonome (charts trends + KPIs) à partir des snapshots")
+  .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
+  .option("-o, --output <path>", "Chemin du fichier HTML de sortie", "./report.html")
+  .action((opts) => {
+    const config = loadConfig(path.resolve(opts.config));
+    const db = openDb(config.db.path);
+    generateReport(db, config.jira.projectKey, path.resolve(opts.output));
+    console.log(`Rapport généré : ${path.resolve(opts.output)}`);
   });
 
 program
