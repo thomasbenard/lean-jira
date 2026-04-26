@@ -22,36 +22,26 @@ export const cycleTimeMetric: Metric<CycleTimeSummary> = {
   description: "Temps entre premier 'In Progress' et résolution",
 
   compute(db: Database.Database, config: MetricConfig): CycleTimeSummary {
-    const inProgressPlaceholders = config.inProgressStatuses.map(() => "?").join(",");
-    const donePlaceholders = config.doneStatuses.map(() => "?").join(",");
+    const inProgressPh = config.inProgressStatuses.map(() => "?").join(",");
 
-    // Première entrée en "in progress" par issue
-    const startRows = db.prepare(`
-      SELECT issue_key, MIN(transitioned_at) AS started_at
-      FROM transitions
-      WHERE to_status IN (${inProgressPlaceholders})
-      GROUP BY issue_key
-    `).all(...config.inProgressStatuses) as Array<{ issue_key: string; started_at: string }>;
-
-    // Dernière transition vers "done" par issue
-    const doneRows = db.prepare(`
-      SELECT issue_key, MAX(transitioned_at) AS resolved_at
-      FROM transitions
-      WHERE to_status IN (${donePlaceholders})
-      GROUP BY issue_key
-    `).all(...config.doneStatuses) as Array<{ issue_key: string; resolved_at: string }>;
-
-    const doneMap = new Map(doneRows.map((r) => [r.issue_key, r.resolved_at]));
+    // resolved_at vient du champ Jira `resolutiondate`, préservé à travers les migrations
+    // workflow (les transitions vers Done en bulk close ne le modifient pas).
+    const rows = db.prepare(`
+      SELECT t.issue_key, MIN(t.transitioned_at) AS started_at, i.resolved_at
+      FROM transitions t
+      JOIN issues i ON i.key = t.issue_key
+      WHERE t.to_status IN (${inProgressPh}) AND i.resolved_at IS NOT NULL
+      GROUP BY t.issue_key
+    `).all(...config.inProgressStatuses) as Array<{ issue_key: string; started_at: string; resolved_at: string }>;
 
     const issues: CycleTimeResult[] = [];
-    for (const s of startRows) {
-      const resolvedAt = doneMap.get(s.issue_key);
-      if (!resolvedAt) continue;
+    for (const r of rows) {
+      if (new Date(r.resolved_at).getTime() < new Date(r.started_at).getTime()) continue;
       issues.push({
-        issueKey: s.issue_key,
-        startedAt: s.started_at,
-        resolvedAt,
-        cycleTimeDays: diffDays(s.started_at, resolvedAt),
+        issueKey: r.issue_key,
+        startedAt: r.started_at,
+        resolvedAt: r.resolved_at,
+        cycleTimeDays: diffDays(r.started_at, r.resolved_at),
       });
     }
 

@@ -23,34 +23,25 @@ export const leadTimeMetric: Metric<LeadTimeSummary> = {
 
   compute(db: Database.Database, config: MetricConfig): LeadTimeSummary {
     const todoPh = config.todoStatuses.map(() => "?").join(",");
-    const donePh = config.doneStatuses.map(() => "?").join(",");
 
-    const todoRows = db.prepare(`
-      SELECT issue_key, MIN(transitioned_at) AS todo_at
-      FROM transitions
-      WHERE to_status IN (${todoPh})
-      GROUP BY issue_key
-    `).all(...config.todoStatuses) as Array<{ issue_key: string; todo_at: string }>;
-
-    const doneRows = db.prepare(`
-      SELECT issue_key, MAX(transitioned_at) AS resolved_at
-      FROM transitions
-      WHERE to_status IN (${donePh})
-      GROUP BY issue_key
-    `).all(...config.doneStatuses) as Array<{ issue_key: string; resolved_at: string }>;
-
-    const doneMap = new Map(doneRows.map((r) => [r.issue_key, r.resolved_at]));
+    // resolved_at vient du champ Jira `resolutiondate`, préservé à travers les migrations
+    // workflow (les transitions vers Done en bulk close ne le modifient pas).
+    const rows = db.prepare(`
+      SELECT t.issue_key, MIN(t.transitioned_at) AS todo_at, i.resolved_at
+      FROM transitions t
+      JOIN issues i ON i.key = t.issue_key
+      WHERE t.to_status IN (${todoPh}) AND i.resolved_at IS NOT NULL
+      GROUP BY t.issue_key
+    `).all(...config.todoStatuses) as Array<{ issue_key: string; todo_at: string; resolved_at: string }>;
 
     const issues: LeadTimeResult[] = [];
-    for (const t of todoRows) {
-      const resolvedAt = doneMap.get(t.issue_key);
-      if (!resolvedAt) continue;
-      if (new Date(resolvedAt).getTime() < new Date(t.todo_at).getTime()) continue;
+    for (const r of rows) {
+      if (new Date(r.resolved_at).getTime() < new Date(r.todo_at).getTime()) continue;
       issues.push({
-        issueKey: t.issue_key,
-        todoAt: t.todo_at,
-        resolvedAt,
-        leadTimeDays: diffDays(t.todo_at, resolvedAt),
+        issueKey: r.issue_key,
+        todoAt: r.todo_at,
+        resolvedAt: r.resolved_at,
+        leadTimeDays: diffDays(r.todo_at, r.resolved_at),
       });
     }
 
