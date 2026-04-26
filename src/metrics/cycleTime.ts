@@ -23,6 +23,8 @@ export const cycleTimeMetric: Metric<CycleTimeSummary> = {
 
   compute(db: Database.Database, config: MetricConfig): CycleTimeSummary {
     const inProgressPh = config.inProgressStatuses.map(() => "?").join(",");
+    const cutoffSql = config.cutoffDate ? "AND i.resolved_at >= ?" : "";
+    const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
 
     // resolved_at vient du champ Jira `resolutiondate`, préservé à travers les migrations
     // workflow (les transitions vers Done en bulk close ne le modifient pas).
@@ -30,9 +32,9 @@ export const cycleTimeMetric: Metric<CycleTimeSummary> = {
       SELECT t.issue_key, MIN(t.transitioned_at) AS started_at, i.resolved_at
       FROM transitions t
       JOIN issues i ON i.key = t.issue_key
-      WHERE t.to_status IN (${inProgressPh}) AND i.resolved_at IS NOT NULL
+      WHERE t.to_status IN (${inProgressPh}) AND i.resolved_at IS NOT NULL ${cutoffSql}
       GROUP BY t.issue_key
-    `).all(...config.inProgressStatuses) as Array<{ issue_key: string; started_at: string; resolved_at: string }>;
+    `).all(...config.inProgressStatuses, ...cutoffArgs) as Array<{ issue_key: string; started_at: string; resolved_at: string }>;
 
     const issues: CycleTimeResult[] = [];
     for (const r of rows) {

@@ -17,6 +17,9 @@ interface AppConfig {
     inProgressStatuses: string[];
     doneStatuses: string[];
   };
+  metrics?: {
+    cutoffDate?: string;
+  };
   db: { path: string };
 }
 
@@ -54,6 +57,7 @@ program
       todoStatuses: config.jira.todoStatuses,
       inProgressStatuses: config.jira.inProgressStatuses,
       doneStatuses: config.jira.doneStatuses,
+      cutoffDate: config.metrics?.cutoffDate,
     };
 
     const results = opts.metric

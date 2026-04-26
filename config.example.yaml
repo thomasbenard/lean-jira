@@ -23,5 +23,11 @@ jira:
   doneStatuses:
     - "Done"
 
+metrics:
+  # Optionnel. Issues résolues avant cette date sont ignorées par lead-time,
+  # cycle-time et throughput. Utile si l'instance a subi un bulk close lors
+  # d'une migration de workflow.
+  # cutoffDate: "2025-11-01"
+
 db:
   path: "./lean-jira.db"

@@ -4,6 +4,9 @@ export interface MetricConfig {
   todoStatuses: string[];
   inProgressStatuses: string[];
   doneStatuses: string[];
+  // Date ISO (YYYY-MM-DD). Issues résolues avant sont ignorées. Utile pour
+  // exclure les bulk closes liés aux migrations de workflow.
+  cutoffDate?: string;
 }
 
 // Contrat que chaque métrique doit implémenter
