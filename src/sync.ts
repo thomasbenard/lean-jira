@@ -1,6 +1,6 @@
 import { JiraClient } from "./jira/client";
-import { JiraIssue, StoredIssue, Transition } from "./jira/types";
-import { openDb, upsertIssues, replaceTransitions, logSync } from "./db/store";
+import { JiraIssue, StoredIssue, StoredSprint, Transition } from "./jira/types";
+import { openDb, upsertIssues, upsertSprints, replaceTransitions, logSync } from "./db/store";
 
 interface SyncConfig {
   jira: {
@@ -19,12 +19,25 @@ export async function sync(config: SyncConfig): Promise<void> {
 
   console.log(`Sync projet ${config.jira.projectKey}...`);
 
+  const rawSprints = await client.fetchAllSprints();
+  const sprints: StoredSprint[] = rawSprints.map((s) => ({
+    id: s.id,
+    name: s.name,
+    state: s.state,
+    startDate: s.startDate ?? null,
+    endDate: s.endDate ?? null,
+    boardId: s.originBoardId ?? config.jira.boardId,
+  }));
+  upsertSprints(db, sprints);
+  const activeSprintIds = new Set(rawSprints.filter((s) => s.state === "active").map((s) => s.id));
+  console.log(`  ${sprints.length} sprints récupérés (${activeSprintIds.size} actif(s))`);
+
   const rawIssues = await client.fetchAllIssues((fetched, total) => {
     process.stdout.write(`\r  ${fetched}/${total} issues récupérées`);
   });
   console.log(`\n  ${rawIssues.length} issues récupérées depuis Jira`);
 
-  const issues: StoredIssue[] = rawIssues.map(mapIssue);
+  const issues: StoredIssue[] = rawIssues.map((i) => mapIssue(i, activeSprintIds));
   const allTransitions: Array<{ key: string; transitions: Transition[] }> = rawIssues.map((issue) => ({
     key: issue.key,
     transitions: extractTransitions(issue),
@@ -40,7 +53,12 @@ export async function sync(config: SyncConfig): Promise<void> {
   console.log(`Sync terminé. ${rawIssues.length} issues stockées.`);
 }
 
-function mapIssue(issue: JiraIssue): StoredIssue {
+function mapIssue(issue: JiraIssue, activeSprintIds: Set<number>): StoredIssue {
+  // Une issue peut référencer plusieurs sprints historiques (closed/active/future).
+  // On retient uniquement le sprint actif courant si l'issue y est encore rattachée.
+  const sprintField = issue.fields.customfield_10020 ?? null;
+  const activeSprint = sprintField?.find((s) => activeSprintIds.has(s.id));
+
   return {
     key: issue.key,
     summary: issue.fields.summary,
@@ -50,6 +68,7 @@ function mapIssue(issue: JiraIssue): StoredIssue {
     currentStatus: issue.fields.status.name,
     assignee: issue.fields.assignee?.displayName ?? null,
     priority: issue.fields.priority?.name ?? null,
+    currentSprintId: activeSprint?.id ?? null,
   };
 }
 

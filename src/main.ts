@@ -95,6 +95,7 @@ function printResults(results: Record<string, unknown>): void {
       console.log(`  Moy/semaine : ${(d.avgPerWeek as number).toFixed(1)}`);
       byWeek.slice(-8).forEach((w) => console.log(`  ${w.week} : ${w.count}`));
     } else if ("currentWip" in d) {
+      console.log(`  Sprint     : ${d.sprintName ?? "(aucun sprint actif)"}`);
       console.log(`  WIP actuel : ${d.currentWip}`);
       console.log(`  Issues     : ${(d.issueKeys as string[]).join(", ")}`);
     }

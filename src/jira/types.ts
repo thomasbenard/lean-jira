@@ -9,10 +9,20 @@ export interface JiraIssue {
     resolutiondate: string | null;
     assignee: { displayName: string } | null;
     priority: { name: string } | null;
+    customfield_10020?: JiraSprint[] | null;
   };
   changelog?: {
     histories: ChangelogHistory[];
   };
+}
+
+export interface JiraSprint {
+  id: number;
+  name: string;
+  state: "active" | "closed" | "future";
+  startDate?: string;
+  endDate?: string;
+  originBoardId?: number;
 }
 
 export interface ChangelogHistory {
@@ -43,4 +53,14 @@ export interface StoredIssue {
   currentStatus: string;
   assignee: string | null;
   priority: string | null;
+  currentSprintId: number | null;
+}
+
+export interface StoredSprint {
+  id: number;
+  name: string;
+  state: string;
+  startDate: string | null;
+  endDate: string | null;
+  boardId: number;
 }

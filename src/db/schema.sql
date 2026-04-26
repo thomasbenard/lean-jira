@@ -6,7 +6,17 @@ CREATE TABLE IF NOT EXISTS issues (
   resolved_at  TEXT,
   current_status TEXT NOT NULL,
   assignee     TEXT,
-  priority     TEXT
+  priority     TEXT,
+  current_sprint_id INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS sprints (
+  id          INTEGER PRIMARY KEY,
+  name        TEXT NOT NULL,
+  state       TEXT NOT NULL,
+  start_date  TEXT,
+  end_date    TEXT,
+  board_id    INTEGER NOT NULL
 );
 
 -- Chaque changement de statut. Source de vérité pour toutes les métriques.

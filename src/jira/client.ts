@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from "axios";
-import { JiraIssue } from "./types";
+import { JiraIssue, JiraSprint } from "./types";
 
 interface JiraConfig {
   baseUrl: string;
@@ -34,7 +34,7 @@ export class JiraClient {
           startAt,
           maxResults: pageSize,
           expand: "changelog",
-          fields: "summary,issuetype,status,created,resolutiondate,assignee,priority",
+          fields: "summary,issuetype,status,created,resolutiondate,assignee,priority,customfield_10020",
         },
       });
 
@@ -51,6 +51,26 @@ export class JiraClient {
     } while (startAt < total);
 
     return issues;
+  }
+
+  async fetchAllSprints(): Promise<JiraSprint[]> {
+    const sprints: JiraSprint[] = [];
+    const pageSize = 50;
+    let startAt = 0;
+    let isLast = false;
+
+    do {
+      const response = await this.http.get(`/rest/agile/1.0/board/${this.boardId}/sprint`, {
+        params: { startAt, maxResults: pageSize },
+      });
+      const data = response.data;
+      sprints.push(...data.values);
+      isLast = data.isLast;
+      startAt += pageSize;
+      if (!isLast) await sleep(200);
+    } while (!isLast);
+
+    return sprints;
   }
 }
 

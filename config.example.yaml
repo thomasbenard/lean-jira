@@ -1,4 +1,7 @@
 jira:
+  # Pour Atlassian Cloud avec custom domain qui bloque Basic auth, utiliser
+  # le gateway: https://api.atlassian.com/ex/jira/<cloudId>/
+  # cloudId récupérable via GET https://<your-domain>/_edge/tenant_info
   baseUrl: "https://jira.your-company.com"
   email: "your.email@company.com"
   apiToken: "YOUR_API_TOKEN"
@@ -8,11 +11,15 @@ jira:
   todoStatuses:
     - "To Do"
     - "Ready"
-  # Colonnes du kanban qui définissent "en cours" (pour cycle time)
+  # Colonnes "en cours" (pour cycle time + WIP). Exclure les statuts qui
+  # mappent à la colonne DONE du board, sinon le WIP gonfle.
   inProgressStatuses:
     - "In Progress"
     - "In Review"
-  # Statut(s) final(s) = done
+  # doneStatuses: conservé pour documentation. Les métriques (lead-time,
+  # cycle-time, throughput) s'appuient sur le champ Jira `resolutiondate`
+  # plutôt que sur les transitions, qui peuvent être polluées par les
+  # bulk closes lors de migrations de workflow.
   doneStatuses:
     - "Done"
 
