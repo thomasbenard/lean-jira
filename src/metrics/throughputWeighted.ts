@@ -22,6 +22,9 @@ export const throughputWeightedMetric: Metric<ThroughputWeightedSummary> = {
   compute(db: Database.Database, config: MetricConfig): ThroughputWeightedSummary {
     const cutoffSql = config.cutoffDate ? "AND resolved_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
+    const bugPh = config.bugIssueTypes.length > 0 ? config.bugIssueTypes.map(() => "?").join(",") : null;
+    const bugSql = bugPh ? `AND issue_type NOT IN (${bugPh})` : "";
+    const bugArgs = bugPh ? config.bugIssueTypes : [];
 
     const rows = db.prepare(`
       SELECT
@@ -30,10 +33,10 @@ export const throughputWeightedMetric: Metric<ThroughputWeightedSummary> = {
         SUM(CASE WHEN original_estimate_seconds > 0 THEN 1 ELSE 0 END) AS estimated_count,
         SUM(CASE WHEN original_estimate_seconds IS NULL OR original_estimate_seconds <= 0 THEN 1 ELSE 0 END) AS unestimated_count
       FROM issues
-      WHERE resolved_at IS NOT NULL ${cutoffSql}
+      WHERE resolved_at IS NOT NULL ${bugSql} ${cutoffSql}
       GROUP BY week
       ORDER BY week ASC
-    `).all(...cutoffArgs) as Array<{
+    `).all(...bugArgs, ...cutoffArgs) as Array<{
       week: string;
       total_seconds: number;
       estimated_count: number;

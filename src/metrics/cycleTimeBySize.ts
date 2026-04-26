@@ -16,7 +16,7 @@ export const cycleTimeBySizeMetric: Metric<CycleTimeBySizeResult> = {
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
 
     const rows = db.prepare(`
-      SELECT t.issue_key, MIN(t.transitioned_at) AS started_at, i.resolved_at, i.original_estimate_seconds
+      SELECT t.issue_key, MIN(t.transitioned_at) AS started_at, i.resolved_at, i.original_estimate_seconds, i.issue_type
       FROM transitions t
       JOIN issues i ON i.key = t.issue_key
       WHERE t.to_status IN (${inProgressPh}) AND i.resolved_at IS NOT NULL ${cutoffSql}
@@ -26,13 +26,15 @@ export const cycleTimeBySizeMetric: Metric<CycleTimeBySizeResult> = {
       started_at: string;
       resolved_at: string;
       original_estimate_seconds: number | null;
+      issue_type: string;
     }>;
 
+    const bugTypes = new Set(config.bugIssueTypes);
     const daysByBucket = new Map<SizeBucket, number[]>();
     for (const r of rows) {
       const days = (new Date(r.resolved_at).getTime() - new Date(r.started_at).getTime()) / 86_400_000;
       if (days < 0) continue;
-      const bucket = bucketize(r.original_estimate_seconds);
+      const bucket = bucketize(r.original_estimate_seconds, bugTypes.has(r.issue_type));
       const list = daysByBucket.get(bucket) ?? [];
       list.push(days);
       daysByBucket.set(bucket, list);

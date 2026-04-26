@@ -10,6 +10,9 @@ export interface MetricConfig {
   // Exclure les outliers extrêmes (Tukey upper fence: Q3 + 1.5*IQR) avant
   // de calculer moyennes et percentiles. Default true.
   excludeOutliers?: boolean;
+  // Types Jira considérés comme bugs. Bucket dédié "BUG" + exclusion des
+  // métriques d'estimation (normalized, weighted throughput).
+  bugIssueTypes: string[];
 }
 
 // Contrat que chaque métrique doit implémenter

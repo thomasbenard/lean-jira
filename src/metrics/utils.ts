@@ -8,9 +8,9 @@ export function percentile(sortedValues: number[], p: number): number {
 // 1 jour-personne = 8h = 28800 secondes (convention Atlassian par défaut)
 export const SECONDS_PER_DAY = 28800;
 
-export type SizeBucket = "XS" | "S" | "M" | "L" | "XL" | "UNESTIMATED";
+export type SizeBucket = "XS" | "S" | "M" | "L" | "XL" | "BUG" | "UNESTIMATED";
 
-export const BUCKET_ORDER: SizeBucket[] = ["XS", "S", "M", "L", "XL", "UNESTIMATED"];
+export const BUCKET_ORDER: SizeBucket[] = ["XS", "S", "M", "L", "XL", "BUG", "UNESTIMATED"];
 
 export const BUCKET_LABELS: Record<SizeBucket, string> = {
   XS: "XS (<0.5j)",
@@ -18,10 +18,12 @@ export const BUCKET_LABELS: Record<SizeBucket, string> = {
   M: "M (1-3j)",
   L: "L (3-5j)",
   XL: "XL (≥5j)",
+  BUG: "BUG",
   UNESTIMATED: "UNESTIMATED",
 };
 
-export function bucketize(estimateSeconds: number | null | undefined): SizeBucket {
+export function bucketize(estimateSeconds: number | null | undefined, isBug = false): SizeBucket {
+  if (isBug) return "BUG";
   if (estimateSeconds == null || estimateSeconds <= 0) return "UNESTIMATED";
   const days = estimateSeconds / SECONDS_PER_DAY;
   if (days < 0.5) return "XS";

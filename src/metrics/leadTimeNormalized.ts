@@ -15,6 +15,9 @@ export const leadTimeNormalizedMetric: Metric<LeadTimeNormalizedResult> = {
     const todoPh = config.todoStatuses.map(() => "?").join(",");
     const cutoffSql = config.cutoffDate ? "AND i.resolved_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
+    const bugPh = config.bugIssueTypes.length > 0 ? config.bugIssueTypes.map(() => "?").join(",") : null;
+    const bugSql = bugPh ? `AND i.issue_type NOT IN (${bugPh})` : "";
+    const bugArgs = bugPh ? config.bugIssueTypes : [];
 
     const rows = db.prepare(`
       SELECT t.issue_key, MIN(t.transitioned_at) AS todo_at, i.resolved_at, i.original_estimate_seconds
@@ -23,9 +26,10 @@ export const leadTimeNormalizedMetric: Metric<LeadTimeNormalizedResult> = {
       WHERE t.to_status IN (${todoPh})
         AND i.resolved_at IS NOT NULL
         AND i.original_estimate_seconds > 0
+        ${bugSql}
         ${cutoffSql}
       GROUP BY t.issue_key
-    `).all(...config.todoStatuses, ...cutoffArgs) as Array<{
+    `).all(...config.todoStatuses, ...bugArgs, ...cutoffArgs) as Array<{
       todo_at: string;
       resolved_at: string;
       original_estimate_seconds: number;

@@ -20,6 +20,7 @@ interface AppConfig {
   };
   metrics?: {
     cutoffDate?: string;
+    bugIssueTypes?: string[];
   };
   db: { path: string };
 }
@@ -61,6 +62,7 @@ program
       doneStatuses: config.jira.doneStatuses,
       cutoffDate: config.metrics?.cutoffDate,
       excludeOutliers: !opts.includeOutliers,
+      bugIssueTypes: config.metrics?.bugIssueTypes ?? ["Bug"],
     };
 
     const results = opts.metric

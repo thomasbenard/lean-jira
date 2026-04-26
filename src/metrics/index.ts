@@ -8,6 +8,8 @@ import { cycleTimeBySizeMetric } from "./cycleTimeBySize";
 import { cycleTimeNormalizedMetric } from "./cycleTimeNormalized";
 import { throughputMetric } from "./throughput";
 import { throughputWeightedMetric } from "./throughputWeighted";
+import { bugCycleTimeMetric } from "./bugCycleTime";
+import { bugThroughputMetric } from "./bugThroughput";
 import { wipMetric } from "./wip";
 
 // Registre central. Ajouter une métrique = importer + pousser ici.
@@ -20,6 +22,8 @@ const ALL_METRICS = [
   cycleTimeNormalizedMetric,
   throughputMetric,
   throughputWeightedMetric,
+  bugCycleTimeMetric,
+  bugThroughputMetric,
   wipMetric,
 ];
 
