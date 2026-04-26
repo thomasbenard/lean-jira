@@ -1,4 +1,5 @@
 config.yaml
+.mcp.json
 *.db
 node_modules/
 dist/
