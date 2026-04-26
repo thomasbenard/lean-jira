@@ -6,6 +6,7 @@
     "sync": "ts-node src/main.ts sync",
     "metrics": "ts-node src/main.ts metrics",
     "metrics:raw": "ts-node src/main.ts metrics --include-outliers",
+    "snapshots": "ts-node src/main.ts snapshots",
     "build": "tsc",
     "start": "node dist/main.js"
   },

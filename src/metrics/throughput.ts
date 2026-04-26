@@ -18,6 +18,8 @@ export const throughputMetric: Metric<ThroughputSummary> = {
   compute(db: Database.Database, config: MetricConfig): ThroughputSummary {
     const cutoffSql = config.cutoffDate ? "AND resolved_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
+    const endSql = config.windowEndDate ? "AND resolved_at <= ?" : "";
+    const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
 
     // resolved_at vient du champ Jira `resolutiondate`, préservé à travers les migrations
     // workflow. Plus fiable que de filtrer les transitions (bulk closes les polluent).
@@ -26,10 +28,10 @@ export const throughputMetric: Metric<ThroughputSummary> = {
         strftime('%Y-W%W', substr(resolved_at, 1, 10)) AS week,
         COUNT(*) AS count
       FROM issues
-      WHERE resolved_at IS NOT NULL ${cutoffSql}
+      WHERE resolved_at IS NOT NULL ${cutoffSql} ${endSql}
       GROUP BY week
       ORDER BY week ASC
-    `).all(...cutoffArgs) as ThroughputByWeek[];
+    `).all(...cutoffArgs, ...endArgs) as ThroughputByWeek[];
 
     const total = rows.reduce((sum, r) => sum + r.count, 0);
     const avgPerWeek = rows.length > 0 ? total / rows.length : 0;

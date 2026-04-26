@@ -6,6 +6,7 @@ import { sync } from "./sync";
 import { openDb } from "./db/store";
 import { runAllMetrics, runMetric, ALL_METRICS } from "./metrics/index";
 import { BUCKET_LABELS, BUCKET_ORDER, SizeBucket } from "./metrics/utils";
+import { backfillSnapshots } from "./snapshots/compute";
 
 interface AppConfig {
   jira: {
@@ -76,6 +77,26 @@ program
     } else {
       printResults(results);
     }
+  });
+
+program
+  .command("snapshots")
+  .description("Recalcule l'historique des snapshots hebdomadaires (table metric_snapshots)")
+  .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
+  .action((opts) => {
+    const config = loadConfig(path.resolve(opts.config));
+    const db = openDb(config.db.path);
+    const metricConfig = {
+      todoStatuses: config.jira.todoStatuses,
+      devStartStatuses: config.jira.devStartStatuses,
+      inProgressStatuses: config.jira.inProgressStatuses,
+      doneStatuses: config.jira.doneStatuses,
+      cutoffDate: config.metrics?.cutoffDate,
+      excludeOutliers: true,
+      bugIssueTypes: config.metrics?.bugIssueTypes ?? ["Bug"],
+    };
+    const count = backfillSnapshots(db, metricConfig);
+    console.log(`Snapshots recalculés : ${count} dates hebdomadaires.`);
   });
 
 program

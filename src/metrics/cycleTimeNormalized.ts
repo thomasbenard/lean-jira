@@ -15,6 +15,8 @@ export const cycleTimeNormalizedMetric: Metric<CycleTimeNormalizedResult> = {
     const devStartPh = config.devStartStatuses.map(() => "?").join(",");
     const cutoffSql = config.cutoffDate ? "AND i.resolved_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
+    const endSql = config.windowEndDate ? "AND i.resolved_at <= ?" : "";
+    const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
     const bugPh = config.bugIssueTypes.length > 0 ? config.bugIssueTypes.map(() => "?").join(",") : null;
     const bugSql = bugPh ? `AND i.issue_type NOT IN (${bugPh})` : "";
     const bugArgs = bugPh ? config.bugIssueTypes : [];
@@ -28,8 +30,9 @@ export const cycleTimeNormalizedMetric: Metric<CycleTimeNormalizedResult> = {
         AND i.original_estimate_seconds > 0
         ${bugSql}
         ${cutoffSql}
+        ${endSql}
       GROUP BY t.issue_key
-    `).all(...config.devStartStatuses, ...bugArgs, ...cutoffArgs) as Array<{
+    `).all(...config.devStartStatuses, ...bugArgs, ...cutoffArgs, ...endArgs) as Array<{
       started_at: string;
       resolved_at: string;
       original_estimate_seconds: number;

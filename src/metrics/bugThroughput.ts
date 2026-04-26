@@ -23,6 +23,8 @@ export const bugThroughputMetric: Metric<BugThroughputSummary> = {
     const bugPh = config.bugIssueTypes.map(() => "?").join(",");
     const cutoffSql = config.cutoffDate ? "AND resolved_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
+    const endSql = config.windowEndDate ? "AND resolved_at <= ?" : "";
+    const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
 
     const rows = db.prepare(`
       SELECT
@@ -32,9 +34,10 @@ export const bugThroughputMetric: Metric<BugThroughputSummary> = {
       WHERE resolved_at IS NOT NULL
         AND issue_type IN (${bugPh})
         ${cutoffSql}
+        ${endSql}
       GROUP BY week
       ORDER BY week ASC
-    `).all(...config.bugIssueTypes, ...cutoffArgs) as BugThroughputByWeek[];
+    `).all(...config.bugIssueTypes, ...cutoffArgs, ...endArgs) as BugThroughputByWeek[];
 
     const total = rows.reduce((sum, r) => sum + r.count, 0);
     const avgPerWeek = rows.length > 0 ? total / rows.length : 0;

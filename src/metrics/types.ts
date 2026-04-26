@@ -8,6 +8,9 @@ export interface MetricConfig {
   // Date ISO (YYYY-MM-DD). Issues résolues avant sont ignorées. Utile pour
   // exclure les bulk closes liés aux migrations de workflow.
   cutoffDate?: string;
+  // Date ISO (YYYY-MM-DD). Issues résolues après sont ignorées. Utilisé par
+  // le système de snapshots pour calculer des métriques sur fenêtre passée.
+  windowEndDate?: string;
   // Exclure les outliers extrêmes (Tukey upper fence: Q3 + 1.5*IQR) avant
   // de calculer moyennes et percentiles. Default true.
   excludeOutliers?: boolean;

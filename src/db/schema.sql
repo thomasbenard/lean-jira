@@ -40,3 +40,17 @@ CREATE TABLE IF NOT EXISTS sync_log (
 CREATE INDEX IF NOT EXISTS idx_transitions_issue_key ON transitions(issue_key);
 CREATE INDEX IF NOT EXISTS idx_transitions_to_status ON transitions(to_status);
 CREATE INDEX IF NOT EXISTS idx_transitions_at ON transitions(transitioned_at);
+
+-- Snapshots historiques pour visualisation de tendances. Long format:
+-- une ligne par (date, métrique, bucket, statistique).
+CREATE TABLE IF NOT EXISTS metric_snapshots (
+  snapshot_date  TEXT NOT NULL,
+  metric_name    TEXT NOT NULL,
+  bucket         TEXT NOT NULL DEFAULT '',
+  stat           TEXT NOT NULL,
+  value          REAL NOT NULL,
+  PRIMARY KEY (snapshot_date, metric_name, bucket, stat)
+);
+
+CREATE INDEX IF NOT EXISTS idx_snapshots_date ON metric_snapshots(snapshot_date);
+CREATE INDEX IF NOT EXISTS idx_snapshots_metric ON metric_snapshots(metric_name);

@@ -20,6 +20,8 @@ export const bugCycleTimeMetric: Metric<BugCycleTimeResult> = {
     const bugPh = config.bugIssueTypes.map(() => "?").join(",");
     const cutoffSql = config.cutoffDate ? "AND i.resolved_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
+    const endSql = config.windowEndDate ? "AND i.resolved_at <= ?" : "";
+    const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
 
     const rows = db.prepare(`
       SELECT t.issue_key, MIN(t.transitioned_at) AS started_at, i.resolved_at
@@ -29,8 +31,9 @@ export const bugCycleTimeMetric: Metric<BugCycleTimeResult> = {
         AND i.resolved_at IS NOT NULL
         AND i.issue_type IN (${bugPh})
         ${cutoffSql}
+        ${endSql}
       GROUP BY t.issue_key
-    `).all(...config.devStartStatuses, ...config.bugIssueTypes, ...cutoffArgs) as Array<{
+    `).all(...config.devStartStatuses, ...config.bugIssueTypes, ...cutoffArgs, ...endArgs) as Array<{
       started_at: string;
       resolved_at: string;
     }>;

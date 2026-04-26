@@ -14,14 +14,16 @@ export const cycleTimeBySizeMetric: Metric<CycleTimeBySizeResult> = {
     const devStartPh = config.devStartStatuses.map(() => "?").join(",");
     const cutoffSql = config.cutoffDate ? "AND i.resolved_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
+    const endSql = config.windowEndDate ? "AND i.resolved_at <= ?" : "";
+    const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
 
     const rows = db.prepare(`
       SELECT t.issue_key, MIN(t.transitioned_at) AS started_at, i.resolved_at, i.original_estimate_seconds, i.issue_type
       FROM transitions t
       JOIN issues i ON i.key = t.issue_key
-      WHERE t.to_status IN (${devStartPh}) AND i.resolved_at IS NOT NULL ${cutoffSql}
+      WHERE t.to_status IN (${devStartPh}) AND i.resolved_at IS NOT NULL ${cutoffSql} ${endSql}
       GROUP BY t.issue_key
-    `).all(...config.devStartStatuses, ...cutoffArgs) as Array<{
+    `).all(...config.devStartStatuses, ...cutoffArgs, ...endArgs) as Array<{
       issue_key: string;
       started_at: string;
       resolved_at: string;
