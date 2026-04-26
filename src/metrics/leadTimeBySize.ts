@@ -39,9 +39,10 @@ export const leadTimeBySizeMetric: Metric<LeadTimeBySizeResult> = {
     }
 
     const buckets: Partial<Record<SizeBucket, DurationStats>> = {};
+    const excludeOutliers = config.excludeOutliers !== false;
     for (const b of BUCKET_ORDER) {
       const days = daysByBucket.get(b);
-      if (days && days.length > 0) buckets[b] = statsFromDays(days);
+      if (days && days.length > 0) buckets[b] = statsFromDays(days, excludeOutliers);
     }
 
     return { buckets };

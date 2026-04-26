@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { Metric, MetricConfig } from "./types";
-import { percentile } from "./utils";
+import { DurationStats, statsFromDays } from "./utils";
 
 export interface CycleTimeResult {
   issueKey: string;
@@ -9,12 +9,8 @@ export interface CycleTimeResult {
   cycleTimeDays: number;
 }
 
-export interface CycleTimeSummary {
+export interface CycleTimeSummary extends DurationStats {
   issues: CycleTimeResult[];
-  avgDays: number;
-  medianDays: number;
-  p85Days: number;
-  p95Days: number;
 }
 
 export const cycleTimeMetric: Metric<CycleTimeSummary> = {
@@ -47,23 +43,11 @@ export const cycleTimeMetric: Metric<CycleTimeSummary> = {
       });
     }
 
-    const values = issues.map((i) => i.cycleTimeDays).sort((a, b) => a - b);
-
-    return {
-      issues,
-      avgDays: avg(values),
-      medianDays: percentile(values, 50),
-      p85Days: percentile(values, 85),
-      p95Days: percentile(values, 95),
-    };
+    const stats = statsFromDays(issues.map((i) => i.cycleTimeDays), config.excludeOutliers !== false);
+    return { ...stats, issues };
   },
 };
 
 function diffDays(from: string, to: string): number {
   return (new Date(to).getTime() - new Date(from).getTime()) / 86_400_000;
-}
-
-function avg(values: number[]): number {
-  if (values.length === 0) return 0;
-  return values.reduce((a, b) => a + b, 0) / values.length;
 }

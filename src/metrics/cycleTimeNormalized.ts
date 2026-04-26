@@ -39,6 +39,6 @@ export const cycleTimeNormalizedMetric: Metric<CycleTimeNormalizedResult> = {
       ratios.push(cycleDays / estimateDays);
     }
 
-    return { ...statsFromDays(ratios), unit: "ratio (cycle réel / estimé)" };
+    return { ...statsFromDays(ratios, config.excludeOutliers !== false), unit: "ratio (cycle réel / estimé)" };
   },
 };

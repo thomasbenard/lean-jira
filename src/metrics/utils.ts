@@ -38,16 +38,32 @@ export function avg(values: number[]): number {
 
 export interface DurationStats {
   count: number;
+  excludedOutliers: number;
   avgDays: number;
   medianDays: number;
   p85Days: number;
   p95Days: number;
 }
 
-export function statsFromDays(days: number[]): DurationStats {
-  const sorted = [...days].sort((a, b) => a - b);
+// Tukey upper fence: Q3 + 1.5 * IQR, queue droite seulement (cycle-time >= 0).
+// Conserve la médiane et P85 stables, retire les valeurs extrêmes qui tirent la moyenne.
+export function removeUpperOutliers(values: number[]): { kept: number[]; excluded: number } {
+  if (values.length < 4) return { kept: values, excluded: 0 };
+  const sorted = [...values].sort((a, b) => a - b);
+  const q1 = percentile(sorted, 25);
+  const q3 = percentile(sorted, 75);
+  const iqr = q3 - q1;
+  const upper = q3 + 1.5 * iqr;
+  const kept = sorted.filter((v) => v <= upper);
+  return { kept, excluded: sorted.length - kept.length };
+}
+
+export function statsFromDays(days: number[], excludeOutliers = true): DurationStats {
+  const { kept, excluded } = excludeOutliers ? removeUpperOutliers(days) : { kept: [...days], excluded: 0 };
+  const sorted = kept.sort((a, b) => a - b);
   return {
     count: sorted.length,
+    excludedOutliers: excluded,
     avgDays: avg(sorted),
     medianDays: percentile(sorted, 50),
     p85Days: percentile(sorted, 85),

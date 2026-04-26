@@ -51,6 +51,7 @@ program
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
   .option("-m, --metric <name>", "Métrique spécifique (optionnel)")
   .option("--json", "Sortie JSON brute")
+  .option("--include-outliers", "Inclure les outliers extrêmes (Tukey upper fence) dans les calculs")
   .action((opts) => {
     const config = loadConfig(path.resolve(opts.config));
     const db = openDb(config.db.path);
@@ -59,6 +60,7 @@ program
       inProgressStatuses: config.jira.inProgressStatuses,
       doneStatuses: config.jira.doneStatuses,
       cutoffDate: config.metrics?.cutoffDate,
+      excludeOutliers: !opts.includeOutliers,
     };
 
     const results = opts.metric
@@ -92,15 +94,16 @@ function printResults(results: Record<string, unknown>): void {
     const d = data as Record<string, unknown>;
 
     if ("buckets" in d) {
-      printBuckets(d.buckets as Record<string, { count: number; avgDays: number; medianDays: number; p85Days: number; p95Days: number }>);
+      printBuckets(d.buckets as Record<string, { count: number; excludedOutliers: number; avgDays: number; medianDays: number; p85Days: number; p95Days: number }>);
     } else if ("avgDays" in d) {
       const unit = (d.unit as string | undefined) ?? "j";
-      const issuesCount = "issues" in d ? (d.issues as unknown[]).length : (d.count as number | undefined);
+      const totalIssues = "issues" in d ? (d.issues as unknown[]).length : ((d.count as number) + ((d.excludedOutliers as number) ?? 0));
+      const excluded = (d.excludedOutliers as number | undefined) ?? 0;
       console.log(`  Moyenne   : ${(d.avgDays as number).toFixed(2)} ${unit}`);
       console.log(`  Médiane   : ${(d.medianDays as number).toFixed(2)} ${unit}`);
       console.log(`  P85       : ${(d.p85Days as number).toFixed(2)} ${unit}`);
       console.log(`  P95       : ${(d.p95Days as number).toFixed(2)} ${unit}`);
-      if (issuesCount != null) console.log(`  Issues    : ${issuesCount}`);
+      console.log(`  Issues    : ${totalIssues}${excluded > 0 ? ` (${excluded} outliers exclus)` : ""}`);
     } else if ("byWeek" in d) {
       const byWeek = d.byWeek as Array<Record<string, unknown>>;
       const isWeighted = byWeek.length > 0 && "estimatedDays" in byWeek[0];
@@ -121,8 +124,8 @@ function printResults(results: Record<string, unknown>): void {
   }
 }
 
-function printBuckets(buckets: Record<string, { count: number; avgDays: number; medianDays: number; p85Days: number; p95Days: number }>): void {
-  const header = "  Bucket             Count    Médiane    P85      P95      Moyenne";
+function printBuckets(buckets: Record<string, { count: number; excludedOutliers: number; avgDays: number; medianDays: number; p85Days: number; p95Days: number }>): void {
+  const header = "  Bucket             Count    Médiane    P85      P95      Moyenne   Exclus";
   console.log(header);
   for (const b of BUCKET_ORDER) {
     const s = buckets[b];
@@ -134,6 +137,7 @@ function printBuckets(buckets: Record<string, { count: number; avgDays: number; 
       `${s.p85Days.toFixed(1).padStart(6)}j`,
       `${s.p95Days.toFixed(1).padStart(6)}j`,
       `${s.avgDays.toFixed(1).padStart(7)}j`,
+      `${String(s.excludedOutliers).padStart(5)}`,
     ].join("  ");
     console.log(line);
   }

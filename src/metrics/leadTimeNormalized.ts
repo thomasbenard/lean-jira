@@ -39,6 +39,6 @@ export const leadTimeNormalizedMetric: Metric<LeadTimeNormalizedResult> = {
       ratios.push(leadDays / estimateDays);
     }
 
-    return { ...statsFromDays(ratios), unit: "ratio (lead réel / estimé)" };
+    return { ...statsFromDays(ratios, config.excludeOutliers !== false), unit: "ratio (lead réel / estimé)" };
   },
 };
