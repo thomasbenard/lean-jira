@@ -4,7 +4,7 @@ import { percentile } from "./utils";
 
 export interface LeadTimeResult {
   issueKey: string;
-  createdAt: string;
+  todoAt: string;
   resolvedAt: string;
   leadTimeDays: number;
 }
@@ -19,28 +19,40 @@ export interface LeadTimeSummary {
 
 export const leadTimeMetric: Metric<LeadTimeSummary> = {
   name: "lead-time",
-  description: "Temps entre création et résolution d'une issue",
+  description: "Temps entre entrée en colonne TODO et résolution",
 
   compute(db: Database.Database, config: MetricConfig): LeadTimeSummary {
-    const placeholders = config.doneStatuses.map(() => "?").join(",");
-    const rows = db.prepare(`
-      SELECT
-        i.key,
-        i.created_at,
-        t.transitioned_at AS resolved_at
-      FROM issues i
-      JOIN transitions t ON t.issue_key = i.key
-      WHERE t.to_status IN (${placeholders})
-      GROUP BY i.key
-      HAVING t.transitioned_at = MAX(t.transitioned_at)
-    `).all(...config.doneStatuses) as Array<{ key: string; created_at: string; resolved_at: string }>;
+    const todoPh = config.todoStatuses.map(() => "?").join(",");
+    const donePh = config.doneStatuses.map(() => "?").join(",");
 
-    const issues: LeadTimeResult[] = rows.map((r) => ({
-      issueKey: r.key,
-      createdAt: r.created_at,
-      resolvedAt: r.resolved_at,
-      leadTimeDays: diffDays(r.created_at, r.resolved_at),
-    }));
+    const todoRows = db.prepare(`
+      SELECT issue_key, MIN(transitioned_at) AS todo_at
+      FROM transitions
+      WHERE to_status IN (${todoPh})
+      GROUP BY issue_key
+    `).all(...config.todoStatuses) as Array<{ issue_key: string; todo_at: string }>;
+
+    const doneRows = db.prepare(`
+      SELECT issue_key, MAX(transitioned_at) AS resolved_at
+      FROM transitions
+      WHERE to_status IN (${donePh})
+      GROUP BY issue_key
+    `).all(...config.doneStatuses) as Array<{ issue_key: string; resolved_at: string }>;
+
+    const doneMap = new Map(doneRows.map((r) => [r.issue_key, r.resolved_at]));
+
+    const issues: LeadTimeResult[] = [];
+    for (const t of todoRows) {
+      const resolvedAt = doneMap.get(t.issue_key);
+      if (!resolvedAt) continue;
+      if (new Date(resolvedAt).getTime() < new Date(t.todo_at).getTime()) continue;
+      issues.push({
+        issueKey: t.issue_key,
+        todoAt: t.todo_at,
+        resolvedAt,
+        leadTimeDays: diffDays(t.todo_at, resolvedAt),
+      });
+    }
 
     const values = issues.map((i) => i.leadTimeDays).sort((a, b) => a - b);
 

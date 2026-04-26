@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 
 export interface MetricConfig {
+  todoStatuses: string[];
   inProgressStatuses: string[];
   doneStatuses: string[];
 }

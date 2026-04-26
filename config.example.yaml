@@ -3,6 +3,11 @@ jira:
   email: "your.email@company.com"
   apiToken: "YOUR_API_TOKEN"
   projectKey: "YOUR_PROJECT_KEY"
+  boardId: 1
+  # Colonne TODO du kanban (point de départ du lead time)
+  todoStatuses:
+    - "To Do"
+    - "Ready"
   # Colonnes du kanban qui définissent "en cours" (pour cycle time)
   inProgressStatuses:
     - "In Progress"
