@@ -1,0 +1,27 @@
+{
+  "name": "lean-jira",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "sync": "ts-node src/main.ts sync",
+    "metrics": "ts-node src/main.ts metrics",
+    "build": "tsc",
+    "start": "node dist/main.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "axios": "^1.15.2",
+    "better-sqlite3": "^12.9.0",
+    "commander": "^14.0.3",
+    "yaml": "^2.8.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.6.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  }
+}

@@ -1,0 +1,15 @@
+jira:
+  baseUrl: "https://jira.your-company.com"
+  email: "your.email@company.com"
+  apiToken: "YOUR_API_TOKEN"
+  projectKey: "YOUR_PROJECT_KEY"
+  # Colonnes du kanban qui définissent "en cours" (pour cycle time)
+  inProgressStatuses:
+    - "In Progress"
+    - "In Review"
+  # Statut(s) final(s) = done
+  doneStatuses:
+    - "Done"
+
+db:
+  path: "./lean-jira.db"
