@@ -19,7 +19,7 @@ export interface LeadTimeSummary {
 
 export const leadTimeMetric: Metric<LeadTimeSummary> = {
   name: "lead-time",
-  description: "Temps entre entrée en colonne TODO et résolution",
+  description: "Délai entre engagement (entrée en TODO) et livraison. Indicateur de prévisibilité côté demandeur.",
 
   compute(db: Database.Database, config: MetricConfig): LeadTimeSummary {
     const todoPh = config.todoStatuses.map(() => "?").join(",");

@@ -19,7 +19,7 @@ export interface CycleTimeSummary {
 
 export const cycleTimeMetric: Metric<CycleTimeSummary> = {
   name: "cycle-time",
-  description: "Temps entre premier 'In Progress' et résolution",
+  description: "Durée de travail actif (première mise en cours -> livraison). Mesure l'efficacité de l'équipe.",
 
   compute(db: Database.Database, config: MetricConfig): CycleTimeSummary {
     const inProgressPh = config.inProgressStatuses.map(() => "?").join(",");

@@ -13,7 +13,7 @@ export interface ThroughputSummary {
 
 export const throughputMetric: Metric<ThroughputSummary> = {
   name: "throughput",
-  description: "Nombre d'issues terminées par semaine",
+  description: "Nombre d'issues livrées par semaine. Mesure la capacité de l'équipe (débit).",
 
   compute(db: Database.Database, config: MetricConfig): ThroughputSummary {
     const cutoffSql = config.cutoffDate ? "AND resolved_at >= ?" : "";

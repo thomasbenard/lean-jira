@@ -85,7 +85,9 @@ program.parse(process.argv);
 
 function printResults(results: Record<string, unknown>): void {
   for (const [name, data] of Object.entries(results)) {
+    const description = ALL_METRICS.find((m) => m.name === name)?.description;
     console.log(`\n=== ${name.toUpperCase()} ===`);
+    if (description) console.log(`  ${description}`);
     const d = data as Record<string, unknown>;
 
     if ("avgDays" in d) {

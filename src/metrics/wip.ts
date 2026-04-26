@@ -9,7 +9,7 @@ export interface WipResult {
 
 export const wipMetric: Metric<WipResult> = {
   name: "wip",
-  description: "Issues du sprint actif au statut 'in progress'",
+  description: "Travail en cours simultané (sprint actif). Limiter pour réduire le cycle-time (loi de Little).",
 
   compute(db: Database.Database, config: MetricConfig): WipResult {
     const sprint = db.prepare(`
