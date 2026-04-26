@@ -20,12 +20,15 @@ function migrate(db: Database.Database): void {
   if (!cols.some((c) => c.name === "current_sprint_id")) {
     db.exec("ALTER TABLE issues ADD COLUMN current_sprint_id INTEGER");
   }
+  if (!cols.some((c) => c.name === "original_estimate_seconds")) {
+    db.exec("ALTER TABLE issues ADD COLUMN original_estimate_seconds INTEGER");
+  }
 }
 
 export function upsertIssues(db: Database.Database, issues: StoredIssue[]): void {
   const stmt = db.prepare(`
-    INSERT INTO issues (key, summary, issue_type, created_at, resolved_at, current_status, assignee, priority, current_sprint_id)
-    VALUES (@key, @summary, @issueType, @createdAt, @resolvedAt, @currentStatus, @assignee, @priority, @currentSprintId)
+    INSERT INTO issues (key, summary, issue_type, created_at, resolved_at, current_status, assignee, priority, current_sprint_id, original_estimate_seconds)
+    VALUES (@key, @summary, @issueType, @createdAt, @resolvedAt, @currentStatus, @assignee, @priority, @currentSprintId, @originalEstimateSeconds)
     ON CONFLICT(key) DO UPDATE SET
       summary        = excluded.summary,
       issue_type     = excluded.issue_type,
@@ -33,7 +36,8 @@ export function upsertIssues(db: Database.Database, issues: StoredIssue[]): void
       current_status = excluded.current_status,
       assignee       = excluded.assignee,
       priority       = excluded.priority,
-      current_sprint_id = excluded.current_sprint_id
+      current_sprint_id = excluded.current_sprint_id,
+      original_estimate_seconds = excluded.original_estimate_seconds
   `);
 
   const insertMany = db.transaction((rows: StoredIssue[]) => {

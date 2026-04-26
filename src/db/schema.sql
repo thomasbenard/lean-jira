@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS issues (
   current_status TEXT NOT NULL,
   assignee     TEXT,
   priority     TEXT,
-  current_sprint_id INTEGER
+  current_sprint_id INTEGER,
+  original_estimate_seconds INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS sprints (

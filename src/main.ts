@@ -5,6 +5,7 @@ import path from "path";
 import { sync } from "./sync";
 import { openDb } from "./db/store";
 import { runAllMetrics, runMetric, ALL_METRICS } from "./metrics/index";
+import { BUCKET_LABELS, BUCKET_ORDER, SizeBucket } from "./metrics/utils";
 
 interface AppConfig {
   jira: {
@@ -90,20 +91,50 @@ function printResults(results: Record<string, unknown>): void {
     if (description) console.log(`  ${description}`);
     const d = data as Record<string, unknown>;
 
-    if ("avgDays" in d) {
-      console.log(`  Moyenne   : ${(d.avgDays as number).toFixed(1)} j`);
-      console.log(`  Médiane   : ${(d.medianDays as number).toFixed(1)} j`);
-      console.log(`  P85       : ${(d.p85Days as number).toFixed(1)} j`);
-      console.log(`  P95       : ${(d.p95Days as number).toFixed(1)} j`);
-      console.log(`  Issues    : ${(d.issues as unknown[]).length}`);
+    if ("buckets" in d) {
+      printBuckets(d.buckets as Record<string, { count: number; avgDays: number; medianDays: number; p85Days: number; p95Days: number }>);
+    } else if ("avgDays" in d) {
+      const unit = (d.unit as string | undefined) ?? "j";
+      const issuesCount = "issues" in d ? (d.issues as unknown[]).length : (d.count as number | undefined);
+      console.log(`  Moyenne   : ${(d.avgDays as number).toFixed(2)} ${unit}`);
+      console.log(`  Médiane   : ${(d.medianDays as number).toFixed(2)} ${unit}`);
+      console.log(`  P85       : ${(d.p85Days as number).toFixed(2)} ${unit}`);
+      console.log(`  P95       : ${(d.p95Days as number).toFixed(2)} ${unit}`);
+      if (issuesCount != null) console.log(`  Issues    : ${issuesCount}`);
     } else if ("byWeek" in d) {
-      const byWeek = d.byWeek as Array<{ week: string; count: number }>;
-      console.log(`  Moy/semaine : ${(d.avgPerWeek as number).toFixed(1)}`);
-      byWeek.slice(-8).forEach((w) => console.log(`  ${w.week} : ${w.count}`));
+      const byWeek = d.byWeek as Array<Record<string, unknown>>;
+      const isWeighted = byWeek.length > 0 && "estimatedDays" in byWeek[0];
+      const unit = isWeighted ? "j-h" : "issues";
+      console.log(`  Moy/semaine : ${(d.avgPerWeek as number).toFixed(1)} ${unit}`);
+      byWeek.slice(-8).forEach((w) => {
+        if (isWeighted) {
+          console.log(`  ${w.week} : ${(w.estimatedDays as number).toFixed(1)} j-h (${w.estimatedCount} estimées, ${w.unestimatedCount} non estimées)`);
+        } else {
+          console.log(`  ${w.week} : ${w.count}`);
+        }
+      });
     } else if ("currentWip" in d) {
       console.log(`  Sprint     : ${d.sprintName ?? "(aucun sprint actif)"}`);
       console.log(`  WIP actuel : ${d.currentWip}`);
       console.log(`  Issues     : ${(d.issueKeys as string[]).join(", ")}`);
     }
+  }
+}
+
+function printBuckets(buckets: Record<string, { count: number; avgDays: number; medianDays: number; p85Days: number; p95Days: number }>): void {
+  const header = "  Bucket             Count    Médiane    P85      P95      Moyenne";
+  console.log(header);
+  for (const b of BUCKET_ORDER) {
+    const s = buckets[b];
+    if (!s) continue;
+    const line = [
+      `  ${BUCKET_LABELS[b as SizeBucket].padEnd(19)}`,
+      `${String(s.count).padStart(5)}`,
+      `${s.medianDays.toFixed(1).padStart(7)}j`,
+      `${s.p85Days.toFixed(1).padStart(6)}j`,
+      `${s.p95Days.toFixed(1).padStart(6)}j`,
+      `${s.avgDays.toFixed(1).padStart(7)}j`,
+    ].join("  ");
+    console.log(line);
   }
 }

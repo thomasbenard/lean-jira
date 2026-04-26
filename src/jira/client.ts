@@ -34,7 +34,7 @@ export class JiraClient {
           startAt,
           maxResults: pageSize,
           expand: "changelog",
-          fields: "summary,issuetype,status,created,resolutiondate,assignee,priority,customfield_10020",
+          fields: "summary,issuetype,status,created,resolutiondate,assignee,priority,customfield_10020,timeoriginalestimate",
         },
       });
 

@@ -1,5 +1,9 @@
 config.yaml
 .mcp.json
 *.db
+*.db-shm
+*.db-wal
 node_modules/
 dist/
+.claude/
+.idea/

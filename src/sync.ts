@@ -69,6 +69,7 @@ function mapIssue(issue: JiraIssue, activeSprintIds: Set<number>): StoredIssue {
     assignee: issue.fields.assignee?.displayName ?? null,
     priority: issue.fields.priority?.name ?? null,
     currentSprintId: activeSprint?.id ?? null,
+    originalEstimateSeconds: issue.fields.timeoriginalestimate ?? null,
   };
 }
 

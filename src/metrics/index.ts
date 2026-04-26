@@ -1,12 +1,27 @@
 import Database from "better-sqlite3";
 import { MetricConfig } from "./types";
 import { leadTimeMetric } from "./leadTime";
+import { leadTimeBySizeMetric } from "./leadTimeBySize";
+import { leadTimeNormalizedMetric } from "./leadTimeNormalized";
 import { cycleTimeMetric } from "./cycleTime";
+import { cycleTimeBySizeMetric } from "./cycleTimeBySize";
+import { cycleTimeNormalizedMetric } from "./cycleTimeNormalized";
 import { throughputMetric } from "./throughput";
+import { throughputWeightedMetric } from "./throughputWeighted";
 import { wipMetric } from "./wip";
 
 // Registre central. Ajouter une métrique = importer + pousser ici.
-const ALL_METRICS = [leadTimeMetric, cycleTimeMetric, throughputMetric, wipMetric];
+const ALL_METRICS = [
+  leadTimeMetric,
+  leadTimeBySizeMetric,
+  leadTimeNormalizedMetric,
+  cycleTimeMetric,
+  cycleTimeBySizeMetric,
+  cycleTimeNormalizedMetric,
+  throughputMetric,
+  throughputWeightedMetric,
+  wipMetric,
+];
 
 export function runAllMetrics(db: Database.Database, config: MetricConfig): Record<string, unknown> {
   const results: Record<string, unknown> = {};
