@@ -9,14 +9,14 @@ export interface BugCycleTimeResult extends DurationStats {
 export const bugCycleTimeMetric: Metric<BugCycleTimeResult> = {
   name: "bug-cycle-time",
   description:
-    "Cycle-time des bugs uniquement (non estimés par nature). Mesure la réactivité aux incidents.",
+    "Cycle-time des bugs (1er 'Développement en cours' -> livraison). Mesure la réactivité aux incidents.",
 
   compute(db: Database.Database, config: MetricConfig): BugCycleTimeResult {
     if (config.bugIssueTypes.length === 0) {
       return { ...statsFromDays([]), unit: "j" };
     }
 
-    const inProgressPh = config.inProgressStatuses.map(() => "?").join(",");
+    const devStartPh = config.devStartStatuses.map(() => "?").join(",");
     const bugPh = config.bugIssueTypes.map(() => "?").join(",");
     const cutoffSql = config.cutoffDate ? "AND i.resolved_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
@@ -25,12 +25,12 @@ export const bugCycleTimeMetric: Metric<BugCycleTimeResult> = {
       SELECT t.issue_key, MIN(t.transitioned_at) AS started_at, i.resolved_at
       FROM transitions t
       JOIN issues i ON i.key = t.issue_key
-      WHERE t.to_status IN (${inProgressPh})
+      WHERE t.to_status IN (${devStartPh})
         AND i.resolved_at IS NOT NULL
         AND i.issue_type IN (${bugPh})
         ${cutoffSql}
       GROUP BY t.issue_key
-    `).all(...config.inProgressStatuses, ...config.bugIssueTypes, ...cutoffArgs) as Array<{
+    `).all(...config.devStartStatuses, ...config.bugIssueTypes, ...cutoffArgs) as Array<{
       started_at: string;
       resolved_at: string;
     }>;
