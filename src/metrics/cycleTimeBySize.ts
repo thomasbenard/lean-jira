@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { Metric, MetricConfig } from "./types";
-import { bucketize, BUCKET_ORDER, DurationStats, SizeBucket, statsFromDays } from "./utils";
+import { bucketize, BUCKET_ORDER, DurationStats, SizeBucket, statsFromDays, workingDaysBetween } from "./utils";
 
 export interface CycleTimeBySizeResult {
   buckets: Partial<Record<SizeBucket, DurationStats>>;
@@ -34,7 +34,7 @@ export const cycleTimeBySizeMetric: Metric<CycleTimeBySizeResult> = {
     const bugTypes = new Set(config.bugIssueTypes);
     const daysByBucket = new Map<SizeBucket, number[]>();
     for (const r of rows) {
-      const days = (new Date(r.resolved_at).getTime() - new Date(r.started_at).getTime()) / 86_400_000;
+      const days = workingDaysBetween(r.started_at, r.resolved_at);
       if (days < 0) continue;
       const bucket = bucketize(r.original_estimate_seconds, bugTypes.has(r.issue_type));
       const list = daysByBucket.get(bucket) ?? [];

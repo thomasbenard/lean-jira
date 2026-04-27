@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { Metric, MetricConfig } from "./types";
-import { DurationStats, SECONDS_PER_DAY, statsFromDays } from "./utils";
+import { DurationStats, SECONDS_PER_DAY, statsFromDays, workingDaysBetween } from "./utils";
 
 export interface CycleTimeNormalizedResult extends DurationStats {
   unit: string;
@@ -40,7 +40,7 @@ export const cycleTimeNormalizedMetric: Metric<CycleTimeNormalizedResult> = {
 
     const ratios: number[] = [];
     for (const r of rows) {
-      const cycleDays = (new Date(r.resolved_at).getTime() - new Date(r.started_at).getTime()) / 86_400_000;
+      const cycleDays = workingDaysBetween(r.started_at, r.resolved_at);
       if (cycleDays < 0) continue;
       const estimateDays = r.original_estimate_seconds / SECONDS_PER_DAY;
       ratios.push(cycleDays / estimateDays);

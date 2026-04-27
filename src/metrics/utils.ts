@@ -1,3 +1,30 @@
+// Jours ouvrés (lun-ven) entre deux timestamps ISO. Fraction de journée incluse
+// si elle tombe un jour ouvré. Fenêtres de snapshot restent en calendaire.
+export function workingDaysBetween(from: string, to: string): number {
+  const startMs = new Date(from).getTime();
+  const endMs = new Date(to).getTime();
+  if (endMs <= startMs) return 0;
+
+  const calDays = (endMs - startMs) / 86_400_000;
+  const wholeDays = Math.floor(calDays);
+  const frac = calDays - wholeDays;
+
+  const startDow = new Date(from).getDay(); // 0=dim, 6=sam
+  const fullWeeks = Math.floor(wholeDays / 7);
+  const rem = wholeDays % 7;
+
+  let extraWorking = 0;
+  for (let i = 0; i < rem; i++) {
+    const d = (startDow + i) % 7;
+    if (d !== 0 && d !== 6) extraWorking++;
+  }
+
+  const partialDow = (startDow + wholeDays) % 7;
+  const fracWorking = (partialDow !== 0 && partialDow !== 6) ? frac : 0;
+
+  return fullWeeks * 5 + extraWorking + fracWorking;
+}
+
 // Tableau doit être trié en ordre croissant
 export function percentile(sortedValues: number[], p: number): number {
   if (sortedValues.length === 0) return 0;

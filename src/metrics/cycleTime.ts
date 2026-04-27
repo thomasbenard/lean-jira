@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { Metric, MetricConfig } from "./types";
-import { DurationStats, statsFromDays } from "./utils";
+import { DurationStats, statsFromDays, workingDaysBetween } from "./utils";
 
 export interface CycleTimeResult {
   issueKey: string;
@@ -36,12 +36,12 @@ export const cycleTimeMetric: Metric<CycleTimeSummary> = {
 
     const issues: CycleTimeResult[] = [];
     for (const r of rows) {
-      if (new Date(r.resolved_at).getTime() < new Date(r.started_at).getTime()) continue;
+      if (new Date(r.resolved_at) < new Date(r.started_at)) continue;
       issues.push({
         issueKey: r.issue_key,
         startedAt: r.started_at,
         resolvedAt: r.resolved_at,
-        cycleTimeDays: diffDays(r.started_at, r.resolved_at),
+        cycleTimeDays: workingDaysBetween(r.started_at, r.resolved_at),
       });
     }
 
@@ -50,6 +50,3 @@ export const cycleTimeMetric: Metric<CycleTimeSummary> = {
   },
 };
 
-function diffDays(from: string, to: string): number {
-  return (new Date(to).getTime() - new Date(from).getTime()) / 86_400_000;
-}

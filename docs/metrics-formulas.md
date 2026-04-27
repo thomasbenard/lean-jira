@@ -2,15 +2,29 @@
 
 ## Primitives communes
 
-### Durée calendaire
+### Durée en jours ouvrés
 
-Toutes les durées sont en **jours calendaires** (pas en jours ouvrés) :
+Toutes les durées sont en **jours ouvrés** (lundi–vendredi). Les weekends sont exclus.
 
 ```
-durée (jours) = (timestamp_fin − timestamp_début) / 86 400 000 ms
+calDays   = (endMs − startMs) / 86 400 000
+wholeDays = floor(calDays)
+frac      = calDays − wholeDays
+
+fullWeeks       = floor(wholeDays / 7)
+rem             = wholeDays % 7
+extraWorking    = count of weekdays in [startDow, startDow+rem)
+partialDow      = (startDow + wholeDays) % 7
+fracWorking     = frac  si partialDow ∉ {0=dim, 6=sam}, sinon 0
+
+workingDays = fullWeeks × 5 + extraWorking + fracWorking
 ```
+
+Implémenté dans `workingDaysBetween(from, to)` (`src/metrics/utils.ts`).
 
 Les issues avec `durée < 0` sont silencieusement ignorées (données corrompues).
+
+> **Fenêtres de snapshots** (`cutoffDate ± 30j/7j`) : restent en jours calendaires — elles bornent la sélection d'issues, pas une durée.
 
 ### Conversion estimation
 

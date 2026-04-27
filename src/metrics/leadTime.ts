@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { Metric, MetricConfig } from "./types";
-import { DurationStats, statsFromDays } from "./utils";
+import { DurationStats, statsFromDays, workingDaysBetween } from "./utils";
 
 export interface LeadTimeResult {
   issueKey: string;
@@ -36,12 +36,12 @@ export const leadTimeMetric: Metric<LeadTimeSummary> = {
 
     const issues: LeadTimeResult[] = [];
     for (const r of rows) {
-      if (new Date(r.resolved_at).getTime() < new Date(r.todo_at).getTime()) continue;
+      if (new Date(r.resolved_at) < new Date(r.todo_at)) continue;
       issues.push({
         issueKey: r.issue_key,
         todoAt: r.todo_at,
         resolvedAt: r.resolved_at,
-        leadTimeDays: diffDays(r.todo_at, r.resolved_at),
+        leadTimeDays: workingDaysBetween(r.todo_at, r.resolved_at),
       });
     }
 
@@ -50,6 +50,3 @@ export const leadTimeMetric: Metric<LeadTimeSummary> = {
   },
 };
 
-function diffDays(from: string, to: string): number {
-  return (new Date(to).getTime() - new Date(from).getTime()) / 86_400_000;
-}
