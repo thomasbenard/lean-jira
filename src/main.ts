@@ -2,12 +2,14 @@ import { Command } from "commander";
 import fs from "fs";
 import yaml from "yaml";
 import path from "path";
+import Database from "better-sqlite3";
 import { sync } from "./sync";
-import { openDb } from "./db/store";
+import { openDb, getDoneStatusNames } from "./db/store";
 import { runAllMetrics, runMetric, ALL_METRICS } from "./metrics/index";
 import { BUCKET_LABELS, BUCKET_ORDER, SizeBucket } from "./metrics/utils";
 import { backfillSnapshots } from "./snapshots/compute";
 import { generateReport } from "./report/generate";
+import { MetricConfig } from "./metrics/types";
 
 interface AppConfig {
   jira: {
@@ -20,6 +22,8 @@ interface AppConfig {
     devStartStatuses: string[];
     inProgressStatuses: string[];
     doneStatuses: string[];
+    activeStatuses?: string[];
+    queueStatuses?: string[];
   };
   metrics?: {
     cutoffDate?: string;
@@ -31,6 +35,52 @@ interface AppConfig {
 function loadConfig(configPath: string): AppConfig {
   const raw = fs.readFileSync(configPath, "utf-8");
   return yaml.parse(raw) as AppConfig;
+}
+
+// Construit le MetricConfig en fusionnant config.yaml + table statuses (statusCategory).
+// Tout statut dont category_key='done' est retiré des listes in-progress / active / queue
+// et ajouté à doneStatuses. Évite les biais quand un statut "done" du board est listé
+// dans inProgressStatuses du config (ex: "À valider" sur le board KECK).
+function buildMetricConfig(db: Database.Database, app: AppConfig, opts: { excludeOutliers?: boolean } = {}): MetricConfig {
+  // Source 1 : statusCategory.key='done' depuis l'API Jira (statuses table).
+  // Source 2 : config.jira.doneStatuses pour les statuts historiques renommés
+  //   qui n'apparaissent plus dans l'API mais existent dans l'historique des
+  //   transitions (ex: "To Be Validated", "Delivred"). Sans ce fallback, ces
+  //   statuts polluent inProgressStatuses.
+  const doneSet = new Set([...getDoneStatusNames(db), ...(app.jira.doneStatuses ?? [])]);
+  const filter = (list: string[] | undefined): string[] =>
+    (list ?? []).filter((s) => !doneSet.has(s));
+
+  const stripped = {
+    inProgress: filter(app.jira.inProgressStatuses),
+    active: filter(app.jira.activeStatuses),
+    queue: filter(app.jira.queueStatuses),
+  };
+
+  const removed = {
+    inProgress: (app.jira.inProgressStatuses ?? []).filter((s) => doneSet.has(s)),
+    active: (app.jira.activeStatuses ?? []).filter((s) => doneSet.has(s)),
+    queue: (app.jira.queueStatuses ?? []).filter((s) => doneSet.has(s)),
+  };
+  const totalRemoved = removed.inProgress.length + removed.active.length + removed.queue.length;
+  if (totalRemoved > 0) {
+    const all = [...new Set([...removed.inProgress, ...removed.active, ...removed.queue])];
+    console.warn(`  ⚠ ${totalRemoved} statut(s) du config classés 'done' par Jira → exclus du WIP/flow : ${all.join(", ")}`);
+  }
+
+  const doneStatuses = [...doneSet];
+
+  return {
+    todoStatuses: app.jira.todoStatuses,
+    devStartStatuses: app.jira.devStartStatuses,
+    inProgressStatuses: stripped.inProgress,
+    doneStatuses,
+    activeStatuses: stripped.active,
+    queueStatuses: stripped.queue,
+    cutoffDate: app.metrics?.cutoffDate,
+    excludeOutliers: opts.excludeOutliers !== false,
+    bugIssueTypes: app.metrics?.bugIssueTypes ?? ["Bug"],
+  };
 }
 
 const program = new Command();
@@ -59,15 +109,7 @@ program
   .action((opts) => {
     const config = loadConfig(path.resolve(opts.config));
     const db = openDb(config.db.path);
-    const metricConfig = {
-      todoStatuses: config.jira.todoStatuses,
-      devStartStatuses: config.jira.devStartStatuses,
-      inProgressStatuses: config.jira.inProgressStatuses,
-      doneStatuses: config.jira.doneStatuses,
-      cutoffDate: config.metrics?.cutoffDate,
-      excludeOutliers: !opts.includeOutliers,
-      bugIssueTypes: config.metrics?.bugIssueTypes ?? ["Bug"],
-    };
+    const metricConfig = buildMetricConfig(db, config, { excludeOutliers: !opts.includeOutliers });
 
     const results = opts.metric
       ? { [opts.metric]: runMetric(opts.metric, db, metricConfig) }
@@ -87,15 +129,7 @@ program
   .action((opts) => {
     const config = loadConfig(path.resolve(opts.config));
     const db = openDb(config.db.path);
-    const metricConfig = {
-      todoStatuses: config.jira.todoStatuses,
-      devStartStatuses: config.jira.devStartStatuses,
-      inProgressStatuses: config.jira.inProgressStatuses,
-      doneStatuses: config.jira.doneStatuses,
-      cutoffDate: config.metrics?.cutoffDate,
-      excludeOutliers: true,
-      bugIssueTypes: config.metrics?.bugIssueTypes ?? ["Bug"],
-    };
+    const metricConfig = buildMetricConfig(db, config);
     const count = backfillSnapshots(db, metricConfig);
     console.log(`Snapshots recalculés : ${count} dates hebdomadaires.`);
   });
@@ -108,7 +142,8 @@ program
   .action((opts) => {
     const config = loadConfig(path.resolve(opts.config));
     const db = openDb(config.db.path);
-    generateReport(db, config.jira.projectKey, path.resolve(opts.output));
+    const metricConfig = buildMetricConfig(db, config);
+    generateReport(db, config.jira.projectKey, path.resolve(opts.output), metricConfig);
     console.log(`Rapport généré : ${path.resolve(opts.output)}`);
   });
 
@@ -154,6 +189,42 @@ function printResults(results: Record<string, unknown>): void {
           console.log(`  ${w.week} : ${w.count}`);
         }
       });
+    } else if ("aggregateFlowEfficiency" in d) {
+      const agg = d.aggregateFlowEfficiency as number;
+      const med = d.medianFlowEfficiency as number;
+      const p15 = d.p15FlowEfficiency as number;
+      const totalA = d.totalActiveDays as number;
+      const totalQ = d.totalQueueDays as number;
+      const cnt = d.count as number;
+      const exc = (d.excludedOutliers as number | undefined) ?? 0;
+      console.log(`  Agrégat (pondéré durée): ${(agg * 100).toFixed(1)} %`);
+      console.log(`  Médiane (par issue)    : ${(med * 100).toFixed(1)} %`);
+      console.log(`  P15 (pire 15%)         : ${(p15 * 100).toFixed(1)} %`);
+      console.log(`  Total actif / queue    : ${totalA.toFixed(1)} j / ${totalQ.toFixed(1)} j`);
+      console.log(`  Issues                 : ${cnt}${exc > 0 ? ` (${exc} outliers exclus)` : ""}`);
+    } else if ("byHorizon" in d && "recentWeeks" in d) {
+      const samples = d.recentWeeks as number[];
+      const horizons = d.byHorizon as Array<{ weeks: number; p15: number; p50: number; p85: number; p95: number }>;
+      console.log(`  Pool : ${samples.length} semaines (${samples.join(", ")})`);
+      console.log(`  Sims : ${d.simulations}`);
+      console.log(`  Horizon  P15 (85% conf)  P50 (médiane)  P85  P95`);
+      for (const h of horizons) {
+        console.log(`  ${String(h.weeks).padStart(2)} sem.   ${h.p15.toFixed(0).padStart(8)}        ${h.p50.toFixed(0).padStart(7)}      ${h.p85.toFixed(0).padStart(4)}  ${h.p95.toFixed(0).padStart(4)}`);
+      }
+    } else if ("riskCounts" in d) {
+      const p = d.percentiles as { p50: number; p85: number; p95: number };
+      const rc = d.riskCounts as { ok: number; watch: number; atRisk: number; critical: number };
+      console.log(`  Date         : ${d.asOf}`);
+      console.log(`  WIP total    : ${d.count}`);
+      console.log(`  Seuils (j)   : P50=${p.p50.toFixed(1)}  P85=${p.p85.toFixed(1)}  P95=${p.p95.toFixed(1)}`);
+      console.log(`  Risque       : OK=${rc.ok}  watch=${rc.watch}  at-risk=${rc.atRisk}  critical=${rc.critical}`);
+      const top = (d.issues as Array<{ issueKey: string; ageDays: number; riskLevel: string; status: string }>).slice(0, 10);
+      if (top.length > 0) {
+        console.log("  Top âge :");
+        for (const i of top) {
+          console.log(`    ${i.issueKey.padEnd(12)} ${i.ageDays.toFixed(1).padStart(6)}j  [${i.riskLevel}]  (${i.status})`);
+        }
+      }
     } else if ("currentWip" in d) {
       console.log(`  Sprint     : ${d.sprintName ?? "(aucun sprint actif)"}`);
       console.log(`  WIP actuel : ${d.currentWip}`);

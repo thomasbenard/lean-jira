@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
-import { StoredIssue, StoredSprint, Transition } from "../jira/types";
+import { StoredIssue, StoredSprint, StoredStatus, Transition } from "../jira/types";
 
 export function openDb(dbPath: string): Database.Database {
   const db = new Database(dbPath);
@@ -77,6 +77,27 @@ export function replaceTransitions(db: Database.Database, issueKey: string, tran
   });
 
   replace();
+}
+
+export function upsertStatuses(db: Database.Database, statuses: StoredStatus[]): void {
+  const stmt = db.prepare(`
+    INSERT INTO statuses (name, category_key, category_name)
+    VALUES (@name, @categoryKey, @categoryName)
+    ON CONFLICT(name) DO UPDATE SET
+      category_key  = excluded.category_key,
+      category_name = excluded.category_name
+  `);
+  const insertMany = db.transaction((rows: StoredStatus[]) => {
+    for (const row of rows) stmt.run(row);
+  });
+  insertMany(statuses);
+}
+
+// Renvoie l'ensemble des noms de statuts dont statusCategory.key = 'done'.
+// Source de vérité préférée à doneStatuses du config (immune aux renommages).
+export function getDoneStatusNames(db: Database.Database): Set<string> {
+  const rows = db.prepare(`SELECT name FROM statuses WHERE category_key = 'done'`).all() as Array<{ name: string }>;
+  return new Set(rows.map((r) => r.name));
 }
 
 export function logSync(db: Database.Database, projectKey: string, issuesCount: number): void {

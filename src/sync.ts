@@ -1,6 +1,6 @@
 import { JiraClient } from "./jira/client";
-import { JiraIssue, StoredIssue, StoredSprint, Transition } from "./jira/types";
-import { openDb, upsertIssues, upsertSprints, replaceTransitions, logSync } from "./db/store";
+import { JiraIssue, StoredIssue, StoredSprint, StoredStatus, Transition } from "./jira/types";
+import { openDb, upsertIssues, upsertSprints, upsertStatuses, replaceTransitions, logSync } from "./db/store";
 
 interface SyncConfig {
   jira: {
@@ -18,6 +18,16 @@ export async function sync(config: SyncConfig): Promise<void> {
   const client = new JiraClient(config.jira);
 
   console.log(`Sync projet ${config.jira.projectKey}...`);
+
+  const rawStatuses = await client.fetchAllStatuses();
+  const statuses: StoredStatus[] = rawStatuses.map((s) => ({
+    name: s.name,
+    categoryKey: s.statusCategory.key,
+    categoryName: s.statusCategory.name,
+  }));
+  upsertStatuses(db, statuses);
+  const doneCount = statuses.filter((s) => s.categoryKey === "done").length;
+  console.log(`  ${statuses.length} statuts récupérés (${doneCount} en catégorie 'done')`);
 
   const rawSprints = await client.fetchAllSprints();
   const sprints: StoredSprint[] = rawSprints.map((s) => ({

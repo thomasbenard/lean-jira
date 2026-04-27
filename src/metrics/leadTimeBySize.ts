@@ -1,6 +1,14 @@
 import Database from "better-sqlite3";
 import { Metric, MetricConfig } from "./types";
-import { bucketize, BUCKET_ORDER, DurationStats, SizeBucket, statsFromDays, workingDaysBetween } from "./utils";
+import {
+  buildDeliveredCte,
+  bucketize,
+  BUCKET_ORDER,
+  DurationStats,
+  SizeBucket,
+  statsFromDays,
+  workingDaysBetween,
+} from "./utils";
 
 export interface LeadTimeBySizeResult {
   buckets: Partial<Record<SizeBucket, DurationStats>>;
@@ -8,27 +16,39 @@ export interface LeadTimeBySizeResult {
 
 export const leadTimeBySizeMetric: Metric<LeadTimeBySizeResult> = {
   name: "lead-time-by-size",
-  description: "Lead-time total (backlog -> livraison) par bucket de taille. Inclut toute l'attente. Cf. cycle-time-by-size pour dev seul.",
+  description:
+    "Lead-time total (backlog -> 1er statut team-done) par bucket de taille. Inclut toute l'attente. Cf. cycle-time-by-size pour dev seul.",
 
   compute(db: Database.Database, config: MetricConfig): LeadTimeBySizeResult {
     const todoPh = config.todoStatuses.map(() => "?").join(",");
     const devStartPh = config.devStartStatuses.map(() => "?").join(",");
-    const cutoffSql = config.cutoffDate ? "AND i.resolved_at >= ?" : "";
+    const delivered = buildDeliveredCte(config.doneStatuses);
+    const cutoffSql = config.cutoffDate ? "AND d.done_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
-    const endSql = config.windowEndDate ? "AND i.resolved_at <= ?" : "";
+    const endSql = config.windowEndDate ? "AND d.done_at <= ?" : "";
     const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
 
     const rows = db.prepare(`
-      SELECT t.issue_key, MIN(t.transitioned_at) AS todo_at, i.resolved_at, i.original_estimate_seconds, i.issue_type
+      WITH ${delivered.cte}
+      SELECT t.issue_key, MIN(t.transitioned_at) AS todo_at, d.done_at,
+             i.original_estimate_seconds, i.issue_type
       FROM transitions t
       JOIN issues i ON i.key = t.issue_key
-      WHERE t.to_status IN (${todoPh}) AND i.resolved_at IS NOT NULL ${cutoffSql} ${endSql}
+      JOIN delivered d ON d.issue_key = t.issue_key
+      WHERE t.to_status IN (${todoPh})
+        ${cutoffSql} ${endSql}
         AND EXISTS (SELECT 1 FROM transitions t2 WHERE t2.issue_key = t.issue_key AND t2.to_status IN (${devStartPh}))
-      GROUP BY t.issue_key
-    `).all(...config.todoStatuses, ...cutoffArgs, ...endArgs, ...config.devStartStatuses) as Array<{
+      GROUP BY t.issue_key, d.done_at
+    `).all(
+      ...delivered.args,
+      ...config.todoStatuses,
+      ...cutoffArgs,
+      ...endArgs,
+      ...config.devStartStatuses,
+    ) as Array<{
       issue_key: string;
       todo_at: string;
-      resolved_at: string;
+      done_at: string;
       original_estimate_seconds: number | null;
       issue_type: string;
     }>;
@@ -36,7 +56,7 @@ export const leadTimeBySizeMetric: Metric<LeadTimeBySizeResult> = {
     const bugTypes = new Set(config.bugIssueTypes);
     const daysByBucket = new Map<SizeBucket, number[]>();
     for (const r of rows) {
-      const days = workingDaysBetween(r.todo_at, r.resolved_at);
+      const days = workingDaysBetween(r.todo_at, r.done_at);
       if (days < 0) continue;
       const bucket = bucketize(r.original_estimate_seconds, bugTypes.has(r.issue_type));
       const list = daysByBucket.get(bucket) ?? [];

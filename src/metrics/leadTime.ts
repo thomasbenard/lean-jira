@@ -1,11 +1,11 @@
 import Database from "better-sqlite3";
 import { Metric, MetricConfig } from "./types";
-import { DurationStats, statsFromDays, workingDaysBetween } from "./utils";
+import { buildDeliveredCte, DurationStats, statsFromDays, workingDaysBetween } from "./utils";
 
 export interface LeadTimeResult {
   issueKey: string;
   todoAt: string;
-  resolvedAt: string;
+  resolvedAt: string; // = done_at (1ère transition team-done)
   leadTimeDays: number;
 }
 
@@ -15,36 +15,45 @@ export interface LeadTimeSummary extends DurationStats {
 
 export const leadTimeMetric: Metric<LeadTimeSummary> = {
   name: "lead-time",
-  description: "Délai total backlog -> livraison (entrée en TODO inclus). Inclut attente, design, dev. Cf. cycle-time pour dev seul.",
+  description:
+    "Délai total backlog -> livraison équipe (entrée en TODO -> 1er statut team-done). Inclut attente backlog, design, dev. Cf. cycle-time pour dev seul.",
 
   compute(db: Database.Database, config: MetricConfig): LeadTimeSummary {
     const todoPh = config.todoStatuses.map(() => "?").join(",");
     const devStartPh = config.devStartStatuses.map(() => "?").join(",");
-    const cutoffSql = config.cutoffDate ? "AND i.resolved_at >= ?" : "";
+    const delivered = buildDeliveredCte(config.doneStatuses);
+    const cutoffSql = config.cutoffDate ? "AND d.done_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
-    const endSql = config.windowEndDate ? "AND i.resolved_at <= ?" : "";
+    const endSql = config.windowEndDate ? "AND d.done_at <= ?" : "";
     const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
 
     // EXISTS garantit la même population que cycle-time (issues avec les deux transitions).
-    // resolved_at vient du champ Jira `resolutiondate`, préservé à travers les migrations
-    // workflow (les transitions vers Done en bulk close ne le modifient pas).
     const rows = db.prepare(`
-      SELECT t.issue_key, MIN(t.transitioned_at) AS todo_at, i.resolved_at
+      WITH ${delivered.cte}
+      SELECT t.issue_key, MIN(t.transitioned_at) AS todo_at, d.done_at
       FROM transitions t
       JOIN issues i ON i.key = t.issue_key
-      WHERE t.to_status IN (${todoPh}) AND i.resolved_at IS NOT NULL ${cutoffSql} ${endSql}
+      JOIN delivered d ON d.issue_key = t.issue_key
+      WHERE t.to_status IN (${todoPh})
+        ${cutoffSql} ${endSql}
         AND EXISTS (SELECT 1 FROM transitions t2 WHERE t2.issue_key = t.issue_key AND t2.to_status IN (${devStartPh}))
-      GROUP BY t.issue_key
-    `).all(...config.todoStatuses, ...cutoffArgs, ...endArgs, ...config.devStartStatuses) as Array<{ issue_key: string; todo_at: string; resolved_at: string }>;
+      GROUP BY t.issue_key, d.done_at
+    `).all(
+      ...delivered.args,
+      ...config.todoStatuses,
+      ...cutoffArgs,
+      ...endArgs,
+      ...config.devStartStatuses,
+    ) as Array<{ issue_key: string; todo_at: string; done_at: string }>;
 
     const issues: LeadTimeResult[] = [];
     for (const r of rows) {
-      if (new Date(r.resolved_at) < new Date(r.todo_at)) continue;
+      if (new Date(r.done_at) < new Date(r.todo_at)) continue;
       issues.push({
         issueKey: r.issue_key,
         todoAt: r.todo_at,
-        resolvedAt: r.resolved_at,
-        leadTimeDays: workingDaysBetween(r.todo_at, r.resolved_at),
+        resolvedAt: r.done_at,
+        leadTimeDays: workingDaysBetween(r.todo_at, r.done_at),
       });
     }
 
@@ -52,4 +61,3 @@ export const leadTimeMetric: Metric<LeadTimeSummary> = {
     return { ...stats, issues };
   },
 };
-

@@ -35,6 +35,28 @@ export function percentile(sortedValues: number[], p: number): number {
 // 1 jour-personne = 8h = 28800 secondes (convention Atlassian par défaut)
 export const SECONDS_PER_DAY = 28800;
 
+// CTE SQL qui calcule done_at par issue = 1ère transition vers un statut "done"
+// (statusCategory.key='done' ∪ config.doneStatuses pour les statuts renommés).
+// Remplace issues.resolved_at (champ resolutiondate Jira) côté métriques de durée :
+// définit la "livraison" du point de vue équipe (ex: passage en "À valider"
+// = team-done sur le board KECK) au lieu du statut "Done" final.
+//
+// Usage :
+//   const d = buildDeliveredCte(config.doneStatuses);
+//   db.prepare(`WITH ${d.cte} SELECT ... JOIN delivered ON ...`).all(...d.args, ...);
+export function buildDeliveredCte(doneStatuses: string[]): { cte: string; args: string[] } {
+  const ph = doneStatuses.map(() => "?").join(",");
+  return {
+    cte: `delivered AS (
+      SELECT issue_key, MIN(transitioned_at) AS done_at
+      FROM transitions
+      WHERE to_status IN (${ph})
+      GROUP BY issue_key
+    )`,
+    args: [...doneStatuses],
+  };
+}
+
 export type SizeBucket = "XS" | "S" | "M" | "L" | "XL" | "BUG" | "UNESTIMATED";
 
 export const BUCKET_ORDER: SizeBucket[] = ["XS", "S", "M", "L", "XL", "BUG", "UNESTIMATED"];

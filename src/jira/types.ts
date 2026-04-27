@@ -17,6 +17,18 @@ export interface JiraIssue {
   };
 }
 
+export interface JiraStatus {
+  id: string;
+  name: string;
+  statusCategory: { key: "new" | "indeterminate" | "done"; name: string };
+}
+
+export interface StoredStatus {
+  name: string;
+  categoryKey: string;
+  categoryName: string;
+}
+
 export interface JiraSprint {
   id: number;
   name: string;

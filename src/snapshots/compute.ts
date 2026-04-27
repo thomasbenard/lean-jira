@@ -8,7 +8,7 @@ const WEEK_DAYS = 7;
 const WEEKLY_METRICS = new Set(["throughput", "throughput-weighted", "bug-throughput"]);
 // Métriques cumulatives : fenêtre depuis cutoffDate global (pas 30j glissants).
 // Permet comparaison directe avec `npm run metrics`.
-const CUMULATIVE_METRICS = new Set(["lead-time-by-size", "cycle-time-by-size"]);
+const CUMULATIVE_METRICS = new Set(["lead-time-by-size", "cycle-time-by-size", "aging-wip"]);
 
 interface SnapshotRow {
   snapshot_date: string;
@@ -71,6 +71,8 @@ function computeSnapshot(db: Database.Database, date: string, baseConfig: Metric
       rows.push({ snapshot_date: date, metric_name: "wip", bucket: "", stat: "count", value: wipValue });
       continue;
     }
+    // forecast = Monte Carlo non déterministe, pas de stat utile à snapshotter.
+    if (metric.name === "forecast") continue;
 
     const isWeekly = WEEKLY_METRICS.has(metric.name);
     const isCumulative = CUMULATIVE_METRICS.has(metric.name);
@@ -105,6 +107,33 @@ function extractStats(date: string, metricName: string, result: Record<string, u
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "count", value: r.count });
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "median", value: r.medianDays });
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "p85", value: r.p85Days });
+  } else if ("riskCounts" in result) {
+    const r = result as unknown as {
+      count: number;
+      percentiles: { p50: number; p85: number; p95: number };
+      riskCounts: { ok: number; watch: number; atRisk: number; critical: number };
+    };
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "count", value: r.count });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "ok", value: r.riskCounts.ok });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "watch", value: r.riskCounts.watch });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "atRisk", value: r.riskCounts.atRisk });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "critical", value: r.riskCounts.critical });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "p50", value: r.percentiles.p50 });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "p85", value: r.percentiles.p85 });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "p95", value: r.percentiles.p95 });
+  } else if ("aggregateFlowEfficiency" in result) {
+    const r = result as unknown as {
+      count: number;
+      aggregateFlowEfficiency: number;
+      medianFlowEfficiency: number;
+      totalActiveDays: number;
+      totalQueueDays: number;
+    };
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "count", value: r.count });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "aggregate", value: r.aggregateFlowEfficiency });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "median", value: r.medianFlowEfficiency });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "activeDays", value: r.totalActiveDays });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "queueDays", value: r.totalQueueDays });
   } else if ("byWeek" in result) {
     const byWeek = result.byWeek as Array<{
       count?: number;

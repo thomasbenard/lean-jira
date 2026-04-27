@@ -30,6 +30,16 @@ CREATE TABLE IF NOT EXISTS transitions (
   FOREIGN KEY (issue_key) REFERENCES issues(key)
 );
 
+-- Mapping statut → catégorie Atlassian standard (new / indeterminate / done).
+-- Plus fiable que les listes manuelles de doneStatuses dans config.yaml :
+-- workflow renommé garde les anciens noms dans les transitions, mais la
+-- catégorie reste cohérente.
+CREATE TABLE IF NOT EXISTS statuses (
+  name          TEXT PRIMARY KEY,
+  category_key  TEXT NOT NULL,
+  category_name TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS sync_log (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   synced_at   TEXT NOT NULL,

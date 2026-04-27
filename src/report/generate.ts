@@ -1,6 +1,10 @@
 import Database from "better-sqlite3";
 import fs from "fs";
 import { BUCKET_LABELS, BUCKET_ORDER, SizeBucket } from "../metrics/utils";
+import { MetricConfig } from "../metrics/types";
+import { agingWipMetric, AgingWipSummary } from "../metrics/agingWip";
+import { forecastMetric, ForecastSummary } from "../metrics/forecast";
+import { cycleTimeMetric } from "../metrics/cycleTime";
 
 interface SnapshotRow {
   snapshot_date: string;
@@ -77,9 +81,34 @@ const HELP_TEXTS: Record<string, { title: string; body: string }> = {
     body:
       "Idem lead-time-by-size mais sur la phase dev. Sert à valider la cohérence: un L doit avoir un cycle médian > qu'un M. Une inversion révèle un problème (sous-estimation, refactoring caché).",
   },
+  flowEfficiency: {
+    title: "Flow efficiency",
+    body:
+      "Ratio temps actif / (actif + queue) sur la phase cycle-time. 'Actif' = Dev/Design/QA in progress. 'Queue' = review, validation, ready-for-X. Typique 5-15% : la majorité du temps est de l'attente, pas du travail. Si la médiane chute, le workflow a un goulot (handoffs, WIP non limité).",
+  },
+  agingWip: {
+    title: "Aging WIP",
+    body:
+      "Pour chaque ticket en cours : âge (jours ouvrés depuis le 1er passage en dev) comparé aux percentiles cycle-time historiques. Risque OK ≤ P50, watch ≤ P85, at-risk ≤ P95, critical > P95. Métrique actionnable : un ticket 'critical' va presque sûrement rater son SLE — agir maintenant.",
+  },
+  cycleHistogram: {
+    title: "Distribution cycle time",
+    body:
+      "Histogramme des cycle times des issues résolues (depuis cutoff). La moyenne ment quand la distribution est asymétrique (queue droite typique). Lire la médiane (P50), P85 (engagement raisonnable) et la longueur de la queue.",
+  },
+  forecast: {
+    title: "Forecast Monte Carlo",
+    body:
+      "Simule 10 000 scénarios de livraison à partir des throughput hebdo des 12 dernières semaines. P15 = engagement à 85% de confiance (« on livrera au moins X »). P50 = livraison médiane attendue. P85/P95 = optimiste. Résultat varie d'un run à l'autre (aléa contrôlé).",
+  },
 };
 
-export function generateReport(db: Database.Database, projectKey: string, outputPath: string): void {
+export function generateReport(
+  db: Database.Database,
+  projectKey: string,
+  outputPath: string,
+  config: MetricConfig,
+): void {
   const snapshots = db.prepare(
     "SELECT snapshot_date, metric_name, bucket, stat, value FROM metric_snapshots ORDER BY snapshot_date ASC"
   ).all() as SnapshotRow[];
@@ -98,6 +127,8 @@ export function generateReport(db: Database.Database, projectKey: string, output
     bugCycleTime: buildSeries(snapshots, "bug-cycle-time", "", ["median", "p85"]),
     leadTimeNormalized: buildSeries(snapshots, "lead-time-normalized", "", ["median", "p85"]),
     cycleTimeNormalized: buildSeries(snapshots, "cycle-time-normalized", "", ["median", "p85"]),
+    flowEfficiency: buildSeries(snapshots, "flow-efficiency", "", ["aggregate", "median"]),
+    agingWipRisk: buildSeries(snapshots, "aging-wip", "", ["ok", "watch", "atRisk", "critical"]),
   };
 
   const lastDate = snapshots[snapshots.length - 1].snapshot_date;
@@ -110,10 +141,15 @@ export function generateReport(db: Database.Database, projectKey: string, output
     wipCount: pickValue(latestRows, "wip", "", "count"),
     bugThroughputCount: pickValue(latestRows, "bug-throughput", "", "count"),
     bugCycleTimeMedian: pickValue(latestRows, "bug-cycle-time", "", "median"),
+    flowEfficiencyAggregate: pickValue(latestRows, "flow-efficiency", "", "aggregate"),
   };
 
   const leadBySize = latestBySize(latestRows, "lead-time-by-size");
   const cycleBySize = latestBySize(latestRows, "cycle-time-by-size");
+  const agingWip = agingWipMetric.compute(db, config);
+  const forecast = forecastMetric.compute(db, config);
+  const cycleTime = cycleTimeMetric.compute(db, config);
+  const histogram = buildHistogram(cycleTime.issues.map((i) => i.cycleTimeDays));
 
   const html = renderHtml({
     projectKey,
@@ -123,6 +159,16 @@ export function generateReport(db: Database.Database, projectKey: string, output
     charts,
     leadBySize,
     cycleBySize,
+    agingWip,
+    forecast,
+    histogram,
+    cycleStats: {
+      median: cycleTime.medianDays,
+      p85: cycleTime.p85Days,
+      p95: cycleTime.p95Days,
+      avg: cycleTime.avgDays,
+      count: cycleTime.count,
+    },
   });
 
   fs.writeFileSync(outputPath, html);
@@ -166,6 +212,12 @@ function latestBySize(rows: SnapshotRow[], metric: string): Record<string, Bucke
   return out;
 }
 
+interface HistogramBin {
+  start: number;
+  end: number;
+  count: number;
+}
+
 interface RenderInput {
   projectKey: string;
   generatedAt: string;
@@ -174,12 +226,37 @@ interface RenderInput {
   charts: Record<string, ChartSeries>;
   leadBySize: Record<string, BucketStats>;
   cycleBySize: Record<string, BucketStats>;
+  agingWip: AgingWipSummary;
+  forecast: ForecastSummary;
+  histogram: HistogramBin[];
+  cycleStats: { median: number; p85: number; p95: number; avg: number; count: number };
+}
+
+function buildHistogram(values: number[]): HistogramBin[] {
+  if (values.length === 0) return [];
+  const sorted = [...values].sort((a, b) => a - b);
+  const max = sorted[sorted.length - 1];
+  // Largeur de bin entière au-dessus de 1, sinon 0.5. Pour distributions courtes
+  // on préfère une granularité fine.
+  const binWidth = max <= 5 ? 0.5 : max <= 20 ? 1 : Math.ceil(max / 20);
+  const binCount = Math.ceil((max + 0.0001) / binWidth);
+  const bins: HistogramBin[] = [];
+  for (let i = 0; i < binCount; i++) {
+    bins.push({ start: i * binWidth, end: (i + 1) * binWidth, count: 0 });
+  }
+  for (const v of sorted) {
+    const idx = Math.min(bins.length - 1, Math.floor(v / binWidth));
+    bins[idx].count++;
+  }
+  return bins;
 }
 
 function renderHtml(input: RenderInput): string {
   const fmt = (v: number | null, unit = "j") =>
     v === null ? "—" : `${v.toFixed(1)}<span class="unit">${unit}</span>`;
   const fmtInt = (v: number | null) => (v === null ? "—" : String(Math.round(v)));
+  const fmtPct = (v: number | null) =>
+    v === null ? "—" : `${(v * 100).toFixed(1)}<span class="unit">%</span>`;
 
   const bySizeRows = (data: Record<string, BucketStats>) =>
     BUCKET_ORDER.map((b) => {
@@ -187,6 +264,37 @@ function renderHtml(input: RenderInput): string {
       if (!s || s.count === 0) return "";
       return `<tr><td>${escapeHtml(BUCKET_LABELS[b as SizeBucket])}</td><td>${s.count}</td><td>${s.median.toFixed(1)}j</td><td>${s.p85.toFixed(1)}j</td></tr>`;
     }).join("");
+
+  const agingTableRows = (data: AgingWipSummary) => {
+    if (data.issues.length === 0) {
+      return `<tr><td colspan="4">Aucun item en cours.</td></tr>`;
+    }
+    const riskClass: Record<string, string> = {
+      ok: "risk-ok",
+      watch: "risk-watch",
+      "at-risk": "risk-at-risk",
+      critical: "risk-critical",
+    };
+    return data.issues
+      .slice(0, 15)
+      .map(
+        (i) =>
+          `<tr><td>${escapeHtml(i.issueKey)}</td><td>${escapeHtml(i.status)}</td><td>${i.ageDays.toFixed(1)}j</td><td class="${riskClass[i.riskLevel]}">${escapeHtml(i.riskLevel)}</td></tr>`,
+      )
+      .join("");
+  };
+
+  const forecastTableRows = (data: ForecastSummary) => {
+    if (data.byHorizon.length === 0) {
+      return `<tr><td colspan="5">Pas de throughput récent.</td></tr>`;
+    }
+    return data.byHorizon
+      .map(
+        (h) =>
+          `<tr><td>${h.weeks} sem.</td><td><strong>${h.p15.toFixed(0)}</strong></td><td>${h.p50.toFixed(0)}</td><td>${h.p85.toFixed(0)}</td><td>${h.p95.toFixed(0)}</td></tr>`,
+      )
+      .join("");
+  };
 
   const helpBtn = (key: string) => {
     const h = HELP_TEXTS[key];
@@ -218,7 +326,12 @@ function renderHtml(input: RenderInput): string {
   table th, table td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #eee; }
   table th { background: #f5f5f5; font-size: 0.85rem; }
   .by-size { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-  @media (max-width: 800px) { .charts, .by-size { grid-template-columns: 1fr; } }
+  .aging-wrap { display: grid; grid-template-columns: 1.4fr 1fr; gap: 1.5rem; }
+  .risk-ok { color: #10b981; font-weight: 600; }
+  .risk-watch { color: #f59e0b; font-weight: 600; }
+  .risk-at-risk { color: #f97316; font-weight: 600; }
+  .risk-critical { color: #ef4444; font-weight: 700; }
+  @media (max-width: 800px) { .charts, .by-size, .aging-wrap { grid-template-columns: 1fr; } }
   .help-wrap { position: relative; display: inline-block; }
   .help-btn {
     background: #e5e7eb; border: none; color: #374151; cursor: pointer;
@@ -255,6 +368,7 @@ function renderHtml(input: RenderInput): string {
   <div class="kpi"><span class="label">WIP${helpBtn("wip")}</span><span class="value">${fmtInt(input.kpis.wipCount)}</span></div>
   <div class="kpi"><span class="label">Bugs livrés (7j)${helpBtn("bugThroughput")}</span><span class="value">${fmtInt(input.kpis.bugThroughputCount)}</span></div>
   <div class="kpi"><span class="label">Bug cycle médian${helpBtn("bugCycleTime")}</span><span class="value">${fmt(input.kpis.bugCycleTimeMedian)}</span></div>
+  <div class="kpi"><span class="label">Flow efficiency${helpBtn("flowEfficiency")}</span><span class="value">${fmtPct(input.kpis.flowEfficiencyAggregate)}</span></div>
 </div>
 
 <h2>Tendances hebdomadaires</h2>
@@ -267,6 +381,31 @@ function renderHtml(input: RenderInput): string {
   <div class="chart-card"><h3>Bugs livrés (issues / 7j)${helpBtn("bugThroughput")}</h3><canvas id="bugThroughputChart"></canvas></div>
   <div class="chart-card"><h3>Bug cycle time (jours)${helpBtn("bugCycleTime")}</h3><canvas id="bugCycleTimeChart"></canvas></div>
   <div class="chart-card"><h3>Cycle normalisé (réel / estimé)${helpBtn("cycleTimeNormalized")}</h3><canvas id="cycleNormalizedChart"></canvas></div>
+  <div class="chart-card"><h3>Flow efficiency (ratio)${helpBtn("flowEfficiency")}</h3><canvas id="flowEfficiencyChart"></canvas></div>
+</div>
+
+<h2>Distribution cycle time${helpBtn("cycleHistogram")}</h2>
+<p class="meta">${input.cycleStats.count} issues · médiane ${input.cycleStats.median.toFixed(1)}j · P85 ${input.cycleStats.p85.toFixed(1)}j · P95 ${input.cycleStats.p95.toFixed(1)}j · moyenne ${input.cycleStats.avg.toFixed(1)}j</p>
+<div class="chart-card"><canvas id="cycleHistogramChart" style="max-height: 320px"></canvas></div>
+
+<h2>Forecast Monte Carlo${helpBtn("forecast")}</h2>
+<p class="meta">Pool : ${input.forecast.weeksUsed} semaines de throughput récent · ${input.forecast.simulations} simulations</p>
+<table>
+  <thead><tr><th>Horizon</th><th>P15<br><small>(85% conf.)</small></th><th>P50<br><small>(médiane)</small></th><th>P85</th><th>P95</th></tr></thead>
+  <tbody>${forecastTableRows(input.forecast)}</tbody>
+</table>
+
+<h2>Aging WIP — au ${escapeHtml(input.agingWip.asOf)}${helpBtn("agingWip")}</h2>
+<p class="meta">Seuils cycle-time historique : P50 ${input.agingWip.percentiles.p50.toFixed(1)}j · P85 ${input.agingWip.percentiles.p85.toFixed(1)}j · P95 ${input.agingWip.percentiles.p95.toFixed(1)}j · ${input.agingWip.count} items en cours</p>
+<div class="aging-wrap">
+  <div class="chart-card"><h3>Distribution âge × statut</h3><canvas id="agingScatter" style="max-height: 360px"></canvas></div>
+  <div>
+    <h3>Top items par âge</h3>
+    <table>
+      <thead><tr><th>Issue</th><th>Statut</th><th>Âge</th><th>Risque</th></tr></thead>
+      <tbody>${agingTableRows(input.agingWip)}</tbody>
+    </table>
+  </div>
 </div>
 
 <h2>Par taille — fenêtre du ${escapeHtml(input.lastSnapshotDate)}</h2>
@@ -338,6 +477,130 @@ lineChart("cycleNormalizedChart", CHARTS.cycleTimeNormalized, [
   { key: "median", label: "Médiane (ratio)", color: COLOR_MEDIAN },
   { key: "p85", label: "P85 (ratio)", color: COLOR_P85 },
 ]);
+lineChart("flowEfficiencyChart", CHARTS.flowEfficiency, [
+  { key: "aggregate", label: "Agrégat (pondéré durée)", color: COLOR_MEDIAN },
+  { key: "median", label: "Médiane (par issue)", color: COLOR_P85 },
+]);
+
+const HISTOGRAM = ${JSON.stringify(input.histogram)};
+const CYCLE_STATS = ${JSON.stringify(input.cycleStats)};
+(function renderHistogram() {
+  const ctx = document.getElementById("cycleHistogramChart");
+  if (!ctx || HISTOGRAM.length === 0) return;
+  const labels = HISTOGRAM.map(b => b.start.toFixed(b.start % 1 ? 1 : 0) + "-" + b.end.toFixed(b.end % 1 ? 1 : 0));
+  const counts = HISTOGRAM.map(b => b.count);
+  new Chart(ctx, {
+    type: "bar",
+    data: { labels, datasets: [{ label: "Issues", data: counts, backgroundColor: "#2563eb88", borderColor: "#2563eb", borderWidth: 1 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { title: { display: true, text: "Cycle time (j ouvrés)" } },
+        y: { beginAtZero: true, title: { display: true, text: "Nombre d'issues" } },
+      },
+    },
+    plugins: [{
+      id: "pctLines",
+      afterDraw(chart) {
+        const { ctx, chartArea, scales } = chart;
+        const lines = [
+          { v: CYCLE_STATS.median, label: "P50", color: "#10b981" },
+          { v: CYCLE_STATS.p85, label: "P85", color: "#f59e0b" },
+          { v: CYCLE_STATS.p95, label: "P95", color: "#ef4444" },
+        ];
+        const binWidth = HISTOGRAM[0].end - HISTOGRAM[0].start;
+        ctx.save();
+        ctx.setLineDash([4, 4]);
+        ctx.font = "11px sans-serif";
+        for (const l of lines) {
+          const idx = l.v / binWidth - 0.5;
+          if (idx < 0 || idx > HISTOGRAM.length) continue;
+          const x = scales.x.getPixelForValue(idx);
+          ctx.strokeStyle = l.color;
+          ctx.beginPath();
+          ctx.moveTo(x, chartArea.top);
+          ctx.lineTo(x, chartArea.bottom);
+          ctx.stroke();
+          ctx.fillStyle = l.color;
+          ctx.fillText(l.label + " " + l.v.toFixed(1) + "j", x + 4, chartArea.top + 12);
+        }
+        ctx.restore();
+      },
+    }],
+  });
+})();
+
+const AGING = ${JSON.stringify({
+  issues: input.agingWip.issues,
+  percentiles: input.agingWip.percentiles,
+})};
+(function renderAging() {
+  const ctx = document.getElementById("agingScatter");
+  if (!ctx || AGING.issues.length === 0) return;
+  const colors = { ok: "#10b981", watch: "#f59e0b", "at-risk": "#f97316", critical: "#ef4444" };
+  const statuses = [...new Set(AGING.issues.map(i => i.status))];
+  const datasets = ["ok", "watch", "at-risk", "critical"].map(risk => ({
+    label: risk,
+    data: AGING.issues.filter(i => i.riskLevel === risk).map(i => ({
+      x: statuses.indexOf(i.status),
+      y: i.ageDays,
+      key: i.issueKey,
+    })),
+    backgroundColor: colors[risk],
+    pointRadius: 5,
+  }));
+  const xMax = Math.max(0, statuses.length - 1);
+  new Chart(ctx, {
+    type: "scatter",
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: "bottom" },
+        tooltip: { callbacks: { label: ctx => ctx.raw.key + " : " + ctx.raw.y.toFixed(1) + "j (" + statuses[ctx.raw.x] + ")" } },
+        annotation: {},
+      },
+      scales: {
+        x: {
+          type: "linear", min: -0.5, max: xMax + 0.5,
+          ticks: { stepSize: 1, callback: v => statuses[v] ?? "" },
+          title: { display: true, text: "Statut" },
+        },
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: "Âge (j ouvrés)" },
+        },
+      },
+    },
+    plugins: [{
+      id: "ageLines",
+      afterDraw(chart) {
+        const { ctx, chartArea, scales } = chart;
+        const lines = [
+          { v: AGING.percentiles.p50, label: "P50", color: "#10b981" },
+          { v: AGING.percentiles.p85, label: "P85", color: "#f59e0b" },
+          { v: AGING.percentiles.p95, label: "P95", color: "#ef4444" },
+        ];
+        ctx.save();
+        ctx.setLineDash([4, 4]);
+        ctx.font = "11px sans-serif";
+        for (const l of lines) {
+          const y = scales.y.getPixelForValue(l.v);
+          if (y < chartArea.top || y > chartArea.bottom) continue;
+          ctx.strokeStyle = l.color;
+          ctx.beginPath();
+          ctx.moveTo(chartArea.left, y);
+          ctx.lineTo(chartArea.right, y);
+          ctx.stroke();
+          ctx.fillStyle = l.color;
+          ctx.fillText(l.label + " " + l.v.toFixed(1) + "j", chartArea.right - 70, y - 4);
+        }
+        ctx.restore();
+      },
+    }],
+  });
+})();
 </script>
 </body>
 </html>`;

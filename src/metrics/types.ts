@@ -5,6 +5,13 @@ export interface MetricConfig {
   devStartStatuses: string[];
   inProgressStatuses: string[];
   doneStatuses: string[];
+  // Sous-ensemble de inProgressStatuses où l'issue est *travaillée*
+  // (Dev/QA/Design en cours). Sert au calcul de flow-efficiency et aging-wip.
+  activeStatuses?: string[];
+  // Sous-ensemble de inProgressStatuses où l'issue *attend* (review, validation,
+  // ready-for-X). Tout statut in-progress non listé ici ni dans activeStatuses
+  // est ignoré du calcul de flow-efficiency.
+  queueStatuses?: string[];
   // Date ISO (YYYY-MM-DD). Issues résolues avant sont ignorées. Utile pour
   // exclure les bulk closes liés aux migrations de workflow.
   cutoffDate?: string;

@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { Metric, MetricConfig } from "./types";
-import { SECONDS_PER_DAY } from "./utils";
+import { buildDeliveredCte, SECONDS_PER_DAY } from "./utils";
 
 export interface ThroughputWeightedByWeek {
   week: string;
@@ -17,28 +17,31 @@ export interface ThroughputWeightedSummary {
 export const throughputWeightedMetric: Metric<ThroughputWeightedSummary> = {
   name: "throughput-weighted",
   description:
-    "Débit pondéré par l'estimation: somme des jours-personnes estimés livrés par semaine. Affiche aussi la part non estimée.",
+    "Débit pondéré par l'estimation : somme des jours-personnes estimés livrés par semaine (1ère transition team-done). Affiche aussi la part non estimée.",
 
   compute(db: Database.Database, config: MetricConfig): ThroughputWeightedSummary {
-    const cutoffSql = config.cutoffDate ? "AND resolved_at >= ?" : "";
+    const delivered = buildDeliveredCte(config.doneStatuses);
+    const cutoffSql = config.cutoffDate ? "AND d.done_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
-    const endSql = config.windowEndDate ? "AND resolved_at <= ?" : "";
+    const endSql = config.windowEndDate ? "AND d.done_at <= ?" : "";
     const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
     const bugPh = config.bugIssueTypes.length > 0 ? config.bugIssueTypes.map(() => "?").join(",") : null;
-    const bugSql = bugPh ? `AND issue_type NOT IN (${bugPh})` : "";
+    const bugSql = bugPh ? `AND i.issue_type NOT IN (${bugPh})` : "";
     const bugArgs = bugPh ? config.bugIssueTypes : [];
 
     const rows = db.prepare(`
+      WITH ${delivered.cte}
       SELECT
-        strftime('%Y-W%W', substr(resolved_at, 1, 10)) AS week,
-        SUM(CASE WHEN original_estimate_seconds > 0 THEN original_estimate_seconds ELSE 0 END) AS total_seconds,
-        SUM(CASE WHEN original_estimate_seconds > 0 THEN 1 ELSE 0 END) AS estimated_count,
-        SUM(CASE WHEN original_estimate_seconds IS NULL OR original_estimate_seconds <= 0 THEN 1 ELSE 0 END) AS unestimated_count
-      FROM issues
-      WHERE resolved_at IS NOT NULL ${bugSql} ${cutoffSql} ${endSql}
+        strftime('%Y-W%W', substr(d.done_at, 1, 10)) AS week,
+        SUM(CASE WHEN i.original_estimate_seconds > 0 THEN i.original_estimate_seconds ELSE 0 END) AS total_seconds,
+        SUM(CASE WHEN i.original_estimate_seconds > 0 THEN 1 ELSE 0 END) AS estimated_count,
+        SUM(CASE WHEN i.original_estimate_seconds IS NULL OR i.original_estimate_seconds <= 0 THEN 1 ELSE 0 END) AS unestimated_count
+      FROM delivered d
+      JOIN issues i ON i.key = d.issue_key
+      WHERE 1=1 ${bugSql} ${cutoffSql} ${endSql}
       GROUP BY week
       ORDER BY week ASC
-    `).all(...bugArgs, ...cutoffArgs, ...endArgs) as Array<{
+    `).all(...delivered.args, ...bugArgs, ...cutoffArgs, ...endArgs) as Array<{
       week: string;
       total_seconds: number;
       estimated_count: number;

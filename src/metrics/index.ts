@@ -11,6 +11,9 @@ import { throughputWeightedMetric } from "./throughputWeighted";
 import { bugCycleTimeMetric } from "./bugCycleTime";
 import { bugThroughputMetric } from "./bugThroughput";
 import { wipMetric } from "./wip";
+import { flowEfficiencyMetric } from "./flowEfficiency";
+import { agingWipMetric } from "./agingWip";
+import { forecastMetric } from "./forecast";
 
 // Registre central. Ajouter une métrique = importer + pousser ici.
 const ALL_METRICS = [
@@ -25,6 +28,9 @@ const ALL_METRICS = [
   bugCycleTimeMetric,
   bugThroughputMetric,
   wipMetric,
+  flowEfficiencyMetric,
+  agingWipMetric,
+  forecastMetric,
 ];
 
 export function runAllMetrics(db: Database.Database, config: MetricConfig): Record<string, unknown> {

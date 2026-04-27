@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from "axios";
-import { JiraIssue, JiraSprint } from "./types";
+import { JiraIssue, JiraSprint, JiraStatus } from "./types";
 
 interface JiraConfig {
   baseUrl: string;
@@ -51,6 +51,12 @@ export class JiraClient {
     } while (startAt < total);
 
     return issues;
+  }
+
+  async fetchAllStatuses(): Promise<JiraStatus[]> {
+    // Liste globale des statuts de l'instance avec statusCategory.
+    const response = await this.http.get(`/rest/api/2/status`);
+    return response.data as JiraStatus[];
   }
 
   async fetchAllSprints(): Promise<JiraSprint[]> {
