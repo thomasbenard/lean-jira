@@ -11,6 +11,7 @@ export const cycleTimeBySizeMetric: Metric<CycleTimeBySizeResult> = {
   description: "Cycle-time par bucket de taille (1er 'Développement en cours' -> livraison). Exclut attente backlog et design.",
 
   compute(db: Database.Database, config: MetricConfig): CycleTimeBySizeResult {
+    const todoPh = config.todoStatuses.map(() => "?").join(",");
     const devStartPh = config.devStartStatuses.map(() => "?").join(",");
     const cutoffSql = config.cutoffDate ? "AND i.resolved_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
@@ -22,8 +23,9 @@ export const cycleTimeBySizeMetric: Metric<CycleTimeBySizeResult> = {
       FROM transitions t
       JOIN issues i ON i.key = t.issue_key
       WHERE t.to_status IN (${devStartPh}) AND i.resolved_at IS NOT NULL ${cutoffSql} ${endSql}
+        AND EXISTS (SELECT 1 FROM transitions t2 WHERE t2.issue_key = t.issue_key AND t2.to_status IN (${todoPh}))
       GROUP BY t.issue_key
-    `).all(...config.devStartStatuses, ...cutoffArgs, ...endArgs) as Array<{
+    `).all(...config.devStartStatuses, ...cutoffArgs, ...endArgs, ...config.todoStatuses) as Array<{
       issue_key: string;
       started_at: string;
       resolved_at: string;

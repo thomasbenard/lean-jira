@@ -77,7 +77,7 @@ index = ceil(p / 100 × n) − 1  (clampé à [0, n−1])
 
 **Définition** : délai total entre l'engagement de l'équipe (entrée en TODO) et la résolution.
 
-**Périmètre** : toutes issues résolues (`resolved_at IS NOT NULL`), après `cutoffDate`.
+**Périmètre** : issues résolues ayant transité par **les deux** `todoStatuses` ET `devStartStatuses` (même population que `cycle-time` — garantit `lead ≥ cycle` pour chaque issue).
 
 **Algorithme** :
 ```
@@ -143,7 +143,7 @@ Pour chaque issue éligible :
 
 **Définition** : durée du dev actif uniquement, de la première entrée en développement jusqu'à la résolution.
 
-**Périmètre** : toutes issues résolues, après `cutoffDate`.
+**Périmètre** : issues résolues ayant transité par **les deux** `devStartStatuses` ET `todoStatuses` (même population que `lead-time` — garantit `lead ≥ cycle` pour chaque issue).
 
 **Algorithme** :
 ```

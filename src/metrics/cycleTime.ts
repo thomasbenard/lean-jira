@@ -18,12 +18,14 @@ export const cycleTimeMetric: Metric<CycleTimeSummary> = {
   description: "Durée de dev actif (1er passage en 'Développement en cours' -> livraison). Exclut attente backlog et design. Cf. lead-time pour délai total.",
 
   compute(db: Database.Database, config: MetricConfig): CycleTimeSummary {
+    const todoPh = config.todoStatuses.map(() => "?").join(",");
     const devStartPh = config.devStartStatuses.map(() => "?").join(",");
     const cutoffSql = config.cutoffDate ? "AND i.resolved_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
     const endSql = config.windowEndDate ? "AND i.resolved_at <= ?" : "";
     const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
 
+    // EXISTS garantit la même population que lead-time (issues avec les deux transitions).
     // resolved_at vient du champ Jira `resolutiondate`, préservé à travers les migrations
     // workflow (les transitions vers Done en bulk close ne le modifient pas).
     const rows = db.prepare(`
@@ -31,8 +33,9 @@ export const cycleTimeMetric: Metric<CycleTimeSummary> = {
       FROM transitions t
       JOIN issues i ON i.key = t.issue_key
       WHERE t.to_status IN (${devStartPh}) AND i.resolved_at IS NOT NULL ${cutoffSql} ${endSql}
+        AND EXISTS (SELECT 1 FROM transitions t2 WHERE t2.issue_key = t.issue_key AND t2.to_status IN (${todoPh}))
       GROUP BY t.issue_key
-    `).all(...config.devStartStatuses, ...cutoffArgs, ...endArgs) as Array<{ issue_key: string; started_at: string; resolved_at: string }>;
+    `).all(...config.devStartStatuses, ...cutoffArgs, ...endArgs, ...config.todoStatuses) as Array<{ issue_key: string; started_at: string; resolved_at: string }>;
 
     const issues: CycleTimeResult[] = [];
     for (const r of rows) {

@@ -13,6 +13,7 @@ export const leadTimeNormalizedMetric: Metric<LeadTimeNormalizedResult> = {
 
   compute(db: Database.Database, config: MetricConfig): LeadTimeNormalizedResult {
     const todoPh = config.todoStatuses.map(() => "?").join(",");
+    const devStartPh = config.devStartStatuses.map(() => "?").join(",");
     const cutoffSql = config.cutoffDate ? "AND i.resolved_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
     const endSql = config.windowEndDate ? "AND i.resolved_at <= ?" : "";
@@ -31,8 +32,9 @@ export const leadTimeNormalizedMetric: Metric<LeadTimeNormalizedResult> = {
         ${bugSql}
         ${cutoffSql}
         ${endSql}
+        AND EXISTS (SELECT 1 FROM transitions t2 WHERE t2.issue_key = t.issue_key AND t2.to_status IN (${devStartPh}))
       GROUP BY t.issue_key
-    `).all(...config.todoStatuses, ...bugArgs, ...cutoffArgs, ...endArgs) as Array<{
+    `).all(...config.todoStatuses, ...bugArgs, ...cutoffArgs, ...endArgs, ...config.devStartStatuses) as Array<{
       todo_at: string;
       resolved_at: string;
       original_estimate_seconds: number;

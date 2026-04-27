@@ -19,11 +19,13 @@ export const leadTimeMetric: Metric<LeadTimeSummary> = {
 
   compute(db: Database.Database, config: MetricConfig): LeadTimeSummary {
     const todoPh = config.todoStatuses.map(() => "?").join(",");
+    const devStartPh = config.devStartStatuses.map(() => "?").join(",");
     const cutoffSql = config.cutoffDate ? "AND i.resolved_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
     const endSql = config.windowEndDate ? "AND i.resolved_at <= ?" : "";
     const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
 
+    // EXISTS garantit la même population que cycle-time (issues avec les deux transitions).
     // resolved_at vient du champ Jira `resolutiondate`, préservé à travers les migrations
     // workflow (les transitions vers Done en bulk close ne le modifient pas).
     const rows = db.prepare(`
@@ -31,8 +33,9 @@ export const leadTimeMetric: Metric<LeadTimeSummary> = {
       FROM transitions t
       JOIN issues i ON i.key = t.issue_key
       WHERE t.to_status IN (${todoPh}) AND i.resolved_at IS NOT NULL ${cutoffSql} ${endSql}
+        AND EXISTS (SELECT 1 FROM transitions t2 WHERE t2.issue_key = t.issue_key AND t2.to_status IN (${devStartPh}))
       GROUP BY t.issue_key
-    `).all(...config.todoStatuses, ...cutoffArgs, ...endArgs) as Array<{ issue_key: string; todo_at: string; resolved_at: string }>;
+    `).all(...config.todoStatuses, ...cutoffArgs, ...endArgs, ...config.devStartStatuses) as Array<{ issue_key: string; todo_at: string; resolved_at: string }>;
 
     const issues: LeadTimeResult[] = [];
     for (const r of rows) {

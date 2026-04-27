@@ -12,6 +12,7 @@ export const cycleTimeNormalizedMetric: Metric<CycleTimeNormalizedResult> = {
     "Cycle-time dev (1er 'Développement en cours' -> livraison) divisé par l'estimation. 1 = conforme, 2 = 2× plus long.",
 
   compute(db: Database.Database, config: MetricConfig): CycleTimeNormalizedResult {
+    const todoPh = config.todoStatuses.map(() => "?").join(",");
     const devStartPh = config.devStartStatuses.map(() => "?").join(",");
     const cutoffSql = config.cutoffDate ? "AND i.resolved_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
@@ -31,8 +32,9 @@ export const cycleTimeNormalizedMetric: Metric<CycleTimeNormalizedResult> = {
         ${bugSql}
         ${cutoffSql}
         ${endSql}
+        AND EXISTS (SELECT 1 FROM transitions t2 WHERE t2.issue_key = t.issue_key AND t2.to_status IN (${todoPh}))
       GROUP BY t.issue_key
-    `).all(...config.devStartStatuses, ...bugArgs, ...cutoffArgs, ...endArgs) as Array<{
+    `).all(...config.devStartStatuses, ...bugArgs, ...cutoffArgs, ...endArgs, ...config.todoStatuses) as Array<{
       started_at: string;
       resolved_at: string;
       original_estimate_seconds: number;
