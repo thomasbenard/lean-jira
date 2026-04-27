@@ -323,6 +323,7 @@ Pour chaque date D :
 | Type de métrique | Fenêtre appliquée |
 |---|---|
 | Durée (lead, cycle, normalized, bug-cycle) | `cutoffDate = D − 30j`, `windowEndDate = D` |
+| **By-size (lead-time-by-size, cycle-time-by-size)** | `cutoffDate = config.cutoffDate` (global), `windowEndDate = D` — cumulative depuis l'origine |
 | Débit (throughput, bug-throughput) | `cutoffDate = D − 7j`, `windowEndDate = D` |
 | WIP | Algorithme historique ci-dessus, pas de fenêtre glissante |
 

@@ -6,6 +6,9 @@ import { BUCKET_ORDER, DurationStats } from "../metrics/utils";
 const ROLLING_WINDOW_DAYS = 30;
 const WEEK_DAYS = 7;
 const WEEKLY_METRICS = new Set(["throughput", "throughput-weighted", "bug-throughput"]);
+// Métriques cumulatives : fenêtre depuis cutoffDate global (pas 30j glissants).
+// Permet comparaison directe avec `npm run metrics`.
+const CUMULATIVE_METRICS = new Set(["lead-time-by-size", "cycle-time-by-size"]);
 
 interface SnapshotRow {
   snapshot_date: string;
@@ -70,10 +73,11 @@ function computeSnapshot(db: Database.Database, date: string, baseConfig: Metric
     }
 
     const isWeekly = WEEKLY_METRICS.has(metric.name);
+    const isCumulative = CUMULATIVE_METRICS.has(metric.name);
     const windowDays = isWeekly ? WEEK_DAYS : ROLLING_WINDOW_DAYS;
     const cfg: MetricConfig = {
       ...baseConfig,
-      cutoffDate: subDaysISO(date, windowDays),
+      cutoffDate: isCumulative ? baseConfig.cutoffDate : subDaysISO(date, windowDays),
       windowEndDate: date,
     };
 
