@@ -5,6 +5,7 @@ config.yaml
 *.db-wal
 node_modules/
 dist/
-.claude/
+.claude/*.json
+.claude/todo.json
 .idea/
 report.html
