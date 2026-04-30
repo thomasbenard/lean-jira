@@ -8,6 +8,12 @@ En tant que membre de l'équipe consultant le rapport HTML, je veux pouvoir cliq
 
 Passer `jiraBaseUrl` (lu depuis `config.jira.baseUrl`) à `generateReport` et à `renderHtml`. Dans le HTML généré, chaque clé d'issue devient `<a href="{baseUrl}/browse/{key}" target="_blank">{key}</a>`. Impacte le tableau Aging WIP (colonne Issue) et le tooltip du scatter chart aging. Le lien s'ouvre dans un nouvel onglet pour ne pas quitter le rapport.
 
+## Estimation
+
+**Bucket** : S (~1j)
+
+**Justification** : 2 fichiers (`src/main.ts` 1 ligne, `src/report/generate.ts` ajout signature + helper `issueLink` + 1 substitution dans `agingTableRows`). Helper testable unitairement (échappement HTML, trim trailing slash, génération URL). Vérification visuelle navigateur requise.
+
 ## Statut
 
-**To be implemented**
+**à faire**

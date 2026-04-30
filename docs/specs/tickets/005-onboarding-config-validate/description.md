@@ -12,6 +12,12 @@ Deux livrables indépendants :
 
 2. **Commande `validate-config`** dans `src/main.ts` : vérifie que chaque statut listé dans `todoStatuses`, `devStartStatuses`, `inProgressStatuses`, `doneStatuses`, `activeStatuses`, `queueStatuses` existe dans la table `statuses` de la DB (peuplée par `sync`). Affiche un rapport : statuts valides ✓, statuts introuvables ✗, et liste complète des statuts disponibles en DB pour aider à corriger.
 
+## Estimation
+
+**Bucket** : M (~1.5j)
+
+**Justification** : 3 fichiers + 1 nouveau (`config.example.yaml` ~90 lignes documenté, `src/db/store.ts` helper `getAllStatuses`, `src/main.ts` nouvelle commande CLI `validate-config` ~60 lignes avec exit codes, `package.json` script `validate`). 5-6 scénarios d'example-mapping (DB vide, statut manquant, statut legacy, config valide). Documentation YAML soignée requise.
+
 ## Statut
 
-**To be implemented**
+**à faire**
