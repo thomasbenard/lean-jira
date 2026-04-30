@@ -2,6 +2,46 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Coding standards
+
+**All production code follows the conventions in [`docs/coding-standards.md`](docs/coding-standards.md).** Read this file before writing or modifying any code in `src/`. Highlights:
+
+- **TDD is mandatory** (Red → Green → Refactor) for every change: feature, bug fix, refactor with behavior change. Tests are written *before* production code, never after.
+- TypeScript 6 strict, double quotes, 2-space indent, semicolons, trailing commas.
+- camelCase in TS, snake_case in SQL — explicit mapping in `db/store.ts` and `sync.ts`.
+- Plugin pattern for metrics: implement `Metric<T>`, register in `ALL_METRICS`, use `buildDeliveredCte()` for delivery endpoints.
+- French for prose / logs / test names, English for code identifiers.
+- Comments explain *why*, never *what*.
+
+Deviations require an inline `// pourquoi` comment justifying the choice.
+
+## Documentation structure (`docs/`)
+
+```
+docs/
+├── coding-standards.md          ← conventions, TDD, layering, patterns
+└── specs/
+    ├── system/                  ← spec d'ensemble du produit
+    │   ├── spec-fonctionnelle.md     ← user stories, règles métier globales
+    │   ├── spec-technique.md         ← stack, schéma DB, architecture
+    │   └── metrics-formulas.md       ← définitions mathématiques des métriques
+    └── tickets/                 ← un dossier par ticket de dev
+        └── <NNN>-<slug>/
+            ├── description.md          ← user story + solution choisie + statut
+            ├── spec-fonctionnelle.md   ← spec fonctionnelle détaillée du ticket
+            ├── spec-technique.md       ← spec technique ancrée dans le code réel
+            └── example-mapping.md      ← scénarios Gherkin (si règle métier non-triviale)
+```
+
+**Conventions :**
+
+- Numérotation tickets : 3 chiffres séquentiels (`001`, `002`, …) + slug kebab-case
+- Tout nouveau ticket non-trivial passe par `/ticket-spec` avant code
+- `description.md` reste à jour : `Statut: à faire | en cours | livré`
+- `spec-technique.md` cite des chemins `src/` réels et numéros de ligne — pas de pseudo-code abstrait
+- `example-mapping.md` optionnel ; obligatoire si UI complexe ou règles métier multiples
+- Spécs système (`docs/specs/system/`) décrivent l'état actuel ; mises à jour quand un ticket livré modifie un invariant
+
 ## Commands
 
 ```bash
