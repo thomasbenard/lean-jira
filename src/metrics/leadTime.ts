@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { Metric, MetricConfig } from "./types";
-import { buildDeliveredCte, DurationStats, statsFromDays, workingDaysBetween } from "./utils";
+import { buildDeliveredCte, buildWindowFragment, DurationStats, placeholders, statsFromDays, workingDaysBetween } from "./utils";
 
 export interface LeadTimeResult {
   issueKey: string;
@@ -19,13 +19,10 @@ export const leadTimeMetric: Metric<LeadTimeSummary> = {
     "Délai total backlog -> livraison équipe (entrée en TODO -> 1er statut team-done). Inclut attente backlog, design, dev. Cf. cycle-time pour dev seul.",
 
   compute(db: Database.Database, config: MetricConfig): LeadTimeSummary {
-    const todoPh = config.todoStatuses.map(() => "?").join(",");
-    const devStartPh = config.devStartStatuses.map(() => "?").join(",");
+    const todoPh = placeholders(config.todoStatuses);
+    const devStartPh = placeholders(config.devStartStatuses);
     const delivered = buildDeliveredCte(config.doneStatuses);
-    const cutoffSql = config.cutoffDate ? "AND d.done_at >= ?" : "";
-    const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
-    const endSql = config.windowEndDate ? "AND d.done_at <= ?" : "";
-    const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
+    const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
 
     // EXISTS garantit la même population que cycle-time (issues avec les deux transitions).
     const rows = db.prepare(`
@@ -48,7 +45,7 @@ export const leadTimeMetric: Metric<LeadTimeSummary> = {
 
     const issues: LeadTimeResult[] = [];
     for (const r of rows) {
-      if (new Date(r.done_at) < new Date(r.todo_at)) continue;
+      if (r.done_at < r.todo_at) continue;
       issues.push({
         issueKey: r.issue_key,
         todoAt: r.todo_at,

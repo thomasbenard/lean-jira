@@ -1,32 +1,22 @@
 import Database from "better-sqlite3";
 import { Metric, MetricConfig } from "./types";
-import { buildDeliveredCte } from "./utils";
+import { buildDeliveredCte, buildWindowFragment, placeholders } from "./utils";
+import { ThroughputByWeek, ThroughputSummary } from "./throughput";
 
-export interface BugThroughputByWeek {
-  week: string;
-  count: number;
-}
+export type { ThroughputByWeek as BugThroughputByWeek, ThroughputSummary as BugThroughputSummary };
 
-export interface BugThroughputSummary {
-  byWeek: BugThroughputByWeek[];
-  avgPerWeek: number;
-}
-
-export const bugThroughputMetric: Metric<BugThroughputSummary> = {
+export const bugThroughputMetric: Metric<ThroughputSummary> = {
   name: "bug-throughput",
   description: "Bugs livrés par semaine (1ère transition team-done). Mesure la charge incidents (vs débit features).",
 
-  compute(db: Database.Database, config: MetricConfig): BugThroughputSummary {
+  compute(db: Database.Database, config: MetricConfig): ThroughputSummary {
     if (config.bugIssueTypes.length === 0) {
       return { byWeek: [], avgPerWeek: 0 };
     }
 
-    const bugPh = config.bugIssueTypes.map(() => "?").join(",");
+    const bugPh = placeholders(config.bugIssueTypes);
     const delivered = buildDeliveredCte(config.doneStatuses);
-    const cutoffSql = config.cutoffDate ? "AND d.done_at >= ?" : "";
-    const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
-    const endSql = config.windowEndDate ? "AND d.done_at <= ?" : "";
-    const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
+    const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
 
     const rows = db.prepare(`
       WITH ${delivered.cte}
@@ -40,7 +30,7 @@ export const bugThroughputMetric: Metric<BugThroughputSummary> = {
         ${endSql}
       GROUP BY week
       ORDER BY week ASC
-    `).all(...delivered.args, ...config.bugIssueTypes, ...cutoffArgs, ...endArgs) as BugThroughputByWeek[];
+    `).all(...delivered.args, ...config.bugIssueTypes, ...cutoffArgs, ...endArgs) as ThroughputByWeek[];
 
     const total = rows.reduce((sum, r) => sum + r.count, 0);
     const avgPerWeek = rows.length > 0 ? total / rows.length : 0;

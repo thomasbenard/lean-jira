@@ -117,18 +117,27 @@ export function generateReport(
     throw new Error("Aucun snapshot. Lancer `npm run snapshots` d'abord.");
   }
 
+  // Pré-grouper par metric_name pour un parcours O(N) au lieu de O(N×M).
+  const byMetric = new Map<string, SnapshotRow[]>();
+  for (const s of snapshots) {
+    const arr = byMetric.get(s.metric_name);
+    if (arr) arr.push(s);
+    else byMetric.set(s.metric_name, [s]);
+  }
+  const metricRows = (name: string) => byMetric.get(name) ?? [];
+
   const charts = {
-    leadTime: buildSeries(snapshots, "lead-time", "", ["median", "p85"]),
-    cycleTime: buildSeries(snapshots, "cycle-time", "", ["median", "p85"]),
-    throughput: buildSeries(snapshots, "throughput", "", ["count"]),
-    throughputWeighted: buildSeries(snapshots, "throughput-weighted", "", ["count", "estimatedDays"]),
-    wip: buildSeries(snapshots, "wip", "", ["count"]),
-    bugThroughput: buildSeries(snapshots, "bug-throughput", "", ["count"]),
-    bugCycleTime: buildSeries(snapshots, "bug-cycle-time", "", ["median", "p85"]),
-    leadTimeNormalized: buildSeries(snapshots, "lead-time-normalized", "", ["median", "p85"]),
-    cycleTimeNormalized: buildSeries(snapshots, "cycle-time-normalized", "", ["median", "p85"]),
-    flowEfficiency: buildSeries(snapshots, "flow-efficiency", "", ["aggregate", "median"]),
-    agingWipRisk: buildSeries(snapshots, "aging-wip", "", ["ok", "watch", "atRisk", "critical"]),
+    leadTime: buildSeries(metricRows("lead-time"), "", ["median", "p85"]),
+    cycleTime: buildSeries(metricRows("cycle-time"), "", ["median", "p85"]),
+    throughput: buildSeries(metricRows("throughput"), "", ["count"]),
+    throughputWeighted: buildSeries(metricRows("throughput-weighted"), "", ["count", "estimatedDays"]),
+    wip: buildSeries(metricRows("wip"), "", ["count"]),
+    bugThroughput: buildSeries(metricRows("bug-throughput"), "", ["count"]),
+    bugCycleTime: buildSeries(metricRows("bug-cycle-time"), "", ["median", "p85"]),
+    leadTimeNormalized: buildSeries(metricRows("lead-time-normalized"), "", ["median", "p85"]),
+    cycleTimeNormalized: buildSeries(metricRows("cycle-time-normalized"), "", ["median", "p85"]),
+    flowEfficiency: buildSeries(metricRows("flow-efficiency"), "", ["aggregate", "median"]),
+    agingWipRisk: buildSeries(metricRows("aging-wip"), "", ["ok", "watch", "atRisk", "critical"]),
   };
 
   const lastDate = snapshots[snapshots.length - 1].snapshot_date;
@@ -144,8 +153,8 @@ export function generateReport(
     flowEfficiencyAggregate: pickValue(latestRows, "flow-efficiency", "", "aggregate"),
   };
 
-  const leadBySize = latestBySize(latestRows, "lead-time-by-size");
-  const cycleBySize = latestBySize(latestRows, "cycle-time-by-size");
+  const leadBySize = latestBySize(latestRows.filter((r) => r.metric_name === "lead-time-by-size"));
+  const cycleBySize = latestBySize(latestRows.filter((r) => r.metric_name === "cycle-time-by-size"));
   const agingWip = agingWipMetric.compute(db, config);
   const forecast = forecastMetric.compute(db, config);
   const cycleTime = cycleTimeMetric.compute(db, config);
@@ -174,13 +183,13 @@ export function generateReport(
   fs.writeFileSync(outputPath, html);
 }
 
-function buildSeries(snapshots: SnapshotRow[], metric: string, bucket: string, stats: string[]): ChartSeries {
+function buildSeries(snapshots: SnapshotRow[], bucket: string, stats: string[]): ChartSeries {
   const dateSet = new Set<string>();
   const byKey = new Map<string, Map<string, number>>();
   for (const stat of stats) byKey.set(stat, new Map());
 
   for (const s of snapshots) {
-    if (s.metric_name !== metric || s.bucket !== bucket) continue;
+    if (s.bucket !== bucket) continue;
     if (!stats.includes(s.stat)) continue;
     dateSet.add(s.snapshot_date);
     byKey.get(s.stat)!.set(s.snapshot_date, s.value);
@@ -200,14 +209,13 @@ function pickValue(rows: SnapshotRow[], metric: string, bucket: string, stat: st
   return r ? r.value : null;
 }
 
-function latestBySize(rows: SnapshotRow[], metric: string): Record<string, BucketStats> {
+function latestBySize(rows: SnapshotRow[]): Record<string, BucketStats> {
   const out: Record<string, BucketStats> = {};
   for (const r of rows) {
-    if (r.metric_name !== metric) continue;
     if (!out[r.bucket]) out[r.bucket] = { count: 0, median: 0, p85: 0 };
     if (r.stat === "count") out[r.bucket].count = r.value;
-    if (r.stat === "median") out[r.bucket].median = r.value;
-    if (r.stat === "p85") out[r.bucket].p85 = r.value;
+    else if (r.stat === "median") out[r.bucket].median = r.value;
+    else if (r.stat === "p85") out[r.bucket].p85 = r.value;
   }
   return out;
 }

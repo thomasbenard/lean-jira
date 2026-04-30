@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { Metric, MetricConfig } from "./types";
-import { buildDeliveredCte } from "./utils";
+import { buildDeliveredCte, buildWindowFragment } from "./utils";
 
 export interface ThroughputByWeek {
   week: string;
@@ -19,10 +19,7 @@ export const throughputMetric: Metric<ThroughputSummary> = {
 
   compute(db: Database.Database, config: MetricConfig): ThroughputSummary {
     const delivered = buildDeliveredCte(config.doneStatuses);
-    const cutoffSql = config.cutoffDate ? "AND d.done_at >= ?" : "";
-    const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
-    const endSql = config.windowEndDate ? "AND d.done_at <= ?" : "";
-    const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
+    const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
 
     const rows = db.prepare(`
       WITH ${delivered.cte}

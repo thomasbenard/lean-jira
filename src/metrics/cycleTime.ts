@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { Metric, MetricConfig } from "./types";
-import { buildDeliveredCte, DurationStats, statsFromDays, workingDaysBetween } from "./utils";
+import { buildDeliveredCte, buildWindowFragment, DurationStats, placeholders, statsFromDays, workingDaysBetween } from "./utils";
 
 export interface CycleTimeResult {
   issueKey: string;
@@ -19,13 +19,10 @@ export const cycleTimeMetric: Metric<CycleTimeSummary> = {
     "Durée de dev actif (1er passage en 'Développement en cours' -> 1er passage en statut team-done). Exclut attente backlog, design, et la queue post-dev (validation PO, mise en prod) qui sort du périmètre équipe. Cf. lead-time pour délai total.",
 
   compute(db: Database.Database, config: MetricConfig): CycleTimeSummary {
-    const todoPh = config.todoStatuses.map(() => "?").join(",");
-    const devStartPh = config.devStartStatuses.map(() => "?").join(",");
+    const todoPh = placeholders(config.todoStatuses);
+    const devStartPh = placeholders(config.devStartStatuses);
     const delivered = buildDeliveredCte(config.doneStatuses);
-    const cutoffSql = config.cutoffDate ? "AND d.done_at >= ?" : "";
-    const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
-    const endSql = config.windowEndDate ? "AND d.done_at <= ?" : "";
-    const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
+    const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
 
     // EXISTS garantit la même population que lead-time. JOIN delivered élimine
     // les issues sans transition vers un statut team-done (toujours en cours).
@@ -49,7 +46,7 @@ export const cycleTimeMetric: Metric<CycleTimeSummary> = {
 
     const issues: CycleTimeResult[] = [];
     for (const r of rows) {
-      if (new Date(r.done_at) < new Date(r.started_at)) continue;
+      if (r.done_at < r.started_at) continue;
       issues.push({
         issueKey: r.issue_key,
         startedAt: r.started_at,

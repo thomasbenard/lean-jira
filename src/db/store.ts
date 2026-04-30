@@ -65,18 +65,25 @@ export function upsertSprints(db: Database.Database, sprints: StoredSprint[]): v
 }
 
 export function replaceTransitions(db: Database.Database, issueKey: string, transitions: Transition[]): void {
+  replaceAllTransitions(db, [{ key: issueKey, transitions }]);
+}
+
+export function replaceAllTransitions(
+  db: Database.Database,
+  allTransitions: Array<{ key: string; transitions: Transition[] }>,
+): void {
   const del = db.prepare("DELETE FROM transitions WHERE issue_key = ?");
   const ins = db.prepare(`
     INSERT INTO transitions (issue_key, from_status, to_status, transitioned_at)
     VALUES (@issueKey, @fromStatus, @toStatus, @transitionedAt)
   `);
 
-  const replace = db.transaction(() => {
-    del.run(issueKey);
-    for (const t of transitions) ins.run(t);
-  });
-
-  replace();
+  db.transaction(() => {
+    for (const { key, transitions } of allTransitions) {
+      del.run(key);
+      for (const t of transitions) ins.run(t);
+    }
+  })();
 }
 
 export function upsertStatuses(db: Database.Database, statuses: StoredStatus[]): void {

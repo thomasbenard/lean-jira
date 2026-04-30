@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { Metric, MetricConfig } from "./types";
-import { buildDeliveredCte, DurationStats, statsFromDays, workingDaysBetween } from "./utils";
+import { buildDeliveredCte, buildWindowFragment, DurationStats, placeholders, statsFromDays, workingDaysBetween } from "./utils";
 
 export interface BugCycleTimeResult extends DurationStats {
   unit: string;
@@ -16,13 +16,10 @@ export const bugCycleTimeMetric: Metric<BugCycleTimeResult> = {
       return { ...statsFromDays([]), unit: "j" };
     }
 
-    const devStartPh = config.devStartStatuses.map(() => "?").join(",");
-    const bugPh = config.bugIssueTypes.map(() => "?").join(",");
+    const devStartPh = placeholders(config.devStartStatuses);
+    const bugPh = placeholders(config.bugIssueTypes);
     const delivered = buildDeliveredCte(config.doneStatuses);
-    const cutoffSql = config.cutoffDate ? "AND d.done_at >= ?" : "";
-    const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
-    const endSql = config.windowEndDate ? "AND d.done_at <= ?" : "";
-    const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
+    const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
 
     const rows = db.prepare(`
       WITH ${delivered.cte}

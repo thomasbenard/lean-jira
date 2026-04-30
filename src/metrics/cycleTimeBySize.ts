@@ -2,9 +2,11 @@ import Database from "better-sqlite3";
 import { Metric, MetricConfig } from "./types";
 import {
   buildDeliveredCte,
+  buildWindowFragment,
   bucketize,
   BUCKET_ORDER,
   DurationStats,
+  placeholders,
   SizeBucket,
   statsFromDays,
   workingDaysBetween,
@@ -20,13 +22,10 @@ export const cycleTimeBySizeMetric: Metric<CycleTimeBySizeResult> = {
     "Cycle-time par bucket de taille (1er 'Développement en cours' -> 1er statut team-done). Exclut attente backlog, design et queue post-dev.",
 
   compute(db: Database.Database, config: MetricConfig): CycleTimeBySizeResult {
-    const todoPh = config.todoStatuses.map(() => "?").join(",");
-    const devStartPh = config.devStartStatuses.map(() => "?").join(",");
+    const todoPh = placeholders(config.todoStatuses);
+    const devStartPh = placeholders(config.devStartStatuses);
     const delivered = buildDeliveredCte(config.doneStatuses);
-    const cutoffSql = config.cutoffDate ? "AND d.done_at >= ?" : "";
-    const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
-    const endSql = config.windowEndDate ? "AND d.done_at <= ?" : "";
-    const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
+    const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
 
     const rows = db.prepare(`
       WITH ${delivered.cte}

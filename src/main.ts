@@ -170,7 +170,7 @@ function printResults(results: Record<string, unknown>): void {
       printBuckets(d.buckets as Record<string, { count: number; excludedOutliers: number; avgDays: number; medianDays: number; p85Days: number; p95Days: number }>);
     } else if ("avgDays" in d) {
       const unit = (d.unit as string | undefined) ?? "j";
-      const totalIssues = "issues" in d ? (d.issues as unknown[]).length : ((d.count as number) + ((d.excludedOutliers as number) ?? 0));
+      const totalIssues = "issues" in d ? (d.issues as unknown[]).length : ((d.count as number) + ((d.excludedOutliers as number | undefined) ?? 0));
       const excluded = (d.excludedOutliers as number | undefined) ?? 0;
       console.log(`  Moyenne   : ${(d.avgDays as number).toFixed(2)} ${unit}`);
       console.log(`  Médiane   : ${(d.medianDays as number).toFixed(2)} ${unit}`);

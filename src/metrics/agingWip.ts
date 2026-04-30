@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { Metric, MetricConfig } from "./types";
-import { buildDeliveredCte, percentile, removeUpperOutliers, workingDaysBetween } from "./utils";
+import { buildDeliveredCte, percentile, placeholders, removeUpperOutliers, workingDaysBetween } from "./utils";
 
 export type AgingRisk = "ok" | "watch" | "at-risk" | "critical";
 
@@ -34,14 +34,17 @@ export const agingWipMetric: Metric<AgingWipSummary> = {
       : new Date().toISOString();
     const asOf = nowIso.slice(0, 10);
 
-    const inProgressPh = config.inProgressStatuses.map(() => "?").join(",");
-    const devStartPh = config.devStartStatuses.map(() => "?").join(",");
-    const todoPh = config.todoStatuses.map(() => "?").join(",");
+    const inProgressPh = placeholders(config.inProgressStatuses);
+    const devStartPh = placeholders(config.devStartStatuses);
+    const todoPh = placeholders(config.todoStatuses);
 
     // Items en cours à la date "asOf" : dernier statut connu avant now ∈ inProgressStatuses,
-    // pas résolus avant now. Pas de scoping sprint (les sprints historiques ne sont pas tracés).
+    // pas encore team-done (done_at depuis transitions, pas resolved_at Jira).
+    // Pas de scoping sprint (les sprints historiques ne sont pas tracés).
+    const delivered = buildDeliveredCte(config.doneStatuses);
     const items = db.prepare(`
-      WITH last_status AS (
+      WITH ${delivered.cte},
+      last_status AS (
         SELECT issue_key, to_status, MAX(transitioned_at) AS last_at
         FROM transitions
         WHERE transitioned_at <= ?
@@ -57,10 +60,12 @@ export const agingWipMetric: Metric<AgingWipSummary> = {
       FROM last_status l
       JOIN issues i ON i.key = l.issue_key
       JOIN first_dev fd ON fd.issue_key = l.issue_key
+      LEFT JOIN delivered dlv ON dlv.issue_key = l.issue_key
       WHERE l.to_status IN (${inProgressPh})
-        AND (i.resolved_at IS NULL OR i.resolved_at > ?)
+        AND (dlv.done_at IS NULL OR dlv.done_at > ?)
         AND fd.started_at <= ?
     `).all(
+      ...delivered.args,
       nowIso,
       ...config.devStartStatuses,
       ...config.inProgressStatuses,
@@ -71,7 +76,6 @@ export const agingWipMetric: Metric<AgingWipSummary> = {
     // Percentiles historiques : population identique à cycle-time, mais bornée
     // au passé (livraison team-done avant asOf). Pas de fenêtre glissante : on
     // veut une base statistique large.
-    const delivered = buildDeliveredCte(config.doneStatuses);
     const cutoffSql = config.cutoffDate ? "AND d.done_at >= ?" : "";
     const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
 
@@ -95,7 +99,7 @@ export const agingWipMetric: Metric<AgingWipSummary> = {
 
     const histDays: number[] = [];
     for (const r of histRows) {
-      if (new Date(r.done_at) < new Date(r.started_at)) continue;
+      if (r.done_at < r.started_at) continue;
       histDays.push(workingDaysBetween(r.started_at, r.done_at));
     }
     const { kept: cleaned } =

@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { Metric, MetricConfig } from "./types";
-import { buildDeliveredCte, percentile, removeUpperOutliers, workingDaysBetween } from "./utils";
+import { buildDeliveredCte, buildWindowFragment, percentile, placeholders, removeUpperOutliers, workingDaysBetween } from "./utils";
 
 export interface FlowEfficiencyIssue {
   issueKey: string;
@@ -37,55 +37,63 @@ export const flowEfficiencyMetric: Metric<FlowEfficiencySummary> = {
     const queue = config.queueStatuses ?? [];
     if (active.length === 0) return emptyResult();
 
-    const todoPh = config.todoStatuses.map(() => "?").join(",");
-    const devStartPh = config.devStartStatuses.map(() => "?").join(",");
+    const todoPh = placeholders(config.todoStatuses);
+    const devStartPh = placeholders(config.devStartStatuses);
     const delivered = buildDeliveredCte(config.doneStatuses);
-    const cutoffSql = config.cutoffDate ? "AND d.done_at >= ?" : "";
-    const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
-    const endSql = config.windowEndDate ? "AND d.done_at <= ?" : "";
-    const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
+    const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
 
-    // Population identique à cycle-time : issues team-done passées par TODO + dev start.
-    const issues = db.prepare(`
-      WITH ${delivered.cte}
-      SELECT i.key, d.done_at AS resolved_at, MIN(t.transitioned_at) AS started_at
-      FROM transitions t
-      JOIN issues i ON i.key = t.issue_key
-      JOIN delivered d ON d.issue_key = t.issue_key
-      WHERE t.to_status IN (${devStartPh})
-        ${cutoffSql} ${endSql}
-        AND EXISTS (SELECT 1 FROM transitions t2 WHERE t2.issue_key = t.issue_key AND t2.to_status IN (${todoPh}))
-      GROUP BY i.key, d.done_at
+    // Population identique à cycle-time + transitions cycle agrégées en une seule requête
+    // pour éviter N requêtes (une par issue).
+    const rows = db.prepare(`
+      WITH ${delivered.cte},
+      eligible AS (
+        SELECT i.key, d.done_at AS resolved_at, MIN(t.transitioned_at) AS started_at
+        FROM transitions t
+        JOIN issues i ON i.key = t.issue_key
+        JOIN delivered d ON d.issue_key = t.issue_key
+        WHERE t.to_status IN (${devStartPh})
+          ${cutoffSql} ${endSql}
+          AND EXISTS (SELECT 1 FROM transitions t2 WHERE t2.issue_key = t.issue_key AND t2.to_status IN (${todoPh}))
+        GROUP BY i.key, d.done_at
+      )
+      SELECT e.key, e.resolved_at, e.started_at, tr.to_status, tr.transitioned_at
+      FROM eligible e
+      JOIN transitions tr ON tr.issue_key = e.key
+        AND tr.transitioned_at >= e.started_at
+        AND tr.transitioned_at <= e.resolved_at
+      ORDER BY e.key ASC, tr.transitioned_at ASC, tr.id ASC
     `).all(
       ...delivered.args,
       ...config.devStartStatuses,
       ...cutoffArgs,
       ...endArgs,
       ...config.todoStatuses,
-    ) as Array<{ key: string; resolved_at: string; started_at: string }>;
+    ) as Array<{ key: string; resolved_at: string; started_at: string; to_status: string; transitioned_at: string }>;
 
-    const getTransitions = db.prepare(`
-      SELECT to_status, transitioned_at FROM transitions
-      WHERE issue_key = ? AND transitioned_at >= ?
-      ORDER BY transitioned_at ASC, id ASC
-    `);
+    // Grouper les transitions par issue en mémoire
+    type IssueEntry = { key: string; resolved_at: string; started_at: string; trans: Array<{ to_status: string; transitioned_at: string }> };
+    const issueMap = new Map<string, IssueEntry>();
+    for (const r of rows) {
+      let entry = issueMap.get(r.key);
+      if (!entry) {
+        entry = { key: r.key, resolved_at: r.resolved_at, started_at: r.started_at, trans: [] };
+        issueMap.set(r.key, entry);
+      }
+      entry.trans.push({ to_status: r.to_status, transitioned_at: r.transitioned_at });
+    }
 
     const out: FlowEfficiencyIssue[] = [];
-    for (const issue of issues) {
-      const trans = getTransitions.all(issue.key, issue.started_at) as Array<{
-        to_status: string;
-        transitioned_at: string;
-      }>;
-      if (trans.length === 0) continue;
+    for (const issue of issueMap.values()) {
+      if (issue.trans.length === 0) continue;
 
       let activeDays = 0;
       let queueDays = 0;
-      for (let i = 0; i < trans.length; i++) {
-        const start = trans[i].transitioned_at;
-        const end = i + 1 < trans.length ? trans[i + 1].transitioned_at : issue.resolved_at;
+      for (let i = 0; i < issue.trans.length; i++) {
+        const start = issue.trans[i].transitioned_at;
+        const end = i + 1 < issue.trans.length ? issue.trans[i + 1].transitioned_at : issue.resolved_at;
         if (new Date(end).getTime() <= new Date(start).getTime()) continue;
         const days = workingDaysBetween(start, end);
-        const status = trans[i].to_status;
+        const status = issue.trans[i].to_status;
         if (active.includes(status)) activeDays += days;
         else if (queue.includes(status)) queueDays += days;
         // sinon : statut hors flux mesuré (TODO retour, done) -> ignoré.

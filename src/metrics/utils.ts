@@ -57,6 +57,31 @@ export function buildDeliveredCte(doneStatuses: string[]): { cte: string; args: 
   };
 }
 
+export function placeholders(arr: unknown[]): string {
+  return arr.map(() => "?").join(",");
+}
+
+// Assume delivered CTE aliased as 'd' in calling query.
+export function buildWindowFragment(
+  cutoffDate: string | undefined,
+  windowEndDate: string | undefined,
+): { cutoffSql: string; cutoffArgs: string[]; endSql: string; endArgs: string[] } {
+  return {
+    cutoffSql: cutoffDate ? "AND d.done_at >= ?" : "",
+    cutoffArgs: cutoffDate ? [cutoffDate] : [],
+    endSql: windowEndDate ? "AND d.done_at <= ?" : "",
+    endArgs: windowEndDate ? [windowEndDate] : [],
+  };
+}
+
+export function buildBugExclusionFragment(bugIssueTypes: string[]): { bugSql: string; bugArgs: string[] } {
+  if (bugIssueTypes.length === 0) return { bugSql: "", bugArgs: [] };
+  return {
+    bugSql: `AND i.issue_type NOT IN (${placeholders(bugIssueTypes)})`,
+    bugArgs: [...bugIssueTypes],
+  };
+}
+
 export type SizeBucket = "XS" | "S" | "M" | "L" | "XL" | "BUG" | "UNESTIMATED";
 
 export const BUCKET_ORDER: SizeBucket[] = ["XS", "S", "M", "L", "XL", "BUG", "UNESTIMATED"];
@@ -110,14 +135,20 @@ export function removeUpperOutliers(values: number[]): { kept: number[]; exclude
 }
 
 export function statsFromDays(days: number[], excludeOutliers = true): DurationStats {
-  const { kept, excluded } = excludeOutliers ? removeUpperOutliers(days) : { kept: [...days], excluded: 0 };
-  const sorted = kept.sort((a, b) => a - b);
+  let kept: number[];
+  let excluded: number;
+  if (excludeOutliers) {
+    ({ kept, excluded } = removeUpperOutliers(days)); // kept already sorted by removeUpperOutliers
+  } else {
+    kept = [...days].sort((a, b) => a - b);
+    excluded = 0;
+  }
   return {
-    count: sorted.length,
+    count: kept.length,
     excludedOutliers: excluded,
-    avgDays: avg(sorted),
-    medianDays: percentile(sorted, 50),
-    p85Days: percentile(sorted, 85),
-    p95Days: percentile(sorted, 95),
+    avgDays: avg(kept),
+    medianDays: percentile(kept, 50),
+    p85Days: percentile(kept, 85),
+    p95Days: percentile(kept, 95),
   };
 }

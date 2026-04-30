@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { Metric, MetricConfig } from "./types";
-import { buildDeliveredCte, DurationStats, SECONDS_PER_DAY, statsFromDays, workingDaysBetween } from "./utils";
+import { buildBugExclusionFragment, buildDeliveredCte, buildWindowFragment, DurationStats, placeholders, SECONDS_PER_DAY, statsFromDays, workingDaysBetween } from "./utils";
 
 export interface LeadTimeNormalizedResult extends DurationStats {
   unit: string;
@@ -12,16 +12,11 @@ export const leadTimeNormalizedMetric: Metric<LeadTimeNormalizedResult> = {
     "Lead-time total (backlog -> 1er statut team-done) divisé par l'estimation. Inclut attente. Cf. cycle-time-normalized pour dérive dev seul.",
 
   compute(db: Database.Database, config: MetricConfig): LeadTimeNormalizedResult {
-    const todoPh = config.todoStatuses.map(() => "?").join(",");
-    const devStartPh = config.devStartStatuses.map(() => "?").join(",");
+    const todoPh = placeholders(config.todoStatuses);
+    const devStartPh = placeholders(config.devStartStatuses);
     const delivered = buildDeliveredCte(config.doneStatuses);
-    const cutoffSql = config.cutoffDate ? "AND d.done_at >= ?" : "";
-    const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
-    const endSql = config.windowEndDate ? "AND d.done_at <= ?" : "";
-    const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
-    const bugPh = config.bugIssueTypes.length > 0 ? config.bugIssueTypes.map(() => "?").join(",") : null;
-    const bugSql = bugPh ? `AND i.issue_type NOT IN (${bugPh})` : "";
-    const bugArgs = bugPh ? config.bugIssueTypes : [];
+    const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
+    const { bugSql, bugArgs } = buildBugExclusionFragment(config.bugIssueTypes);
 
     const rows = db.prepare(`
       WITH ${delivered.cte}

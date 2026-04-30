@@ -1,6 +1,6 @@
 import { JiraClient } from "./jira/client";
 import { JiraIssue, StoredIssue, StoredSprint, StoredStatus, Transition } from "./jira/types";
-import { openDb, upsertIssues, upsertSprints, upsertStatuses, replaceTransitions, logSync } from "./db/store";
+import { openDb, upsertIssues, upsertSprints, upsertStatuses, replaceAllTransitions, logSync } from "./db/store";
 
 interface SyncConfig {
   jira: {
@@ -54,10 +54,7 @@ export async function sync(config: SyncConfig): Promise<void> {
   }));
 
   upsertIssues(db, issues);
-
-  for (const { key, transitions } of allTransitions) {
-    replaceTransitions(db, key, transitions);
-  }
+  replaceAllTransitions(db, allTransitions);
 
   logSync(db, config.jira.projectKey, rawIssues.length);
   console.log(`Sync terminé. ${rawIssues.length} issues stockées.`);
