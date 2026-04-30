@@ -10,7 +10,7 @@ const WEEKLY_METRICS = new Set(["throughput", "throughput-weighted", "bug-throug
 // Permet comparaison directe avec `npm run metrics`.
 const CUMULATIVE_METRICS = new Set(["lead-time-by-size", "cycle-time-by-size", "aging-wip"]);
 
-interface SnapshotRow {
+export interface SnapshotRow {
   snapshot_date: string;
   metric_name: string;
   bucket: string;
@@ -40,7 +40,7 @@ export function backfillSnapshots(db: Database.Database, baseConfig: MetricConfi
   return dates.length;
 }
 
-function generateWeekEndings(cutoffISO: string): string[] {
+export function generateWeekEndings(cutoffISO: string): string[] {
   const dates: string[] = [];
   const start = new Date(cutoffISO + "T00:00:00Z");
   // Aligner sur dimanche (fin de semaine ISO précédente).
@@ -90,7 +90,7 @@ function computeSnapshot(db: Database.Database, date: string, baseConfig: Metric
   return rows;
 }
 
-function extractStats(date: string, metricName: string, result: Record<string, unknown>): SnapshotRow[] {
+export function extractStats(date: string, metricName: string, result: Record<string, unknown>): SnapshotRow[] {
   const out: SnapshotRow[] = [];
 
   if ("buckets" in result) {
