@@ -130,4 +130,9 @@ Re-lancer `npx vitest run` après chaque correction.
 | 7. Clôture | <1k | inline |
 | **Total ticket M** | **20-50k** | |
 
-Pour ticket XL (>5j) : envisager découpage en plusieurs sous-tickets via `/ticket-spec` plutôt que long monolithe.
+**Tickets XL interdits.** Par convention `/ticket-spec` ne génère pas de ticket XL (cf. règle anti-monolithe dans la skill `ticket-spec`). Si tu rencontres un ticket marqué `Bucket: XL` ou estimé > 5j à la lecture phase 1 :
+
+1. Ne pas implémenter
+2. Alerter l'utilisateur
+3. Proposer un découpage et orienter vers `/ticket-spec` pour générer les sous-tickets
+4. Reprendre l'implémentation sur le premier sous-ticket une fois découpé

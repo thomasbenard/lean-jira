@@ -66,7 +66,44 @@ slug = short description in kebab-case, lowercase, no accents
 
 Folder: `docs/specs/tickets/<NNN>-<slug>/`
 
-## Step 4 — Decide on example-mapping.md
+## Step 4 — Estimer la taille du ticket
+
+**À faire avant d'écrire le moindre fichier.** Une fois le code lu (Step 2), poser un bucket
+d'estimation (XS / S / M / L / XL) basé sur :
+
+- nombre de fichiers à toucher
+- présence ou non d'un pattern existant à dupliquer
+- complexité algorithmique
+- migrations DB nécessaires
+- nombre de scénarios de test attendus
+
+Voir le tableau "Buckets d'estimation" plus bas (sous `description.md`) pour les seuils.
+
+### Si l'estimation sort XL → STOP
+
+**Ne pas générer le ticket.** Proposer immédiatement à l'utilisateur un découpage en 2-4
+sous-tickets, chacun ≤ M. Identifier les livrables intermédiaires logiques (ex. couche DB
+d'abord, métrique consommatrice ensuite, intégration UI en dernier).
+
+Format de la proposition :
+
+```
+Ce ticket sortirait XL (~7j). Je propose de le découper :
+
+  001a — <slug> (M, ~2j) : <livrable 1>
+  001b — <slug> (M, ~3j) : <livrable 2>
+  001c — <slug> (S, ~1j) : <livrable 3>
+
+OK pour ce découpage ? Si oui, je génère les 3 specs.
+```
+
+Attendre confirmation. Puis générer chaque sous-ticket via les Steps 3-7 en boucle.
+
+**Exception** : refactor architectural indivisible. Justifier dans `description.md` pourquoi
+le découpage n'est pas faisable et signaler le risque (PR géante, scope drift probable). Cas
+rare — la plupart des « ça ne se découpe pas » se découpent quand on creuse 5 minutes.
+
+## Step 5 — Decide on example-mapping.md
 
 Write example-mapping.md **only if** the ticket has at least one of:
 - Conditional UI behavior (what happens when a button is clicked, a selector changes, etc.)
@@ -77,10 +114,11 @@ Write example-mapping.md **only if** the ticket has at least one of:
 Skip it for: pure refactors, pure backend changes with no observable behavior change, trivial
 CRUD additions with no branching.
 
-## Step 5 — Write the files
+## Step 6 — Write the files
 
 Write all files in one pass, in order: description.md → spec-fonctionnelle.md →
-spec-technique.md → (example-mapping.md if needed).
+spec-technique.md → (example-mapping.md if needed). Le bucket et la justification décidés
+en Step 4 alimentent la section `## Estimation` de `description.md`.
 
 ---
 
@@ -98,13 +136,56 @@ En tant que <persona>, je veux <action>, afin de <bénéfice>.
 <One paragraph. What will be built, how, at a high level. Enough for a developer to understand
 the approach without reading the other files. Mention the key technical choice if there is one.>
 
+## Estimation
+
+**Bucket** : <XS | S | M | L | XL>
+
+**Justification** : <2-3 lignes : nombre de fichiers touchés, complexité, risques techniques,
+besoin de migration DB, nombre de scénarios de test attendus.>
+
 ## Statut
 
-**To be implemented**
+**à faire**
 ```
 
 The persona should be specific (lead technique, développeur, PO) not generic ("utilisateur").
 The "afin de" must express a real benefit, not just restate the action.
+
+`Statut` accepte trois valeurs : `à faire` → `en cours` → `livré`. Mis à jour par la skill
+`/implement-ticket` au cours de l'implémentation.
+
+### Buckets d'estimation
+
+Cohérents avec `bucketize()` dans `src/metrics/utils.ts` (alimente `lead-time-by-size`,
+`cycle-time-by-size`, `throughput-weighted`) :
+
+| Bucket | Jours-personne | Quand l'utiliser |
+|---|---|---|
+| **XS** | < 0.5j | 1 fichier, < 30 lignes, 1-2 scénarios test |
+| **S**  | 0.5-1j | 1-2 fichiers, pattern existant à dupliquer, 2-4 scénarios |
+| **M**  | 1-3j | 2-4 fichiers, nouvelle métrique simple, 4-8 scénarios |
+| **L**  | 3-5j | Plusieurs couches touchées, refactor partiel, > 8 scénarios |
+| **XL** | ≥ 5j | **Interdit** — voir règle ci-dessous |
+
+### Règle anti-monolithe — pas de ticket XL
+
+**Si l'estimation dépasse 5j, le ticket doit être découpé en plusieurs sous-tickets via
+`/ticket-spec`.** Un ticket XL est un signal :
+
+- la spec couvre plusieurs préoccupations indépendantes
+- la livraison incrémentale est impossible → risque élevé de scope drift et de PR géante non revusable
+- l'estimation est trop incertaine pour être actionnable
+
+Quand cette skill détecte qu'un ticket sortirait XL :
+
+1. **Ne pas écrire le ticket monolithique**
+2. Proposer à l'utilisateur un découpage : 2-4 sous-tickets, chacun ≤ M. Identifier les
+   livrables intermédiaires pertinents (ex. « ticket A : ajout schéma DB + migration », « ticket B :
+   métrique consommatrice », « ticket C : intégration report »)
+3. Confirmer la liste avec l'utilisateur, puis générer les specs pour chaque sous-ticket
+
+Exception : refactor architectural impossible à découper. Justifier explicitement dans
+`description.md` pourquoi le découpage n'est pas faisable et signaler le risque.
 
 ---
 
@@ -207,10 +288,13 @@ Don't write scenarios for trivially obvious behavior.
 After writing all files, print a summary:
 
 ```
-Ticket <NNN> — <title>
+Ticket <NNN> — <title>  [<bucket> ~<Xj>]
 Created: docs/specs/tickets/<NNN>-<slug>/
   description.md         ✓
   spec-fonctionnelle.md  ✓
   spec-technique.md      ✓
   example-mapping.md     ✓  (or: — skipped: pure backend change, no branching behavior)
 ```
+
+Si plusieurs sous-tickets ont été générés suite à un découpage XL, afficher chaque ticket sur
+sa propre ligne avec son bucket.
