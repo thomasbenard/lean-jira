@@ -16,4 +16,4 @@ Ajouter un script npm `refresh` qui enchaîne `sync`, `snapshots` et `report` vi
 
 ## Statut
 
-**à faire**
+**livré**

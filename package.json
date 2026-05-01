@@ -8,6 +8,7 @@
     "metrics:raw": "ts-node src/main.ts metrics --include-outliers",
     "snapshots": "ts-node src/main.ts snapshots",
     "report": "ts-node src/main.ts report",
+    "refresh": "npm run sync && npm run snapshots && npm run report",
     "build": "tsc",
     "start": "node dist/main.js",
     "test": "vitest run",
