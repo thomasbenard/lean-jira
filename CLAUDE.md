@@ -49,6 +49,7 @@ npm run sync        # Pull Jira → SQLite (issues, transitions, sprints)
 npm run metrics     # Compute and print all metrics (full history since cutoffDate)
 npm run snapshots   # Backfill weekly metric_snapshots table (required before report)
 npm run report      # Generate self-contained HTML report (reads metric_snapshots)
+npm run refresh     # Enchaîne sync → snapshots → report (arrêt sur erreur)
 npm run build       # Compile TypeScript → ./dist
 npm start           # Run compiled build
 ```
