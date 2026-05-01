@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { issueLink, agingRowsHtml } from "../../src/report/generate";
+import { issueLink, agingRowsHtml, buildBucketSeries } from "../../src/report/generate";
 import type { AgingWipSummary } from "../../src/metrics/agingWip";
+import type { SnapshotRow } from "../../src/snapshots/compute";
 
 describe("issueLink", () => {
   it("génère un lien <a> vers la page Jira de l'issue", () => {
@@ -29,6 +30,54 @@ describe("issueLink", () => {
   it("échappe les caractères HTML dans le baseUrl", () => {
     const html = issueLink("K-1", 'https://x"y.com');
     expect(html).toContain("https://x&quot;y.com/browse/K-1");
+  });
+});
+
+describe("buildBucketSeries", () => {
+  const rows: SnapshotRow[] = [
+    { snapshot_date: "2025-01-05", metric_name: "lead-time-by-size", bucket: "M", stat: "median", value: 3 },
+    { snapshot_date: "2025-01-05", metric_name: "lead-time-by-size", bucket: "M", stat: "p85", value: 5 },
+    { snapshot_date: "2025-01-05", metric_name: "lead-time-by-size", bucket: "M", stat: "p95", value: 7 },
+    { snapshot_date: "2025-01-05", metric_name: "lead-time-by-size", bucket: "XS", stat: "median", value: 1 },
+    { snapshot_date: "2025-01-12", metric_name: "lead-time-by-size", bucket: "M", stat: "median", value: 4 },
+    { snapshot_date: "2025-01-12", metric_name: "lead-time-by-size", bucket: "M", stat: "p85", value: 6 },
+    { snapshot_date: "2025-01-12", metric_name: "lead-time-by-size", bucket: "M", stat: "p95", value: 8 },
+  ];
+
+  it("filtre par bucket et retourne les dates triées", () => {
+    const result = buildBucketSeries(rows, "M", ["median", "p85", "p95"]);
+    expect(result.dates).toEqual(["2025-01-05", "2025-01-12"]);
+  });
+
+  it("exclut les données d'autres buckets", () => {
+    const result = buildBucketSeries(rows, "M", ["median"]);
+    expect(result.dates).toHaveLength(2);
+    // XS ne doit pas apparaître
+    const xsResult = buildBucketSeries(rows, "XS", ["median"]);
+    expect(xsResult.dates).toHaveLength(1);
+    expect(xsResult.series.median).toEqual([1]);
+  });
+
+  it("retourne les séries correctes pour chaque stat", () => {
+    const result = buildBucketSeries(rows, "M", ["median", "p85", "p95"]);
+    expect(result.series.median).toEqual([3, 4]);
+    expect(result.series.p85).toEqual([5, 6]);
+    expect(result.series.p95).toEqual([7, 8]);
+  });
+
+  it("bucket sans données → dates vide", () => {
+    const result = buildBucketSeries(rows, "XL", ["median", "p85", "p95"]);
+    expect(result.dates).toHaveLength(0);
+  });
+
+  it("inclut la stat count quand demandée (pour sélection bucket par défaut)", () => {
+    const withCount: SnapshotRow[] = [
+      ...rows,
+      { snapshot_date: "2025-01-05", metric_name: "lead-time-by-size", bucket: "M", stat: "count", value: 10 },
+      { snapshot_date: "2025-01-12", metric_name: "lead-time-by-size", bucket: "M", stat: "count", value: 15 },
+    ];
+    const result = buildBucketSeries(withCount, "M", ["median", "p85", "p95", "count"]);
+    expect(result.series.count).toEqual([10, 15]);
   });
 });
 

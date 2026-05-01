@@ -156,6 +156,17 @@ export function generateReport(
 
   const leadBySize = latestBySize(latestRows.filter((r) => r.metric_name === "lead-time-by-size"));
   const cycleBySize = latestBySize(latestRows.filter((r) => r.metric_name === "cycle-time-by-size"));
+
+  const leadBySizeRows = metricRows("lead-time-by-size");
+  const cycleBySizeRows = metricRows("cycle-time-by-size");
+  const leadTimeBySizeCharts: Record<string, ChartSeries> = {};
+  const cycleTimeBySizeCharts: Record<string, ChartSeries> = {};
+  for (const b of BUCKET_ORDER) {
+    const lead = buildBucketSeries(leadBySizeRows, b, ["median", "p85", "p95", "count"]);
+    if (lead.dates.length > 0) leadTimeBySizeCharts[b] = lead;
+    const cycle = buildBucketSeries(cycleBySizeRows, b, ["median", "p85", "p95", "count"]);
+    if (cycle.dates.length > 0) cycleTimeBySizeCharts[b] = cycle;
+  }
   const agingWip = agingWipMetric.compute(db, config);
   const forecast = forecastMetric.compute(db, config);
   const cycleTime = cycleTimeMetric.compute(db, config);
@@ -170,6 +181,8 @@ export function generateReport(
     charts,
     leadBySize,
     cycleBySize,
+    leadTimeBySizeCharts,
+    cycleTimeBySizeCharts,
     agingWip,
     forecast,
     histogram,
@@ -183,6 +196,10 @@ export function generateReport(
   });
 
   fs.writeFileSync(outputPath, html);
+}
+
+export function buildBucketSeries(snapshots: SnapshotRow[], bucket: string, stats: string[]): ChartSeries {
+  return buildSeries(snapshots, bucket, stats);
 }
 
 function buildSeries(snapshots: SnapshotRow[], bucket: string, stats: string[]): ChartSeries {
@@ -237,6 +254,8 @@ interface RenderInput {
   charts: Record<string, ChartSeries>;
   leadBySize: Record<string, BucketStats>;
   cycleBySize: Record<string, BucketStats>;
+  leadTimeBySizeCharts: Record<string, ChartSeries>;
+  cycleTimeBySizeCharts: Record<string, ChartSeries>;
   agingWip: AgingWipSummary;
   forecast: ForecastSummary;
   histogram: HistogramBin[];
@@ -323,7 +342,12 @@ function renderHtml(input: RenderInput): string {
   .risk-watch { color: #f59e0b; font-weight: 600; }
   .risk-at-risk { color: #f97316; font-weight: 600; }
   .risk-critical { color: #ef4444; font-weight: 700; }
-  @media (max-width: 800px) { .charts, .by-size, .aging-wrap { grid-template-columns: 1fr; } }
+  @media (max-width: 800px) { .charts, .by-size, .aging-wrap, .by-size-trends { grid-template-columns: 1fr; } }
+  .by-size-trends { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem; }
+  .bucket-selector { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
+  .bucket-btn { padding: 0.25rem 0.6rem; border-radius: 4px; border: 1px solid #d1d5db; background: #f9fafb; cursor: pointer; font-size: 0.8rem; color: #374151; }
+  .bucket-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
+  .bucket-btn:disabled { opacity: 0.5; cursor: default; }
   .help-wrap { position: relative; display: inline-block; }
   .help-btn {
     background: #e5e7eb; border: none; color: #374151; cursor: pointer;
@@ -413,12 +437,25 @@ function renderHtml(input: RenderInput): string {
     <tbody>${bySizeRows(input.cycleBySize)}</tbody></table>
   </div>
 </div>
+<div class="by-size-trends">
+  <div class="chart-card">
+    <h3>Lead time par taille (jours)${helpBtn("leadTimeBySize")}</h3>
+    <div class="bucket-selector" id="leadBySizeBuckets"></div>
+    <canvas id="leadBySizeChart"></canvas>
+  </div>
+  <div class="chart-card">
+    <h3>Cycle time par taille (jours)${helpBtn("cycleTimeBySize")}</h3>
+    <div class="bucket-selector" id="cycleBySizeBuckets"></div>
+    <canvas id="cycleBySizeChart"></canvas>
+  </div>
+</div>
 
 <script>
 const CHARTS = ${JSON.stringify(input.charts)};
 
 const COLOR_MEDIAN = "#2563eb";
 const COLOR_P85 = "#f59e0b";
+const COLOR_P95 = "#ef4444";
 const COLOR_COUNT = "#10b981";
 const COLOR_DAYS = "#8b5cf6";
 
@@ -593,6 +630,57 @@ const AGING = ${JSON.stringify({
     }],
   });
 })();
+
+const LEAD_BY_SIZE = ${JSON.stringify(input.leadTimeBySizeCharts)};
+const CYCLE_BY_SIZE = ${JSON.stringify(input.cycleTimeBySizeCharts)};
+const BUCKET_LABELS_MAP = ${JSON.stringify(BUCKET_LABELS)};
+
+function initBucketSelector(dataByBucket, canvasId, selectorId) {
+  const buckets = Object.keys(dataByBucket);
+  if (buckets.length === 0) return;
+
+  const lastCount = (bkt) => { const c = dataByBucket[bkt].series.count; return c[c.length - 1] ?? 0; };
+  let activeBucket = buckets.reduce((a, b) => lastCount(a) >= lastCount(b) ? a : b);
+
+  const selectorEl = document.getElementById(selectorId);
+  const canvasEl = document.getElementById(canvasId);
+  let chart = null;
+  const singleBucket = buckets.length === 1;
+
+  selectorEl.innerHTML = buckets.map(b =>
+    '<button class="bucket-btn' + (b === activeBucket ? ' active' : '') + '"' + (singleBucket ? ' disabled' : '') + ' data-bucket="' + b + '">' + (BUCKET_LABELS_MAP[b] ?? b) + '</button>'
+  ).join('');
+
+  selectorEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.bucket-btn');
+    if (!btn || btn.disabled) return;
+    activeBucket = btn.dataset.bucket;
+    selectorEl.querySelectorAll('.bucket-btn').forEach(b => b.classList.toggle('active', b.dataset.bucket === activeBucket));
+    renderChart();
+  });
+
+  function renderChart() {
+    const data = dataByBucket[activeBucket];
+    if (chart) chart.destroy();
+    chart = new Chart(canvasEl, {
+      type: 'line',
+      data: {
+        labels: data.dates,
+        datasets: [
+          { label: 'P50', data: data.series.median, borderColor: COLOR_MEDIAN, backgroundColor: COLOR_MEDIAN + '22', tension: 0.2, pointRadius: 2 },
+          { label: 'P85', data: data.series.p85,    borderColor: COLOR_P85,    backgroundColor: COLOR_P85    + '22', tension: 0.2, pointRadius: 2 },
+          { label: 'P95', data: data.series.p95,    borderColor: COLOR_P95,    backgroundColor: COLOR_P95    + '22', tension: 0.2, pointRadius: 2 },
+        ],
+      },
+      options: baseOpts,
+    });
+  }
+
+  renderChart();
+}
+
+initBucketSelector(LEAD_BY_SIZE,  'leadBySizeChart',  'leadBySizeBuckets');
+initBucketSelector(CYCLE_BY_SIZE, 'cycleBySizeChart', 'cycleBySizeBuckets');
 </script>
 </body>
 </html>`;

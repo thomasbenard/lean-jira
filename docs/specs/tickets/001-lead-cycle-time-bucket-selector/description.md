@@ -16,4 +16,4 @@ Deux graphiques de séries temporelles (lead time par taille / cycle time par ta
 
 ## Statut
 
-**à faire**
+**livré**

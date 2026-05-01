@@ -170,5 +170,5 @@ npm run report     # Génère ./report.html
 3. **Distribution cycle time** : histogramme avec lignes P50/P85/P95.
 4. **Forecast Monte Carlo** : table P15/P50/P85/P95 par horizon.
 5. **Aging WIP** : scatter (statut × âge) avec seuils P50/P85/P95 + table top 15 par âge avec classification de risque. Les clés d'issues dans la table sont des liens cliquables ouvrant la page Jira correspondante (`{baseUrl}/browse/{key}`) dans un nouvel onglet.
-6. **Par taille** (dernière fenêtre) : tableaux lead time et cycle time par bucket.
+6. **Par taille** : tableaux statiques lead time et cycle time par bucket (dernière snapshot : count/médiane/P85) + deux graphiques de séries temporelles (lead time et cycle time). Chaque graphique affiche P50/P85/P95 pour le bucket sélectionné via une rangée de boutons (un par bucket ayant des données). Bucket par défaut : celui avec le plus grand nombre d'issues (stat `count`). Sélecteur interactif côté client, sans rechargement. Un seul bucket disponible → bouton non cliquable.
 7. **Popovers d'aide** au survol pour chaque métrique.

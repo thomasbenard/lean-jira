@@ -469,7 +469,7 @@ Pour chaque date D :
 
 | Type de résultat (clé identifiante) | Stats stockées |
 |---|---|
-| `buckets` (Record<SizeBucket, DurationStats>) | `count`, `median`, `p85` par bucket non-vide |
+| `buckets` (Record<SizeBucket, DurationStats>) | `count`, `median`, `p85`, `p95` par bucket non-vide |
 | `aggregateFlowEfficiency` (flow-efficiency) | `count`, `aggregate`, `median`, `activeDays`, `queueDays` |
 | `riskCounts` (aging-wip) | `count`, `ok`, `watch`, `atRisk`, `critical`, `p50`, `p85`, `p95` |
 | `avgDays` (DurationStats) | `count`, `median`, `p85` |

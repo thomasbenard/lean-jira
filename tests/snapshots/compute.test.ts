@@ -122,13 +122,21 @@ describe("extractStats (shape byWeek — throughput)", () => {
 describe("extractStats (shape buckets — by-size)", () => {
   const durationStats: DurationStats = { count: 2, excludedOutliers: 0, avgDays: 3, medianDays: 3, p85Days: 4, p95Days: 5 };
 
-  it("produit count, median, p85 par bucket non vide", () => {
+  it("produit count, median, p85, p95 par bucket non vide", () => {
     const result = { buckets: { M: durationStats } };
     const rows = extractStats("2025-01-19", "cycle-time-by-size", result as unknown as Record<string, unknown>);
     const stats = rows.map((r) => r.stat);
     expect(stats).toContain("count");
     expect(stats).toContain("median");
     expect(stats).toContain("p85");
+    expect(stats).toContain("p95");
+  });
+
+  it("valeur p95 correcte", () => {
+    const result = { buckets: { M: durationStats } };
+    const rows = extractStats("2025-01-19", "lead-time-by-size", result as unknown as Record<string, unknown>);
+    const p95Row = rows.find((r) => r.stat === "p95" && r.bucket === "M");
+    expect(p95Row?.value).toBe(5);
   });
 
   it("bucket avec count=0 → aucune ligne pour ce bucket", () => {

@@ -101,6 +101,7 @@ export function extractStats(date: string, metricName: string, result: Record<st
       out.push({ snapshot_date: date, metric_name: metricName, bucket: b, stat: "count", value: s.count });
       out.push({ snapshot_date: date, metric_name: metricName, bucket: b, stat: "median", value: s.medianDays });
       out.push({ snapshot_date: date, metric_name: metricName, bucket: b, stat: "p85", value: s.p85Days });
+      out.push({ snapshot_date: date, metric_name: metricName, bucket: b, stat: "p95", value: s.p95Days });
     }
   } else if ("avgDays" in result) {
     const r = result as unknown as DurationStats;
