@@ -4,7 +4,7 @@ import yaml from "yaml";
 import path from "path";
 import Database from "better-sqlite3";
 import { sync } from "./sync";
-import { openDb, getDoneStatusNames } from "./db/store";
+import { openDb, getDoneStatusNames, getAllStatuses } from "./db/store";
 import { runAllMetrics, runMetric, ALL_METRICS } from "./metrics/index";
 import { BUCKET_LABELS, BUCKET_ORDER, SizeBucket } from "./metrics/utils";
 import { backfillSnapshots } from "./snapshots/compute";
@@ -50,6 +50,46 @@ export function deriveStatusConfig(board: BoardConfig): DerivedStatusConfig {
     queueStatuses: unique(queue),
     doneStatuses: unique([...byType("done"), ...(board.legacyDoneStatuses ?? [])]),
   };
+}
+
+export interface ValidationEntry {
+  name: string;
+  found: boolean;
+  isLegacy: boolean;
+}
+
+export interface ValidationSection {
+  label: string;
+  entries: ValidationEntry[];
+}
+
+export interface ValidationResult {
+  sections: ValidationSection[];
+  missingCount: number;
+}
+
+const LEGACY_SECTION_LABEL = "doneStatuses";
+
+export function validateStatusConfig(
+  sections: Array<{ label: string; statuses: string[] }>,
+  dbStatuses: Array<{ name: string; categoryKey: string }>,
+): ValidationResult {
+  const dbNames = new Set(dbStatuses.map((s) => s.name));
+  let missingCount = 0;
+  const resultSections: ValidationSection[] = [];
+
+  for (const { label, statuses } of sections) {
+    if (statuses.length === 0) continue;
+    const entries: ValidationEntry[] = statuses.map((name) => {
+      const found = dbNames.has(name);
+      const isLegacy = !found && label === LEGACY_SECTION_LABEL;
+      if (!found && !isLegacy) missingCount++;
+      return { name, found, isLegacy };
+    });
+    resultSections.push({ label, entries });
+  }
+
+  return { sections: resultSections, missingCount };
 }
 
 interface AppConfig {
@@ -179,6 +219,57 @@ program
     const metricConfig = buildMetricConfig(db, config);
     generateReport(db, config.jira.projectKey, config.jira.baseUrl, path.resolve(opts.output), metricConfig);
     console.log(`Rapport généré : ${path.resolve(opts.output)}`);
+  });
+
+program
+  .command("validate-config")
+  .description("Vérifie que les statuts du config existent dans la base (après un sync)")
+  .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
+  .action((opts) => {
+    const config = loadConfig(path.resolve(opts.config));
+    const db = openDb(config.db.path);
+
+    const dbStatuses = getAllStatuses(db);
+    if (dbStatuses.length === 0) {
+      console.error("Base vide. Lancer `npm run sync` d'abord.");
+      process.exit(1);
+    }
+
+    const derived = deriveStatusConfig(config.board);
+    const sections = [
+      { label: "todoStatuses", statuses: derived.todoStatuses },
+      { label: "devStartStatuses", statuses: derived.devStartStatuses },
+      { label: "inProgressStatuses", statuses: derived.inProgressStatuses },
+      { label: "doneStatuses", statuses: derived.doneStatuses },
+      { label: "activeStatuses", statuses: derived.activeStatuses },
+      { label: "queueStatuses", statuses: derived.queueStatuses },
+    ];
+
+    const result = validateStatusConfig(sections, dbStatuses);
+
+    for (const section of result.sections) {
+      console.log(`\n${section.label}`);
+      for (const entry of section.entries) {
+        if (entry.found) {
+          console.log(`  ✓ ${entry.name}`);
+        } else if (entry.isLegacy) {
+          console.log(`  ✗ ${entry.name}  ← introuvable en base (statut legacy — accepté pour l'historique)`);
+        } else {
+          console.log(`  ✗ ${entry.name}  ← introuvable en base`);
+        }
+      }
+    }
+
+    if (result.missingCount > 0) {
+      console.log("\nStatuts disponibles en base :");
+      for (const s of dbStatuses) {
+        console.log(`  ${s.name.padEnd(30)} (${s.categoryKey})`);
+      }
+      console.log(`\n${result.missingCount} statut(s) introuvable(s). Vérifier config.yaml.`);
+      process.exit(1);
+    } else {
+      console.log("\n✓ Config valide.");
+    }
   });
 
 program

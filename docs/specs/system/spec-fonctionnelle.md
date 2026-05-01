@@ -16,6 +16,8 @@ CLI qui synchronise les données d'un board Jira Kanban, calcule des métriques 
 | `npm run metrics` | Calcule et affiche toutes les métriques |
 | `npm run snapshots` | Recalcule l'historique hebdomadaire (`metric_snapshots`) |
 | `npm run report` | Génère un rapport HTML autonome avec charts de tendances |
+| `npm run refresh` | Enchaîne sync → snapshots → report (arrêt sur erreur) |
+| `npm run validate` | Vérifie que les statuts du config existent en base (après un sync) |
 | `npm run build` | Compile TypeScript → `./dist` |
 | `npm start` | Lance le build compilé |
 

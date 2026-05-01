@@ -20,4 +20,4 @@ Deux livrables indépendants :
 
 ## Statut
 
-**à faire**
+**livré**

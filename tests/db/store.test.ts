@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "../helpers/db";
-import { upsertIssues, upsertSprints, upsertStatuses, replaceTransitions, getDoneStatusNames, logSync, getLastSyncDate } from "../../src/db/store";
+import { upsertIssues, upsertSprints, upsertStatuses, replaceTransitions, getDoneStatusNames, getAllStatuses, logSync, getLastSyncDate } from "../../src/db/store";
 import type Database from "better-sqlite3";
 import { makeIssue, makeSprint, makeTransitions, resetSeq } from "../helpers/seeders";
 
@@ -133,6 +133,33 @@ describe("getDoneStatusNames", () => {
     upsertStatuses(db, [{ name: "Done", categoryKey: "done", categoryName: "Done" }]);
     const result = getDoneStatusNames(db);
     expect(result instanceof Set).toBe(true);
+  });
+});
+
+describe("getAllStatuses", () => {
+  it("retourne une liste vide si aucun statut en base", () => {
+    expect(getAllStatuses(db)).toEqual([]);
+  });
+
+  it("retourne tous les statuts avec name et categoryKey", () => {
+    upsertStatuses(db, [
+      { name: "Done", categoryKey: "done", categoryName: "Done" },
+      { name: "In Progress", categoryKey: "indeterminate", categoryName: "In Progress" },
+    ]);
+    const result = getAllStatuses(db);
+    expect(result).toHaveLength(2);
+    expect(result.some((s) => s.name === "Done" && s.categoryKey === "done")).toBe(true);
+    expect(result.some((s) => s.name === "In Progress" && s.categoryKey === "indeterminate")).toBe(true);
+  });
+
+  it("retourne les statuts triés par nom", () => {
+    upsertStatuses(db, [
+      { name: "Zorro", categoryKey: "new", categoryName: "New" },
+      { name: "Alpha", categoryKey: "done", categoryName: "Done" },
+    ]);
+    const result = getAllStatuses(db);
+    expect(result[0].name).toBe("Alpha");
+    expect(result[1].name).toBe("Zorro");
   });
 });
 

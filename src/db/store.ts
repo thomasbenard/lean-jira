@@ -107,6 +107,10 @@ export function getDoneStatusNames(db: Database.Database): Set<string> {
   return new Set(rows.map((r) => r.name));
 }
 
+export function getAllStatuses(db: Database.Database): Array<{ name: string; categoryKey: string }> {
+  return db.prepare("SELECT name, category_key AS categoryKey FROM statuses ORDER BY name").all() as Array<{ name: string; categoryKey: string }>;
+}
+
 export function getLastSyncDate(db: Database.Database, projectKey: string): string | null {
   const row = db.prepare(
     "SELECT MAX(synced_at) as last FROM sync_log WHERE project_key = ?"
