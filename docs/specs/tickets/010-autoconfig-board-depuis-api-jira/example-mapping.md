@@ -1,41 +1,47 @@
 # Example Mapping — Autoconfiguration du board depuis l'API Jira
 
-## Règle 1 — Inférence du type de colonne depuis statusCategory
+## Règle 1 — Inférence du type par position
 
-**Une colonne dont tous les statuts ont `categoryKey='done'` reçoit `type: done`. Tous `new` → `todo`. Sinon → `active`.**
+**Première colonne → `todo`. Dernière colonne → `done`. Colonnes intermédiaires → `active` par défaut.**
 
 ```gherkin
-Scenario: colonne homogène "done"
-  Given une colonne "Terminé" avec des statuts dont tous ont categoryKey = "done"
+Scenario: board standard à 4 colonnes
+  Given un board avec 4 colonnes [Backlog, En cours, Review, Terminé]
   When inferBoardColumns() est appelé
-  Then la colonne reçoit type: "done"
-  And la colonne ne reçoit pas devStart: true
+  Then colonne 0 a type: "todo"
+  And colonne 3 a type: "done"
+  And colonnes 1 et 2 ont type: "active"
 
-Scenario: colonne homogène "new"
-  Given une colonne "Backlog" avec des statuts dont tous ont categoryKey = "new"
+Scenario: board minimal à 2 colonnes
+  Given un board avec 2 colonnes [À faire, Terminé]
+  When inferBoardColumns() est appelé
+  Then colonne 0 a type: "todo"
+  And colonne 1 a type: "done"
+  And aucune colonne n'a devStart: true
+  And un avertissement est affiché sur stderr
+
+Scenario: board à 1 seule colonne
+  Given un board avec 1 colonne [Tout]
   When inferBoardColumns() est appelé
   Then la colonne reçoit type: "todo"
-
-Scenario: colonne mixte ou "indeterminate"
-  Given une colonne "Review" avec des statuts dont certains ont categoryKey = "indeterminate"
-  When inferBoardColumns() est appelé
-  Then la colonne reçoit type: "active"
+  And un avertissement "configuration probablement incomplète" est affiché
 ```
 
 ---
 
 ## Règle 2 — Placement de devStart: true
 
-**`devStart: true` est positionné sur la première colonne `active` détectée, et sur une seule.**
+**`devStart: true` positionné sur la première colonne intermédiaire (index 1), et sur une seule.**
 
 ```gherkin
-Scenario: première colonne active reçoit devStart
-  Given un board avec colonnes [todo, active, active, done]
+Scenario: devStart sur première colonne intermédiaire
+  Given un board avec colonnes [todo, col-A, col-B, done]
   When inferBoardColumns() est appelé
-  Then seule la première colonne active a devStart: true
+  Then seule col-A a devStart: true
+  And col-B n'a pas devStart
 
-Scenario: aucune colonne active
-  Given un board avec colonnes [todo, done] seulement
+Scenario: aucune colonne intermédiaire
+  Given un board avec 2 colonnes seulement
   When inferBoardColumns() est appelé
   Then aucune colonne n'a devStart: true
   And un avertissement est affiché sur stderr
@@ -43,9 +49,30 @@ Scenario: aucune colonne active
 
 ---
 
-## Règle 3 — Statut ID non résolu
+## Règle 3 — Avertissement colonne intermédiaire suspecte
 
-**Si un status ID retourné par le board ne figure pas dans `/rest/api/2/status`, il est inclus sous forme de commentaire lisible plutôt qu'ignoré silencieusement.**
+**Si une colonne intermédiaire a tous ses statuts avec `statusCategory.key='done'`, un commentaire d'avertissement est ajouté — mais le type reste `active`.**
+
+```gherkin
+Scenario: colonne intermédiaire avec statuts "done"
+  Given une colonne intermédiaire "À valider" dont tous les statuts ont categoryKey = "done"
+  When inferBoardColumns() est appelé
+  Then la colonne a type: "active"
+  And la sortie YAML contient un commentaire "statuts classés done par Jira — vérifier"
+  And la colonne n'est pas silencieusement reclassée en "done"
+
+Scenario: colonne intermédiaire avec statuts "indeterminate"
+  Given une colonne intermédiaire "Review" avec statuts categoryKey = "indeterminate"
+  When inferBoardColumns() est appelé
+  Then la colonne a type: "active"
+  And aucun avertissement n'est généré pour cette colonne
+```
+
+---
+
+## Règle 4 — Statut ID non résolu
+
+**Un status ID retourné par le board mais absent de `/rest/api/2/status` est inclus lisiblement, pas ignoré.**
 
 ```gherkin
 Scenario: statut ID absent de la liste des statuts Jira
@@ -57,9 +84,9 @@ Scenario: statut ID absent de la liste des statuts Jira
 
 ---
 
-## Règle 4 — Comportement sans --apply (stdout safe)
+## Règle 5 — Comportement sans --apply (stdout safe)
 
-**Sans `--apply`, la commande ne modifie aucun fichier. Elle imprime uniquement sur stdout.**
+**Sans `--apply`, la commande ne modifie aucun fichier.**
 
 ```gherkin
 Scenario: sortie stdout par défaut
@@ -67,10 +94,10 @@ Scenario: sortie stdout par défaut
   And les APIs Jira répondent correctement
   When la commande autoconfig est lancée sans --apply
   Then config.yaml n'est pas modifié
-  And la sortie stdout contient "board:\n  columns:"
-  And la sortie contient un commentaire d'en-tête
+  And la sortie stdout contient "board:" et "columns:"
+  And la sortie contient les commentaires d'en-tête
 
-Scenario: --apply écrase board.columns uniquement
+Scenario: --apply écrase board.columns et préserve le reste
   Given un config.yaml avec une section metrics.cutoffDate existante
   When la commande autoconfig --apply est lancée
   Then board.columns est mis à jour dans config.yaml

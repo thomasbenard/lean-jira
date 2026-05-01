@@ -20,7 +20,8 @@ La commande imprime le YAML de la section `board.columns` prête à coller dans 
 
 ```
 # Board "KECK" — colonnes détectées automatiquement depuis l'API Jira
-# Vérifier devStart: true — positionné sur la première colonne active par défaut
+# Vérifier devStart: true — positionné sur la première colonne intermédiaire par défaut
+# Les colonnes intermédiaires sont toutes en type: active — changer en "queue" pour les colonnes d'attente (ex: review)
 # Ajouter legacyDoneStatuses si des statuts historiques n'apparaissent plus dans l'API
 
 board:
@@ -32,38 +33,50 @@ board:
 
     - name: "Développement"
       type: active
-      devStart: true
+      devStart: true   # ← première colonne intermédiaire — vérifier si correct
       statuses:
         - "In Progress"
-    ...
+
+    - name: "Code Review"
+      type: active   # ← changer en "queue" si c'est un temps d'attente
+      statuses:
+        - "In Review"
+
+    - name: "Terminé"
+      type: done
+      statuses:
+        - "Done"
 ```
-
-### Comportement avec --apply
-
-- Avertissement explicite avant modification : `⚠ --apply va écraser board.columns dans ./config.yaml. Continuer ? (Ctrl-C pour annuler)`
-- Attend 3 secondes puis procède (non-interactif, pour usage en script)
-- Recharge le fichier YAML existant, remplace uniquement la clé `board`, réécrit le fichier
-- Les autres sections (`jira`, `metrics`, `db`) sont préservées
 
 ### Inférence des types de colonnes
 
-| Catégories dominantes dans les statuts de la colonne | Type inféré |
-|---|---|
-| Tous `new` | `todo` |
-| Tous `done` | `done` |
-| Mixte ou `indeterminate` | `active` |
+L'inférence repose sur la **position** dans le board, qui est une convention universelle dans Jira :
 
-La première colonne de type `active` reçoit `devStart: true`.
+| Position | Type inféré | Justification |
+|---|---|---|
+| Première colonne | `todo` | Toujours le point d'entrée du board |
+| Dernière colonne | `done` | Toujours la sortie (delivery) |
+| Colonnes intermédiaires | `active` par défaut | `active` vs `queue` indéterminable automatiquement |
 
-Si aucune colonne `active` n'est détectée, `devStart: true` n'est positionné sur aucune colonne et un avertissement est affiché.
+`statusCategory` est utilisé uniquement comme **signal de confirmation** : si une colonne intermédiaire contient des statuts dont la `statusCategory.key='done'`, un commentaire d'avertissement est ajouté à la ligne `type:` dans la sortie.
+
+`devStart: true` est positionné sur la première colonne intermédiaire (index 1).
+
+### Comportement avec --apply
+
+- Avertissement explicite avant modification : `⚠ --apply va écraser board.columns dans ./config.yaml. Attente 3s…`
+- Attend 3 secondes puis procède (non-interactif, pour usage en script)
+- Recharge le fichier YAML existant, remplace uniquement la clé `board.columns`, réécrit le fichier
+- Les autres sections (`jira`, `metrics`, `db`) sont préservées
 
 ## Cas limites
 
-- **Board vide** (aucune colonne) → affiche un avertissement et sort sans générer de config
-- **Colonne sans statuts** → incluse avec `statuses: []` et un commentaire `# aucun statut associé`
+- **Board avec 1 seule colonne** → type: `todo` (première = dernière) ; avertissement : `⚠ Board à une seule colonne — configuration probablement incomplète`
+- **Board avec 2 colonnes** → première `todo`, dernière `done`, aucune colonne intermédiaire ; `devStart: true` absent + avertissement
+- **Colonne sans statuts** → incluse avec `statuses: []` et commentaire `# aucun statut associé`
 - **Statut ID inconnu** (absent de `/rest/api/2/status`) → inclus sous son ID brut avec commentaire `# statut ID non résolu`
-- **Aucune colonne `active`** → `devStart: true` absent de la sortie, avertissement affiché : `⚠ Aucune colonne active détectée — positionner devStart: true manuellement`
-- **Plusieurs colonnes toutes `active`** → `devStart: true` sur la première seulement
+- **Colonne intermédiaire avec statuts de catégorie "done"** → type reste `active` mais commentaire ajouté : `# ⚠ statuts classés "done" par Jira — vérifier si cette colonne devrait être type: done`
+- **Board vide** (aucune colonne) → erreur et exit 1
 - **config.yaml introuvable** → erreur et exit 1
 
 ## Ce qui ne change pas
