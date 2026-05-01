@@ -1,6 +1,6 @@
 ---
 name: implement-ticket
-description: Implémente un ticket de dev existant sous `docs/specs/tickets/<NNN>-<slug>/` en suivant strictement TDD (Red→Green→Refactor) et les conventions de `docs/coding-standards.md`. Workflow complet : lecture spec → TDD → tests verts → /simplify → code review par sous-agent indépendant → application fix → mise à jour statut. Trigger systématiquement sur `/implement-ticket <N>`, "implémente le ticket X", "code le ticket 003", "fais le ticket", "développe la feature spécifiée dans le ticket", même si l'utilisateur ne mentionne pas explicitement TDD ou code review. Optimisé pour livrer du code correct et conforme à la spec sans bugs ni dérive de scope. NE PAS utiliser pour créer un nouveau ticket (utiliser /ticket-spec à la place) ni pour des bug fixes ad-hoc hors ticket.
+description: Implémente un ticket de dev existant sous `docs/specs/tickets/<NNN>-<slug>/` en suivant strictement TDD (Red→Green→Refactor) et les conventions de `docs/coding-standards.md`. Workflow complet : lecture spec → TDD → tests verts → /simplify → code review par sous-agent indépendant → application fix → mise à jour specs système si invariant modifié → mise à jour statut. Trigger systématiquement sur `/implement-ticket <N>`, "implémente le ticket X", "code le ticket 003", "fais le ticket", "développe la feature spécifiée dans le ticket", même si l'utilisateur ne mentionne pas explicitement TDD ou code review. Optimisé pour livrer du code correct et conforme à la spec sans bugs ni dérive de scope. NE PAS utiliser pour créer un nouveau ticket (utiliser /ticket-spec à la place) ni pour des bug fixes ad-hoc hors ticket.
 ---
 
 # implement-ticket
@@ -100,10 +100,40 @@ Pour chaque finding sévérité `bug` ou `spec-deviation` :
 
 Re-lancer `npx vitest run` après chaque correction.
 
-### Phase 7 — Clôture
+### Phase 7 — Mise à jour specs système (conditionnelle)
+
+Les fichiers sous `docs/specs/system/` (`spec-fonctionnelle.md`, `spec-technique.md`, `metrics-formulas.md`) décrivent l'**état actuel** du produit (cf. CLAUDE.md). Si le ticket livré modifie un invariant ou un comportement décrit dans une de ces spécs, mettre à jour le fichier concerné.
+
+**Critères de déclenchement** (si l'un est vrai → màj requise) :
+
+- Nouvelle métrique ajoutée → mettre à jour `spec-fonctionnelle.md` (catalogue) + `metrics-formulas.md` (formule)
+- Changement de schéma DB (table, colonne, index) → `spec-technique.md`
+- Nouveau statut, nouvelle catégorie, ou changement de bucketing → `spec-fonctionnelle.md`
+- Changement d'invariant métier (definition de "delivered", working days, etc.) → les 3 fichiers selon impact
+- Nouveau flag de config dans `config.yaml` → `spec-technique.md`
+- Nouvelle commande CLI ou option → `spec-technique.md`
+- **Tout changement observable par l'utilisateur du rapport HTML** (nouvelle colonne, lien cliquable, popover, KPI affiché, format d'unité changé, comportement d'interaction) → `spec-fonctionnelle.md` section « Rapport HTML »
+- Tout changement d'API publique exportée par un module `src/` (nouvelle fonction exportée, signature modifiée d'un export existant) → `spec-technique.md` si le module y est cité
+
+**Critères d'exemption** (skip màj) :
+
+- **Cosmétique pure invisible côté usage** : couleur, police, espacement, ordre de classes CSS, refactor de template HTML qui produit le même rendu. L'utilisateur final ne voit pas de différence
+- Refactor interne sans changement de surface publique (renommage privé, extraction de helper non exporté)
+- Bug fix qui restaure le comportement déjà documenté (la spec décrit déjà la cible ; le code dévie ; on remet le code en accord avec la spec)
+- Test-only (ajout de tests sans toucher prod)
+
+**Règle de tranchage en cas de doute** : « est-ce qu'un lecteur de la spec qui n'a pas vu le code remarquerait que la description ne reflète plus la réalité ? » Si oui → màj. Si non → exemption.
+
+⚠ Piège récurrent : « c'est juste de l'UI » n'est pas une exemption. Une UI qui change un comportement observable (lien cliquable, nouvelle interaction) est un changement fonctionnel et doit apparaître dans `spec-fonctionnelle.md`.
+
+**Procédure** : grep dans `docs/specs/system/` pour trouver les sections à toucher, éditer en gardant le ton descriptif (état présent, pas changelog). Pas d'historique « avant/après » dans les specs système — c'est un snapshot.
+
+Si doute sur la nécessité : demander à l'utilisateur. Mieux vaut une question qu'une spec qui dérive.
+
+### Phase 8 — Clôture
 
 1. Mettre à jour `description.md` du ticket : `Statut: livré`
-2. `git status` + `git diff` → présenter à l'utilisateur le résumé des changements
+2. `git status` + `git diff` → présenter à l'utilisateur le résumé des changements (inclure màj specs système si phase 7 a modifié des fichiers)
 3. **Ne pas commit sans demande explicite** (cf. règle globale repo)
 
 ## Anti-patterns à éviter
@@ -127,8 +157,9 @@ Re-lancer `npx vitest run` après chaque correction.
 | 4. /simplify | 3-8k | inline |
 | 5. Review sous-agent | 1-2k retournés (raisonnement isolé) | sous-agent |
 | 6. Fixes | 2-5k | inline |
-| 7. Clôture | <1k | inline |
-| **Total ticket M** | **20-50k** | |
+| 7. Màj specs système (si applicable) | 1-3k | inline |
+| 8. Clôture | <1k | inline |
+| **Total ticket M** | **20-55k** | |
 
 **Tickets XL interdits.** Par convention `/ticket-spec` ne génère pas de ticket XL (cf. règle anti-monolithe dans la skill `ticket-spec`). Si tu rencontres un ticket marqué `Bucket: XL` ou estimé > 5j à la lecture phase 1 :
 
