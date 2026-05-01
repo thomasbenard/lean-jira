@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "../helpers/db";
-import { upsertIssues, upsertSprints, upsertStatuses, replaceTransitions, getDoneStatusNames, logSync } from "../../src/db/store";
+import { upsertIssues, upsertSprints, upsertStatuses, replaceTransitions, getDoneStatusNames, logSync, getLastSyncDate } from "../../src/db/store";
 import type Database from "better-sqlite3";
 import { makeIssue, makeSprint, makeTransitions, resetSeq } from "../helpers/seeders";
 
@@ -149,5 +149,28 @@ describe("logSync", () => {
     logSync(db, "KECK", 20);
     const count = (db.prepare("SELECT COUNT(*) AS c FROM sync_log").get() as { c: number }).c;
     expect(count).toBe(2);
+  });
+});
+
+describe("getLastSyncDate", () => {
+  it("retourne null si sync_log est vide", () => {
+    expect(getLastSyncDate(db, "KECK")).toBeNull();
+  });
+
+  it("retourne le synced_at du dernier sync pour le project_key donné", () => {
+    db.prepare("INSERT INTO sync_log (synced_at, issues_count, project_key) VALUES (?, ?, ?)").run("2026-04-20T10:00:00.000Z", 10, "KECK");
+    db.prepare("INSERT INTO sync_log (synced_at, issues_count, project_key) VALUES (?, ?, ?)").run("2026-04-28T10:30:00.000Z", 20, "KECK");
+    expect(getLastSyncDate(db, "KECK")).toBe("2026-04-28T10:30:00.000Z");
+  });
+
+  it("filtre par project_key — retourne null si seul l'autre projet a des syncs", () => {
+    db.prepare("INSERT INTO sync_log (synced_at, issues_count, project_key) VALUES (?, ?, ?)").run("2026-04-29T09:00:00.000Z", 5, "AUTRE");
+    expect(getLastSyncDate(db, "PROJ")).toBeNull();
+  });
+
+  it("filtre par project_key — retourne le bon sync parmi plusieurs projets", () => {
+    db.prepare("INSERT INTO sync_log (synced_at, issues_count, project_key) VALUES (?, ?, ?)").run("2026-04-29T09:00:00.000Z", 5, "AUTRE");
+    db.prepare("INSERT INTO sync_log (synced_at, issues_count, project_key) VALUES (?, ?, ?)").run("2026-04-01T08:00:00.000Z", 3, "PROJ");
+    expect(getLastSyncDate(db, "PROJ")).toBe("2026-04-01T08:00:00.000Z");
   });
 });

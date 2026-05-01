@@ -5,6 +5,10 @@ import { MetricConfig } from "../metrics/types";
 import { agingWipMetric, AgingWipSummary, AgingRisk } from "../metrics/agingWip";
 import { forecastMetric, ForecastSummary } from "../metrics/forecast";
 import { cycleTimeMetric } from "../metrics/cycleTime";
+import { getLastSyncDate } from "../db/store";
+
+const STALE_THRESHOLD_DAYS = 7;
+const MS_PER_DAY = 86_400_000;
 
 interface SnapshotRow {
   snapshot_date: string;
@@ -167,6 +171,10 @@ export function generateReport(
     const cycle = buildBucketSeries(cycleBySizeRows, b, ["median", "p85", "p95", "count"]);
     if (cycle.dates.length > 0) cycleTimeBySizeCharts[b] = cycle;
   }
+  const lastSyncAt = getLastSyncDate(db, projectKey);
+  const isSyncStale = lastSyncAt === null
+    || (Date.now() - new Date(lastSyncAt).getTime()) > STALE_THRESHOLD_DAYS * MS_PER_DAY;
+
   const agingWip = agingWipMetric.compute(db, config);
   const forecast = forecastMetric.compute(db, config);
   const cycleTime = cycleTimeMetric.compute(db, config);
@@ -177,6 +185,8 @@ export function generateReport(
     jiraBaseUrl,
     generatedAt: new Date().toISOString().slice(0, 19).replace("T", " "),
     lastSnapshotDate: lastDate,
+    lastSyncAt,
+    isSyncStale,
     kpis,
     charts,
     leadBySize,
@@ -250,6 +260,8 @@ interface RenderInput {
   jiraBaseUrl: string;
   generatedAt: string;
   lastSnapshotDate: string;
+  lastSyncAt: string | null;
+  isSyncStale: boolean;
   kpis: Record<string, number | null>;
   charts: Record<string, ChartSeries>;
   leadBySize: Record<string, BucketStats>;
@@ -370,12 +382,21 @@ function renderHtml(input: RenderInput): string {
     border: 6px solid transparent; border-top-color: #1f2937;
   }
   .help-wrap:hover .help-popover, .help-wrap:focus-within .help-popover { display: block; }
+  .stale-warning {
+    background: #fff3cd;
+    border: 1px solid #f59e0b;
+    color: #92400e;
+    padding: 0.6rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+  }
 </style>
 </head>
 <body>
 <h1>Rapport Lean — ${escapeHtml(input.projectKey)}</h1>
-<p class="meta">Généré le ${escapeHtml(input.generatedAt)} · Dernière fenêtre hebdo : ${escapeHtml(input.lastSnapshotDate)}</p>
-
+<p class="meta">Généré le ${escapeHtml(input.generatedAt)} · ${syncMetaLabel(input.lastSyncAt)} · Dernière fenêtre hebdo : ${escapeHtml(input.lastSnapshotDate)}</p>
+${staleBannerHtml(input.isSyncStale, input.lastSyncAt)}
 <h2>État actuel (fenêtre 30j glissante)</h2>
 <div class="kpis">
   <div class="kpi"><span class="label">Lead time médian${helpBtn("leadTime")}</span><span class="value">${fmt(input.kpis.leadTimeMedian)}</span></div>
@@ -688,6 +709,19 @@ initBucketSelector(CYCLE_BY_SIZE, 'cycleBySizeChart', 'cycleBySizeBuckets');
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+}
+
+// exporté pour tests unitaires — évite de parser le HTML complet dans les tests
+export function syncMetaLabel(lastSyncAt: string | null): string {
+  if (!lastSyncAt) return "Données Jira : jamais synchronisé";
+  return `Données Jira du ${lastSyncAt.slice(0, 16).replace("T", " ")}`;
+}
+
+// exporté pour tests unitaires — évite de parser le HTML complet dans les tests
+export function staleBannerHtml(isSyncStale: boolean, lastSyncAt: string | null): string {
+  if (!isSyncStale) return "";
+  const syncRef = lastSyncAt ? `le ${lastSyncAt.slice(0, 10)}` : "jamais effectué";
+  return `<div class="stale-warning">⚠ Données potentiellement périmées — dernier sync ${syncRef}. Lancer npm run sync.</div>`;
 }
 
 // exporté pour test unitaire (cas trim slash + échappement HTML).

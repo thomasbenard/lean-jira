@@ -181,6 +181,17 @@ npm run snapshots  # Historique à jour
 npm run report     # Génère ./report.html
 ```
 
+### En-tête
+
+La ligne de métadonnées affiche :
+```
+Généré le {YYYY-MM-DD HH:MM} · Données Jira du {YYYY-MM-DD HH:MM} · Dernière fenêtre hebdo : {YYYY-MM-DD}
+```
+
+- La date « Données Jira » est lue depuis `MAX(sync_log.synced_at)` filtré sur le `project_key` courant.
+- Si aucun sync n'a jamais été effectué : `Données Jira : jamais synchronisé`.
+- Si le dernier sync date de plus de 7 jours calendaires (seuil strict `>`), un bandeau pleine largeur s'affiche sous l'en-tête : fond `#fff3cd`, bordure `#f59e0b`, texte `#92400e`. Le bandeau est permanent (pas de bouton fermer). Il s'affiche également si aucun sync n'a jamais été effectué.
+
 ### Contenu
 
 1. **KPIs actuels** (dernière fenêtre) : lead time médian, cycle time médian, throughput, WIP, bugs livrés, bug cycle médian, flow efficiency.

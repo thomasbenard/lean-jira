@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { issueLink, agingRowsHtml, buildBucketSeries } from "../../src/report/generate";
+import { issueLink, agingRowsHtml, buildBucketSeries, syncMetaLabel, staleBannerHtml } from "../../src/report/generate";
 import type { AgingWipSummary } from "../../src/metrics/agingWip";
 import type { SnapshotRow } from "../../src/snapshots/compute";
 
@@ -78,6 +78,43 @@ describe("buildBucketSeries", () => {
     ];
     const result = buildBucketSeries(withCount, "M", ["median", "p85", "p95", "count"]);
     expect(result.series.count).toEqual([10, 15]);
+  });
+});
+
+describe("syncMetaLabel", () => {
+  it("retourne le texte jamais synchronisé si null", () => {
+    expect(syncMetaLabel(null)).toBe("Données Jira : jamais synchronisé");
+  });
+
+  it("affiche la date tronquée au format YYYY-MM-DD HH:MM", () => {
+    expect(syncMetaLabel("2026-04-28T10:30:00Z")).toBe("Données Jira du 2026-04-28 10:30");
+  });
+
+  it("fonctionne avec un timestamp ISO sans milliseconde", () => {
+    expect(syncMetaLabel("2026-01-15T08:05:00.000Z")).toBe("Données Jira du 2026-01-15 08:05");
+  });
+});
+
+describe("staleBannerHtml", () => {
+  it("retourne chaîne vide si isSyncStale = false", () => {
+    expect(staleBannerHtml(false, "2026-04-28T10:30:00Z")).toBe("");
+  });
+
+  it("retourne le bandeau si isSyncStale = true avec lastSyncAt", () => {
+    const html = staleBannerHtml(true, "2026-04-22T10:30:00Z");
+    expect(html).toContain("stale-warning");
+    expect(html).toContain("2026-04-22");
+    expect(html).toContain("npm run sync");
+  });
+
+  it("retourne le bandeau avec 'jamais effectué' si lastSyncAt = null", () => {
+    const html = staleBannerHtml(true, null);
+    expect(html).toContain("stale-warning");
+    expect(html).toContain("jamais effectué");
+  });
+
+  it("le bandeau est non vide si stale + lastSyncAt présent", () => {
+    expect(staleBannerHtml(true, "2026-04-20T00:00:00Z")).not.toBe("");
   });
 });
 

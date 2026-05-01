@@ -16,4 +16,4 @@ Lire la date du dernier sync réussi depuis la table `sync_log` (colonne `synced
 
 ## Statut
 
-**à faire**
+**livré**

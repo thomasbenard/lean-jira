@@ -107,6 +107,13 @@ export function getDoneStatusNames(db: Database.Database): Set<string> {
   return new Set(rows.map((r) => r.name));
 }
 
+export function getLastSyncDate(db: Database.Database, projectKey: string): string | null {
+  const row = db.prepare(
+    "SELECT MAX(synced_at) as last FROM sync_log WHERE project_key = ?"
+  ).get(projectKey) as { last: string | null };
+  return row?.last ?? null;
+}
+
 export function logSync(db: Database.Database, projectKey: string, issuesCount: number): void {
   db.prepare(
     "INSERT INTO sync_log (synced_at, issues_count, project_key) VALUES (?, ?, ?)"
