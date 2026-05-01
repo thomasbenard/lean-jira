@@ -486,15 +486,43 @@ const baseOpts = {
   scales: { y: { beginAtZero: true } },
 };
 
-function lineChart(canvasId, series, datasets) {
+function computeMovingAvg(values, window = 4) {
+  return values.map((_, i) => {
+    if (i < window - 1) return null;
+    const slice = values.slice(i - window + 1, i + 1);
+    return Math.round(slice.reduce((a, b) => a + b, 0) / window * 100) / 100;
+  });
+}
+
+function buildTrendDataset(trendData) {
+  if (!trendData.some(v => v !== null)) return null;
+  return {
+    label: "Tendance",
+    data: trendData,
+    borderColor: "#64748b88",
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+    borderDash: [6, 4],
+    tension: 0,
+    pointRadius: 0,
+    fill: false,
+  };
+}
+
+function lineChart(canvasId, series, datasets, withTrend = false) {
   const ctx = document.getElementById(canvasId);
   if (!ctx || !series || series.dates.length === 0) return;
+  const builtDatasets = datasets.map(d => ({
+    label: d.label, data: series.series[d.key], borderColor: d.color,
+    backgroundColor: d.color + "22", tension: 0.2, pointRadius: 2,
+  }));
+  if (withTrend) {
+    const trend = buildTrendDataset(computeMovingAvg(series.series[datasets[0].key] ?? []));
+    if (trend) builtDatasets.push(trend);
+  }
   new Chart(ctx, {
     type: "line",
-    data: { labels: series.dates, datasets: datasets.map(d => ({
-      label: d.label, data: series.series[d.key], borderColor: d.color,
-      backgroundColor: d.color + "22", tension: 0.2, pointRadius: 2,
-    })) },
+    data: { labels: series.dates, datasets: builtDatasets },
     options: baseOpts,
   });
 }
@@ -502,35 +530,35 @@ function lineChart(canvasId, series, datasets) {
 lineChart("leadTimeChart", CHARTS.leadTime, [
   { key: "median", label: "Médiane", color: COLOR_MEDIAN },
   { key: "p85", label: "P85", color: COLOR_P85 },
-]);
+], true);
 lineChart("cycleTimeChart", CHARTS.cycleTime, [
   { key: "median", label: "Médiane", color: COLOR_MEDIAN },
   { key: "p85", label: "P85", color: COLOR_P85 },
-]);
+], true);
 lineChart("throughputChart", CHARTS.throughput, [
   { key: "count", label: "Issues livrées", color: COLOR_COUNT },
-]);
+], true);
 lineChart("throughputWeightedChart", CHARTS.throughputWeighted, [
   { key: "estimatedDays", label: "Jours-personnes", color: COLOR_DAYS },
-]);
+], true);
 lineChart("wipChart", CHARTS.wip, [
   { key: "count", label: "WIP", color: COLOR_DAYS },
-]);
+], true);
 lineChart("bugThroughputChart", CHARTS.bugThroughput, [
   { key: "count", label: "Bugs", color: "#ef4444" },
-]);
+], true);
 lineChart("bugCycleTimeChart", CHARTS.bugCycleTime, [
   { key: "median", label: "Médiane", color: COLOR_MEDIAN },
   { key: "p85", label: "P85", color: COLOR_P85 },
-]);
+], true);
 lineChart("cycleNormalizedChart", CHARTS.cycleTimeNormalized, [
   { key: "median", label: "Médiane (ratio)", color: COLOR_MEDIAN },
   { key: "p85", label: "P85 (ratio)", color: COLOR_P85 },
-]);
+], true);
 lineChart("flowEfficiencyChart", CHARTS.flowEfficiency, [
   { key: "aggregate", label: "Agrégat (pondéré durée)", color: COLOR_MEDIAN },
   { key: "median", label: "Médiane (par issue)", color: COLOR_P85 },
-]);
+], true);
 
 const HISTOGRAM = ${JSON.stringify(input.histogram)};
 const CYCLE_STATS = ${JSON.stringify(input.cycleStats)};
@@ -683,6 +711,7 @@ function initBucketSelector(dataByBucket, canvasId, selectorId) {
   function renderChart() {
     const data = dataByBucket[activeBucket];
     if (chart) chart.destroy();
+    const trend = buildTrendDataset(computeMovingAvg(data.series.median ?? []));
     chart = new Chart(canvasEl, {
       type: 'line',
       data: {
@@ -691,6 +720,7 @@ function initBucketSelector(dataByBucket, canvasId, selectorId) {
           { label: 'P50', data: data.series.median, borderColor: COLOR_MEDIAN, backgroundColor: COLOR_MEDIAN + '22', tension: 0.2, pointRadius: 2 },
           { label: 'P85', data: data.series.p85,    borderColor: COLOR_P85,    backgroundColor: COLOR_P85    + '22', tension: 0.2, pointRadius: 2 },
           { label: 'P95', data: data.series.p95,    borderColor: COLOR_P95,    backgroundColor: COLOR_P95    + '22', tension: 0.2, pointRadius: 2 },
+          ...(trend ? [trend] : []),
         ],
       },
       options: baseOpts,
@@ -705,6 +735,14 @@ initBucketSelector(CYCLE_BY_SIZE, 'cycleBySizeChart', 'cycleBySizeBuckets');
 </script>
 </body>
 </html>`;
+}
+
+export function computeMovingAvg(values: number[], window = 4): (number | null)[] {
+  return values.map((_, i) => {
+    if (i < window - 1) return null;
+    const slice = values.slice(i - window + 1, i + 1);
+    return Math.round((slice.reduce((a, b) => a + b, 0) / window) * 100) / 100;
+  });
 }
 
 function escapeHtml(s: string): string {

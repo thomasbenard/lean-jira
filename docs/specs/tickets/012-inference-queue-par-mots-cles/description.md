@@ -1,4 +1,4 @@
-# Ticket 011 — Inférence active/queue par mots-clés sur nom de colonne
+# Ticket 012 — Inférence active/queue par mots-clés sur nom de colonne
 
 ## Dépendance
 

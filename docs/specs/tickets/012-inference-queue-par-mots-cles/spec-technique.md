@@ -50,7 +50,7 @@ Remplacer la branche `else` (type `active` par défaut) de la version ticket 010
   }
 }
 
-// Après (ticket 011) :
+// Après (ticket 012) :
 } else {
   const matchedKeyword = matchesQueueKeyword(col.name);
   if (matchedKeyword) {
@@ -81,7 +81,7 @@ if (col.warning) {
   lines.push(`      type: ${col.type}`);
 }
 
-// Après (ticket 011) :
+// Après (ticket 012) :
 if (col.warning) {
   lines.push(`      type: ${col.type}   # ${col.warning}`);
 } else if (col.queueKeyword) {
