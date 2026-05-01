@@ -23,7 +23,6 @@ sur le style cosmétique (déjà nettoyé par /simplify).
 2. Lis docs/coding-standards.md.
 3. Lis CLAUDE.md (invariants métier).
 4. Lis chaque fichier modifié + son test associé (mirroring tests/).
-5. Lance npx vitest run et confirme suite verte.
 
 ## Critères de revue (par sévérité)
 

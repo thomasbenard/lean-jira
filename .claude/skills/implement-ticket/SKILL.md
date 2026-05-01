@@ -35,13 +35,13 @@ Lire en complément si pas déjà en contexte :
 - `docs/coding-standards.md` — conventions, pattern TDD obligatoire
 - `CLAUDE.md` — invariants métier (team-done, doneStatuses, etc.)
 
-**Sortie attendue** : résumé en 5-10 lignes de ce qui est à faire, fichiers cibles, scénarios à couvrir. Demander validation utilisateur **avant** d'écrire la moindre ligne. Si la spec est ambiguë sur un point critique : poser la question, ne pas inventer.
+**Sortie attendue** : résumé en 5-10 lignes de ce qui est à faire, fichiers cibles, scénarios à couvrir. Présenter ce résumé à l'utilisateur. Si la spec est sans ambiguïté critique : ajouter "Répondez si vous voulez corriger, sinon je commence" et démarrer la phase 2 au prochain message sans attendre. Si la spec est ambiguë sur un point bloquant : poser la question et attendre la réponse avant toute écriture.
 
 Si le ticket est marqué `Statut: livré` dans `description.md` : alerter l'utilisateur, ne pas réimplémenter.
 
 ### Phase 2 — TDD Red → Green → Refactor
 
-Pour **chaque scénario** d'`example-mapping.md` (ou critère d'acceptation à défaut) :
+Pour **chaque scénario** d'`example-mapping.md` (ou critère d'acceptation à défaut). Si ni `example-mapping.md` ni critères d'acceptation clairs n'existent : revenir en phase 1, poser la question à l'utilisateur avant toute écriture.
 
 1. **Red** — écrire le test Vitest dans `tests/<layer>/<file>.test.ts` (mirroring de `src/`)
    - Utiliser les helpers existants : `createTestDb`, `seedIssueWithTransitions`, `makeIssue`, `TEST_CONFIG`, `resetSeq`
@@ -62,11 +62,11 @@ Voir `references/tdd-cycle.md` pour les pièges récurrents et règles projet (n
 npx vitest run
 ```
 
-Si rouge : revenir en phase 2 sur le test cassé. Ne **jamais** masquer un échec ni `--bail` autour. Tout doit passer.
+Si rouge : revenir en phase 2 sur le test cassé. Ne **jamais** masquer un échec ni utiliser `--bail`. Tout doit passer.
 
 ### Phase 4 — `/simplify` (inline)
 
-Invoquer la skill `/simplify` (ou équivalent inline si la skill n'est pas disponible) ciblée sur les fichiers modifiés. Objectifs :
+Invoquer la skill `/simplify` ciblée sur les fichiers modifiés. Objectifs :
 
 - Réutiliser code existant plutôt que dupliquer
 - Supprimer abstractions prématurées, code mort, commentaires `// what` inutiles
@@ -78,7 +78,9 @@ Re-lancer `npx vitest run` après chaque modif issue de `/simplify`.
 
 ### Phase 5 — Code review (sous-agent)
 
-Spawn **un seul** sous-agent (general-purpose) avec le prompt template de `references/code-review-prompt.md`. Lui passer :
+**Exception triviale** : si le ticket modifie < 30 lignes et couvre un scénario unique, omettre cette phase. Mentionner la décision à l'utilisateur dans le résumé final.
+
+Sinon, spawn **un seul** sous-agent (general-purpose) avec le prompt template de `references/code-review-prompt.md`. Lui passer :
 
 - chemin du dossier ticket
 - liste des fichiers modifiés (`git diff --name-only`)
