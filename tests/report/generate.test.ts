@@ -173,7 +173,7 @@ describe("computeMovingAvg", () => {
     expect(result[4]).toBe(1.25);
   });
 
-  it("valeurs nulles comptées comme 0 dans la fenêtre", () => {
+  it("valeurs zéro incluses dans la fenêtre sans filtrage", () => {
     const result = computeMovingAvg([0, 0, 0, 4]);
     expect(result[3]).toBe(1);
   });

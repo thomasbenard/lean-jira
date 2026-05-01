@@ -486,11 +486,11 @@ const baseOpts = {
   scales: { y: { beginAtZero: true } },
 };
 
-function computeMovingAvg(values, window = 4) {
+function computeMovingAvg(values, windowSize = 4) {
   return values.map((_, i) => {
-    if (i < window - 1) return null;
-    const slice = values.slice(i - window + 1, i + 1);
-    return Math.round(slice.reduce((a, b) => a + b, 0) / window * 100) / 100;
+    if (i < windowSize - 1) return null;
+    const slice = values.slice(i - windowSize + 1, i + 1);
+    return Math.round(slice.reduce((a, b) => a + b, 0) / windowSize * 100) / 100;
   });
 }
 
@@ -737,11 +737,13 @@ initBucketSelector(CYCLE_BY_SIZE, 'cycleBySizeChart', 'cycleBySizeBuckets');
 </html>`;
 }
 
-export function computeMovingAvg(values: number[], window = 4): (number | null)[] {
+// Dupliqué depuis le bloc <script> embarqué : les fonctions JS du template ne peuvent pas être importées
+// directement par Vitest — cette version TypeScript est la seule surface testable unitairement.
+export function computeMovingAvg(values: number[], windowSize = 4): (number | null)[] {
   return values.map((_, i) => {
-    if (i < window - 1) return null;
-    const slice = values.slice(i - window + 1, i + 1);
-    return Math.round((slice.reduce((a, b) => a + b, 0) / window) * 100) / 100;
+    if (i < windowSize - 1) return null;
+    const slice = values.slice(i - windowSize + 1, i + 1);
+    return Math.round((slice.reduce((a, b) => a + b, 0) / windowSize) * 100) / 100;
   });
 }
 

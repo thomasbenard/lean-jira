@@ -16,4 +16,4 @@ Ajouter une fonction `computeMovingAvg(values, window=4)` en JS pur dans le bloc
 
 ## Statut
 
-**à faire**
+**livré**
