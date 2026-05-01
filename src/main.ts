@@ -18,6 +18,7 @@ export interface BoardColumn {
   type: ColumnType;
   devStart?: boolean;
   statuses: string[];
+  legacyStatuses?: string[];
 }
 
 export interface BoardConfig {
@@ -35,8 +36,9 @@ interface DerivedStatusConfig {
 }
 
 export function deriveStatusConfig(board: BoardConfig): DerivedStatusConfig {
+  const effectiveStatuses = (c: BoardColumn): string[] => [...c.statuses, ...(c.legacyStatuses ?? [])];
   const byType = (type: ColumnType): string[] =>
-    board.columns.filter((c) => c.type === type).flatMap((c) => c.statuses);
+    board.columns.filter((c) => c.type === type).flatMap(effectiveStatuses);
   const unique = (arr: string[]): string[] => [...new Set(arr)];
 
   const active = byType("active");
@@ -44,7 +46,7 @@ export function deriveStatusConfig(board: BoardConfig): DerivedStatusConfig {
 
   return {
     todoStatuses: unique(byType("todo")),
-    devStartStatuses: unique(board.columns.filter((c) => c.devStart).flatMap((c) => c.statuses)),
+    devStartStatuses: unique(board.columns.filter((c) => c.devStart).flatMap(effectiveStatuses)),
     inProgressStatuses: unique([...active, ...queue]),
     activeStatuses: unique(active),
     queueStatuses: unique(queue),
@@ -73,6 +75,7 @@ const LEGACY_SECTION_LABEL = "doneStatuses";
 export function validateStatusConfig(
   sections: Array<{ label: string; statuses: string[] }>,
   dbStatuses: Array<{ name: string; categoryKey: string }>,
+  legacyNames?: Set<string>,
 ): ValidationResult {
   const dbNames = new Set(dbStatuses.map((s) => s.name));
   let missingCount = 0;
@@ -82,7 +85,7 @@ export function validateStatusConfig(
     if (statuses.length === 0) continue;
     const entries: ValidationEntry[] = statuses.map((name) => {
       const found = dbNames.has(name);
-      const isLegacy = !found && label === LEGACY_SECTION_LABEL;
+      const isLegacy = !found && (label === LEGACY_SECTION_LABEL || (legacyNames?.has(name) ?? false));
       if (!found && !isLegacy) missingCount++;
       return { name, found, isLegacy };
     });
@@ -245,7 +248,8 @@ program
       { label: "queueStatuses", statuses: derived.queueStatuses },
     ];
 
-    const result = validateStatusConfig(sections, dbStatuses);
+    const legacyNames = new Set(config.board.columns.flatMap((c) => c.legacyStatuses ?? []));
+    const result = validateStatusConfig(sections, dbStatuses, legacyNames);
 
     for (const section of result.sections) {
       console.log(`\n${section.label}`);

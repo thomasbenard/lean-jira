@@ -16,4 +16,4 @@ Ajouter un champ optionnel `legacyStatuses?: string[]` sur `BoardColumn` (en mir
 
 ## Statut
 
-**à faire**
+**livré**

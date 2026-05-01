@@ -78,6 +78,63 @@ describe("deriveStatusConfig", () => {
     expect(result.doneStatuses).toContain("Delivred");
   });
 
+  it("colonne active+devStart avec legacyStatuses — legacy dans devStart, active et inProgress", () => {
+    const board: BoardConfig = {
+      columns: [
+        { name: "Dev", type: "active", devStart: true, statuses: ["Dev en cours"], legacyStatuses: ["Dev in progress"] },
+      ],
+    };
+
+    const result = deriveStatusConfig(board);
+
+    expect(result.devStartStatuses).toContain("Dev en cours");
+    expect(result.devStartStatuses).toContain("Dev in progress");
+    expect(result.activeStatuses).toContain("Dev en cours");
+    expect(result.activeStatuses).toContain("Dev in progress");
+    expect(result.inProgressStatuses).toContain("Dev en cours");
+    expect(result.inProgressStatuses).toContain("Dev in progress");
+  });
+
+  it("colonne sans legacyStatuses — comportement inchangé", () => {
+    const board: BoardConfig = {
+      columns: [
+        { name: "Dev", type: "active", devStart: true, statuses: ["Dev en cours"] },
+      ],
+    };
+
+    const result = deriveStatusConfig(board);
+
+    expect(result.devStartStatuses).toEqual(["Dev en cours"]);
+    expect(result.activeStatuses).toEqual(["Dev en cours"]);
+  });
+
+  it("colonne done avec legacyStatuses — legacy inclus dans doneStatuses", () => {
+    const board: BoardConfig = {
+      columns: [
+        { name: "Done", type: "done", statuses: ["Livré"], legacyStatuses: ["Old Done"] },
+      ],
+    };
+
+    const result = deriveStatusConfig(board);
+
+    expect(result.doneStatuses).toContain("Livré");
+    expect(result.doneStatuses).toContain("Old Done");
+  });
+
+  it("même nom dans statuses et legacyStatuses — dédupliqué dans la liste dérivée", () => {
+    const board: BoardConfig = {
+      columns: [
+        { name: "Dev", type: "active", statuses: ["En cours", "Partagé"], legacyStatuses: ["Partagé", "Dev in progress"] },
+      ],
+    };
+
+    const result = deriveStatusConfig(board);
+
+    expect(result.activeStatuses.filter((s) => s === "Partagé")).toHaveLength(1);
+    expect(result.activeStatuses).toContain("En cours");
+    expect(result.activeStatuses).toContain("Dev in progress");
+  });
+
   it("queueStatuses vide et inProgressStatuses = active seulement si aucune colonne queue", () => {
     const board: BoardConfig = {
       columns: [

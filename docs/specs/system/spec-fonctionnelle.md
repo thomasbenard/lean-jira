@@ -60,6 +60,8 @@ board:
       devStart: true              # cycle time démarre ici
       statuses:
         - "In Development"
+      legacyStatuses:             # anciens noms renommés, conservés pour l'historique
+        - "Dev in progress"
 
     - name: "Review"
       type: queue                 # queue time pour flow-efficiency
@@ -72,7 +74,7 @@ board:
       statuses:
         - "Done"
 
-  legacyDoneStatuses:             # statuts renommés absents de l'API Jira courante
+  legacyDoneStatuses:             # statuts done renommés absents de l'API Jira courante
     - "To Be Validated"
 
 metrics:
@@ -86,7 +88,7 @@ db:
 
 ### Rôle des colonnes et dérivation des statuts
 
-Le board est défini comme une liste ordonnée de colonnes. Chaque colonne a un `type` et une liste de `statuses`. Le système dérive automatiquement les listes de statuts nécessaires aux métriques :
+Le board est défini comme une liste ordonnée de colonnes. Chaque colonne a un `type`, une liste de `statuses` (noms courants) et une liste optionnelle de `legacyStatuses` (anciens noms renommés). Le système dérive automatiquement les listes de statuts nécessaires aux métriques :
 
 | `type` colonne | Liste dérivée | Rôle dans les métriques |
 |---|---|---|
@@ -97,7 +99,9 @@ Le board est défini comme une liste ordonnée de colonnes. Chaque colonne a un 
 | `queue` | `queueStatuses` | "Queue time" pour `flow-efficiency` |
 | `done` ∪ `legacyDoneStatuses` | `doneStatuses` | Définit la **livraison équipe** (`done_at`) |
 
-`legacyDoneStatuses` : liste explicite de statuts historiques renommés absents de l'API Jira courante (ex: "To Be Validated", "Delivred") — complète la détection automatique via `statusCategory.key='done'`.
+Pour chaque colonne, `legacyStatuses` alimente les mêmes listes dérivées que `statuses` : les anciens noms sont inclus dans les calculs de métriques pour couvrir l'historique des transitions.
+
+`legacyDoneStatuses` (niveau board) : alternative pour les statuts done renommés ; convention recommandée pour les statuts de livraison, car elle est distincte des colonnes non-done.
 
 | Paramètre | Rôle |
 |---|---|

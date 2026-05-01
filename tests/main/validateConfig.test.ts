@@ -56,4 +56,28 @@ describe("validateStatusConfig", () => {
     );
     expect(result.missingCount).toBe(1);
   });
+
+  it("statut legacy non-done absent de la DB — isLegacy=true, non comptabilisé dans missingCount", () => {
+    const legacyNames = new Set(["Dev in progress"]);
+    const result = validateStatusConfig(
+      [{ label: "activeStatuses", statuses: ["Dev in progress"] }],
+      DB_STATUSES,
+      legacyNames,
+    );
+    expect(result.missingCount).toBe(0);
+    const entry = result.sections[0].entries[0];
+    expect(entry).toEqual({ name: "Dev in progress", found: false, isLegacy: true });
+  });
+
+  it("statut dans legacyNames ET présent en DB — found=true, isLegacy=false", () => {
+    const legacyNames = new Set(["In Progress"]);
+    const result = validateStatusConfig(
+      [{ label: "activeStatuses", statuses: ["In Progress"] }],
+      DB_STATUSES,
+      legacyNames,
+    );
+    expect(result.missingCount).toBe(0);
+    const entry = result.sections[0].entries[0];
+    expect(entry).toEqual({ name: "In Progress", found: true, isLegacy: false });
+  });
 });
