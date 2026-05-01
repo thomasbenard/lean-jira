@@ -25,4 +25,4 @@ Pattern `Set` déjà présent dans `buildMetricConfig`. 4-6 scénarios de test a
 
 ## Statut
 
-**à faire**
+**livré**

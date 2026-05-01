@@ -7,21 +7,42 @@ jira:
   apiToken: "YOUR_API_TOKEN"
   projectKey: "YOUR_PROJECT_KEY"
   boardId: 1
-  # Colonne TODO du kanban (point de départ du lead time)
-  todoStatuses:
-    - "To Do"
-    - "Ready"
-  # Colonnes "en cours" (pour cycle time + WIP). Exclure les statuts qui
-  # mappent à la colonne DONE du board, sinon le WIP gonfle.
-  inProgressStatuses:
-    - "In Progress"
-    - "In Review"
-  # doneStatuses: conservé pour documentation. Les métriques (lead-time,
-  # cycle-time, throughput) s'appuient sur le champ Jira `resolutiondate`
-  # plutôt que sur les transitions, qui peuvent être polluées par les
-  # bulk closes lors de migrations de workflow.
-  doneStatuses:
-    - "Done"
+
+board:
+  columns:
+    # type: todo  → début du lead time
+    - name: "À faire"
+      type: todo
+      statuses:
+        - "To Do"
+        - "Ready"
+
+    # type: active + devStart: true → début du cycle time
+    # devStart peut être sur plusieurs colonnes ; leurs statuts sont unionés
+    - name: "Développement"
+      type: active
+      devStart: true
+      statuses:
+        - "In Progress"
+
+    # type: queue → temps d'attente (flow-efficiency)
+    - name: "Review"
+      type: queue
+      statuses:
+        - "In Review"
+
+    # type: done → livraison équipe
+    - name: "Done"
+      type: done
+      statuses:
+        - "Done"
+
+  # Statuts historiques renommés absents de l'API Jira courante.
+  # Complète la détection automatique via statusCategory.key='done'.
+  # Garder cette liste minimale — ajouter uniquement les statuts qui
+  # apparaissent dans l'historique des transitions mais plus dans /rest/api/2/status.
+  # legacyDoneStatuses:
+  #   - "Delivered"
 
 metrics:
   # Optionnel. Issues résolues avant cette date sont ignorées par lead-time,

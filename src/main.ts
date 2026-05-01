@@ -11,6 +11,47 @@ import { backfillSnapshots } from "./snapshots/compute";
 import { generateReport } from "./report/generate";
 import { MetricConfig } from "./metrics/types";
 
+type ColumnType = "todo" | "active" | "queue" | "done";
+
+export interface BoardColumn {
+  name: string;
+  type: ColumnType;
+  devStart?: boolean;
+  statuses: string[];
+}
+
+export interface BoardConfig {
+  columns: BoardColumn[];
+  legacyDoneStatuses?: string[];
+}
+
+interface DerivedStatusConfig {
+  todoStatuses: string[];
+  devStartStatuses: string[];
+  inProgressStatuses: string[];
+  activeStatuses: string[];
+  queueStatuses: string[];
+  doneStatuses: string[];
+}
+
+export function deriveStatusConfig(board: BoardConfig): DerivedStatusConfig {
+  const byType = (type: ColumnType): string[] =>
+    board.columns.filter((c) => c.type === type).flatMap((c) => c.statuses);
+  const unique = (arr: string[]): string[] => [...new Set(arr)];
+
+  const active = byType("active");
+  const queue = byType("queue");
+
+  return {
+    todoStatuses: unique(byType("todo")),
+    devStartStatuses: unique(board.columns.filter((c) => c.devStart).flatMap((c) => c.statuses)),
+    inProgressStatuses: unique([...active, ...queue]),
+    activeStatuses: unique(active),
+    queueStatuses: unique(queue),
+    doneStatuses: unique([...byType("done"), ...(board.legacyDoneStatuses ?? [])]),
+  };
+}
+
 interface AppConfig {
   jira: {
     baseUrl: string;
@@ -18,13 +59,8 @@ interface AppConfig {
     apiToken: string;
     projectKey: string;
     boardId: number;
-    todoStatuses: string[];
-    devStartStatuses: string[];
-    inProgressStatuses: string[];
-    doneStatuses: string[];
-    activeStatuses?: string[];
-    queueStatuses?: string[];
   };
+  board: BoardConfig;
   metrics?: {
     cutoffDate?: string;
     bugIssueTypes?: string[];
@@ -42,25 +78,25 @@ function loadConfig(configPath: string): AppConfig {
 // et ajouté à doneStatuses. Évite les biais quand un statut "done" du board est listé
 // dans inProgressStatuses du config (ex: "À valider" sur le board KECK).
 function buildMetricConfig(db: Database.Database, app: AppConfig, opts: { excludeOutliers?: boolean } = {}): MetricConfig {
+  const derived = deriveStatusConfig(app.board);
   // Source 1 : statusCategory.key='done' depuis l'API Jira (statuses table).
-  // Source 2 : config.jira.doneStatuses pour les statuts historiques renommés
+  // Source 2 : derived.doneStatuses pour les statuts historiques renommés
   //   qui n'apparaissent plus dans l'API mais existent dans l'historique des
   //   transitions (ex: "To Be Validated", "Delivred"). Sans ce fallback, ces
   //   statuts polluent inProgressStatuses.
-  const doneSet = new Set([...getDoneStatusNames(db), ...(app.jira.doneStatuses ?? [])]);
-  const filter = (list: string[] | undefined): string[] =>
-    (list ?? []).filter((s) => !doneSet.has(s));
+  const doneSet = new Set([...getDoneStatusNames(db), ...derived.doneStatuses]);
+  const filter = (list: string[]): string[] => list.filter((s) => !doneSet.has(s));
 
   const stripped = {
-    inProgress: filter(app.jira.inProgressStatuses),
-    active: filter(app.jira.activeStatuses),
-    queue: filter(app.jira.queueStatuses),
+    inProgress: filter(derived.inProgressStatuses),
+    active: filter(derived.activeStatuses),
+    queue: filter(derived.queueStatuses),
   };
 
   const removed = {
-    inProgress: (app.jira.inProgressStatuses ?? []).filter((s) => doneSet.has(s)),
-    active: (app.jira.activeStatuses ?? []).filter((s) => doneSet.has(s)),
-    queue: (app.jira.queueStatuses ?? []).filter((s) => doneSet.has(s)),
+    inProgress: derived.inProgressStatuses.filter((s) => doneSet.has(s)),
+    active: derived.activeStatuses.filter((s) => doneSet.has(s)),
+    queue: derived.queueStatuses.filter((s) => doneSet.has(s)),
   };
   const totalRemoved = removed.inProgress.length + removed.active.length + removed.queue.length;
   if (totalRemoved > 0) {
@@ -68,13 +104,11 @@ function buildMetricConfig(db: Database.Database, app: AppConfig, opts: { exclud
     console.warn(`  ⚠ ${totalRemoved} statut(s) du config classés 'done' par Jira → exclus du WIP/flow : ${all.join(", ")}`);
   }
 
-  const doneStatuses = [...doneSet];
-
   return {
-    todoStatuses: app.jira.todoStatuses,
-    devStartStatuses: app.jira.devStartStatuses,
+    todoStatuses: derived.todoStatuses,
+    devStartStatuses: derived.devStartStatuses,
     inProgressStatuses: stripped.inProgress,
-    doneStatuses,
+    doneStatuses: [...doneSet],
     activeStatuses: stripped.active,
     queueStatuses: stripped.queue,
     cutoffDate: app.metrics?.cutoffDate,
@@ -157,7 +191,9 @@ program
     }
   });
 
-program.parse(process.argv);
+if (require.main === module) {
+  program.parse(process.argv);
+}
 
 function printResults(results: Record<string, unknown>): void {
   for (const [name, data] of Object.entries(results)) {

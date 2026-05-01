@@ -138,7 +138,7 @@ Enregistrement dans `ALL_METRICS` (`src/metrics/index.ts`). Chaque fichier `src/
 
 ### `MetricConfig`
 
-Construit par `buildMetricConfig(db, app)` dans `src/main.ts`. Union `statuses.category_key='done'` ∪ `config.doneStatuses` = `doneSet`. Les listes `inProgressStatuses` / `activeStatuses` / `queueStatuses` sont filtrées contre ce set : un statut done ne peut jamais polluer les métriques WIP/flow même s'il figure dans le config YAML. Un warning liste les statuts retirés au démarrage.
+Construit par `buildMetricConfig(db, app)` dans `src/main.ts`. Les listes de statuts sont d'abord dérivées depuis `config.board.columns` via `deriveStatusConfig()`, puis `buildMetricConfig` construit le `doneSet` = union `statuses.category_key='done'` (DB) ∪ `derived.doneStatuses`. Les listes `inProgressStatuses` / `activeStatuses` / `queueStatuses` sont filtrées contre ce set : un statut done ne peut jamais polluer les métriques WIP/flow. Un warning liste les statuts retirés au démarrage.
 
 | Champ | Description |
 |---|---|

@@ -45,21 +45,32 @@ jira:
   apiToken: "xxx"
   projectKey: "KECK"
   boardId: 42
-  todoStatuses:
-    - "To Do"
-  devStartStatuses:
-    - "In Development"
-  inProgressStatuses:
-    - "In Development"
-    - "In Review"
-    - "Ready for QA"
-  activeStatuses:                 # touch time (sous-ensemble in-progress)
-    - "In Development"
-  queueStatuses:                  # queue time (sous-ensemble in-progress)
-    - "In Review"
-    - "Ready for QA"
-  doneStatuses:                   # fallback statuts renommés (legacy)
-    - "Done"
+
+board:
+  columns:
+    - name: "À faire"
+      type: todo
+      statuses:
+        - "To Do"
+
+    - name: "Développement"
+      type: active
+      devStart: true              # cycle time démarre ici
+      statuses:
+        - "In Development"
+
+    - name: "Review"
+      type: queue                 # queue time pour flow-efficiency
+      statuses:
+        - "In Review"
+        - "Ready for QA"
+
+    - name: "Done"
+      type: done
+      statuses:
+        - "Done"
+
+  legacyDoneStatuses:             # statuts renommés absents de l'API Jira courante
     - "To Be Validated"
 
 metrics:
@@ -71,16 +82,23 @@ db:
   path: "./jira.db"
 ```
 
-### Rôle des buckets de statuts
+### Rôle des colonnes et dérivation des statuts
 
-| Paramètre | Rôle dans les métriques |
+Le board est défini comme une liste ordonnée de colonnes. Chaque colonne a un `type` et une liste de `statuses`. Le système dérive automatiquement les listes de statuts nécessaires aux métriques :
+
+| `type` colonne | Liste dérivée | Rôle dans les métriques |
+|---|---|---|
+| `todo` | `todoStatuses` | Début du **lead time** |
+| `active` + `devStart: true` | `devStartStatuses` | Début du **cycle time** |
+| `active` ∪ `queue` | `inProgressStatuses` | Calcul du **WIP** courant et historique |
+| `active` | `activeStatuses` | "Touch time" pour `flow-efficiency` |
+| `queue` | `queueStatuses` | "Queue time" pour `flow-efficiency` |
+| `done` ∪ `legacyDoneStatuses` | `doneStatuses` | Définit la **livraison équipe** (`done_at`) |
+
+`legacyDoneStatuses` : liste explicite de statuts historiques renommés absents de l'API Jira courante (ex: "To Be Validated", "Delivred") — complète la détection automatique via `statusCategory.key='done'`.
+
+| Paramètre | Rôle |
 |---|---|
-| `todoStatuses` | Début du **lead time** (premier passage dans ce statut) |
-| `devStartStatuses` | Début du **cycle time** (premier passage en dev actif) |
-| `inProgressStatuses` | Calcul du **WIP** courant et historique |
-| `activeStatuses` | Sous-ensemble in-progress = "touch time" pour `flow-efficiency` |
-| `queueStatuses` | Sous-ensemble in-progress = "queue time" pour `flow-efficiency` |
-| `doneStatuses` | Définit la **livraison équipe** (`done_at` = 1ère transition vers un de ces statuts). Inclure aussi les anciens noms de statuts renommés absents de l'API (ex: "To Be Validated", "Delivred"). |
 | `metrics.cutoffDate` | Borne basse globale : issues livrées avant sont ignorées. |
 | `metrics.bugIssueTypes` | Bucket dédié BUG, exclu des métriques normalized/weighted. |
 

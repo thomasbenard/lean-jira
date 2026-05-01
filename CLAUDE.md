@@ -82,9 +82,9 @@ Jira REST API v2 → SQLite (WAL) → metric computations → stdout / HTML repo
 
 **Duration unit**: all durations in **working days** (Mon–Fri) via `workingDaysBetween()` in `utils.ts`. Snapshot window boundaries (`cutoffDate ± N days`) stay in calendar days.
 
-**Delivery = team-done (NOT `resolutiondate`)**: every duration metric (lead/cycle/normalized/by-size/bug-cycle/flow/aging) and every debit metric (throughput/bug-throughput/throughput-weighted/forecast) ends at `done_at` = first transition to a status whose `statusCategory.key='done'` (or that appears in `config.doneStatuses` for legacy renamed statuses absent from the API). Centralized in `buildDeliveredCte(doneStatuses)` in `utils.ts`. Rationale: on KECK, "À valider" carries `statusCategory=done` and is delivery from the team's perspective; tickets routinely sit there post-dev waiting on PO validation. Using `resolutiondate` would over-count that PO queue. The bulk-close 2025-10-25 resilience now comes from `cutoffDate >= 2025-11-01`, not from the resolutiondate property.
+**Delivery = team-done (NOT `resolutiondate`)**: every duration metric (lead/cycle/normalized/by-size/bug-cycle/flow/aging) and every debit metric (throughput/bug-throughput/throughput-weighted/forecast) ends at `done_at` = first transition to a status whose `statusCategory.key='done'` (or that appears in `board.legacyDoneStatuses` for legacy renamed statuses absent from the API). Centralized in `buildDeliveredCte(doneStatuses)` in `utils.ts`. Rationale: on KECK, "À valider" carries `statusCategory=done` and is delivery from the team's perspective; tickets routinely sit there post-dev waiting on PO validation. Using `resolutiondate` would over-count that PO queue. The bulk-close 2025-10-25 resilience now comes from `cutoffDate >= 2025-11-01`, not from the resolutiondate property.
 
-**Status taxonomy auto-derivation**: `sync` calls `/rest/api/2/status` and stores into table `statuses (name, category_key, category_name)`. At runtime, `buildMetricConfig` (in `main.ts`) strips any status whose `category_key='done'` (or that's in `config.doneStatuses`) from `inProgressStatuses` / `activeStatuses` / `queueStatuses`. `config.doneStatuses` is the fallback for legacy renamed statuses (e.g. "To Be Validated", "Delivred", "DELIVERED") that exist in `transitions` history but no longer appear in the live API response. A startup warning lists every status that gets stripped.
+**Status taxonomy auto-derivation**: `sync` calls `/rest/api/2/status` and stores into table `statuses (name, category_key, category_name)`. At runtime, `deriveStatusConfig()` builds status lists from `board.columns`, then `buildMetricConfig` (in `main.ts`) strips any status whose `category_key='done'` (or that's in `board.legacyDoneStatuses`) from `inProgressStatuses` / `activeStatuses` / `queueStatuses`. `board.legacyDoneStatuses` is the fallback for legacy renamed statuses (e.g. "To Be Validated", "Delivred", "DELIVERED") that exist in `transitions` history but no longer appear in the live API response. A startup warning lists every status that gets stripped.
 
 **Snapshot windows** (in `snapshots/compute.ts`):
 - Duration metrics (lead/cycle/normalized/bug-cycle/flow-efficiency): 30-day rolling window
@@ -104,13 +104,14 @@ Jira REST API v2 → SQLite (WAL) → metric computations → stdout / HTML repo
 
 ## Configuration (`config.yaml`)
 
-Status bucket names drive metric boundaries:
-- `todoStatuses` → start of lead time
-- `devStartStatuses` → start of cycle time
-- `inProgressStatuses` → WIP count (filtered against done-category at runtime)
-- `activeStatuses` → "touch time" subset of in-progress (Dev/QA/Design in progress) for `flow-efficiency`
-- `queueStatuses` → "queue time" subset (review, ready-for-X) for `flow-efficiency`
-- `doneStatuses` → fallback list for legacy renamed statuses absent from `/rest/api/2/status`; unioned with DB-derived done set
+Board is defined as an ordered list of columns under `board.columns`. Each column has a `type` (`todo` | `active` | `queue` | `done`), an optional `devStart: true` flag, and a list of `statuses`. Status lists for metrics are derived automatically by `deriveStatusConfig()` in `main.ts`:
+
+- columns `type: todo` → `todoStatuses` → start of lead time
+- columns `devStart: true` → `devStartStatuses` → start of cycle time
+- columns `type: active` ∪ `type: queue` → `inProgressStatuses` → WIP count (filtered against done-category at runtime)
+- columns `type: active` → `activeStatuses` → "touch time" for `flow-efficiency`
+- columns `type: queue` → `queueStatuses` → "queue time" for `flow-efficiency`
+- columns `type: done` ∪ `board.legacyDoneStatuses` → `doneStatuses` → fallback for legacy renamed statuses absent from `/rest/api/2/status`; unioned with DB-derived done set
 - `metrics.cutoffDate` → global lower bound (issues delivered before are ignored)
 - `metrics.bugIssueTypes` → routed to BUG bucket; excluded from normalized/weighted metrics
 
@@ -131,7 +132,7 @@ Status bucket names drive metric boundaries:
 ## Adding a metric
 
 1. Create `src/metrics/<name>.ts` implementing `Metric<T>`
-2. If the metric measures duration to delivery, build SQL with `buildDeliveredCte(config.doneStatuses)` from `utils.ts` — never use `issues.resolved_at` as the endpoint
+2. If the metric measures duration to delivery, build SQL with `buildDeliveredCte(config.doneStatuses)` from `utils.ts` — never use `issues.resolved_at` as the endpoint (`config.doneStatuses` is passed from `MetricConfig`, itself derived from `board.columns` + `board.legacyDoneStatuses`)
 3. Import and push into `ALL_METRICS` in `src/metrics/index.ts`
 4. Result shape determines how `snapshots/compute.ts` extracts stats. Recognized shapes: `buckets` (Record<SizeBucket, DurationStats>), `aggregateFlowEfficiency` (flow-efficiency-like), `riskCounts` (aging-wip-like), `avgDays` (DurationStats), `byWeek` (debit). Other shapes are silently skipped — add an explicit `extractStats` branch if the metric needs persistent history.
 5. If the metric is non-deterministic (e.g. Monte Carlo) or shouldn't be back-filled, add an explicit skip in `snapshots/compute.ts` (see `forecast`).
