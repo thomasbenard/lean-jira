@@ -143,7 +143,7 @@ program
     const config = loadConfig(path.resolve(opts.config));
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config);
-    generateReport(db, config.jira.projectKey, path.resolve(opts.output), metricConfig);
+    generateReport(db, config.jira.projectKey, config.jira.baseUrl, path.resolve(opts.output), metricConfig);
     console.log(`Rapport généré : ${path.resolve(opts.output)}`);
   });
 

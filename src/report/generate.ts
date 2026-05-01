@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import { BUCKET_LABELS, BUCKET_ORDER, SizeBucket } from "../metrics/utils";
 import { MetricConfig } from "../metrics/types";
-import { agingWipMetric, AgingWipSummary } from "../metrics/agingWip";
+import { agingWipMetric, AgingWipSummary, AgingRisk } from "../metrics/agingWip";
 import { forecastMetric, ForecastSummary } from "../metrics/forecast";
 import { cycleTimeMetric } from "../metrics/cycleTime";
 
@@ -106,6 +106,7 @@ const HELP_TEXTS: Record<string, { title: string; body: string }> = {
 export function generateReport(
   db: Database.Database,
   projectKey: string,
+  jiraBaseUrl: string,
   outputPath: string,
   config: MetricConfig,
 ): void {
@@ -162,6 +163,7 @@ export function generateReport(
 
   const html = renderHtml({
     projectKey,
+    jiraBaseUrl,
     generatedAt: new Date().toISOString().slice(0, 19).replace("T", " "),
     lastSnapshotDate: lastDate,
     kpis,
@@ -228,6 +230,7 @@ interface HistogramBin {
 
 interface RenderInput {
   projectKey: string;
+  jiraBaseUrl: string;
   generatedAt: string;
   lastSnapshotDate: string;
   kpis: Record<string, number | null>;
@@ -272,25 +275,6 @@ function renderHtml(input: RenderInput): string {
       if (!s || s.count === 0) return "";
       return `<tr><td>${escapeHtml(BUCKET_LABELS[b as SizeBucket])}</td><td>${s.count}</td><td>${s.median.toFixed(1)}j</td><td>${s.p85.toFixed(1)}j</td></tr>`;
     }).join("");
-
-  const agingTableRows = (data: AgingWipSummary) => {
-    if (data.issues.length === 0) {
-      return `<tr><td colspan="4">Aucun item en cours.</td></tr>`;
-    }
-    const riskClass: Record<string, string> = {
-      ok: "risk-ok",
-      watch: "risk-watch",
-      "at-risk": "risk-at-risk",
-      critical: "risk-critical",
-    };
-    return data.issues
-      .slice(0, 15)
-      .map(
-        (i) =>
-          `<tr><td>${escapeHtml(i.issueKey)}</td><td>${escapeHtml(i.status)}</td><td>${i.ageDays.toFixed(1)}j</td><td class="${riskClass[i.riskLevel]}">${escapeHtml(i.riskLevel)}</td></tr>`,
-      )
-      .join("");
-  };
 
   const forecastTableRows = (data: ForecastSummary) => {
     if (data.byHorizon.length === 0) {
@@ -411,7 +395,7 @@ function renderHtml(input: RenderInput): string {
     <h3>Top items par âge</h3>
     <table>
       <thead><tr><th>Issue</th><th>Statut</th><th>Âge</th><th>Risque</th></tr></thead>
-      <tbody>${agingTableRows(input.agingWip)}</tbody>
+      <tbody>${agingRowsHtml(input.agingWip, input.jiraBaseUrl)}</tbody>
     </table>
   </div>
 </div>
@@ -616,4 +600,32 @@ const AGING = ${JSON.stringify({
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+}
+
+// exporté pour test unitaire (cas trim slash + échappement HTML).
+export function issueLink(key: string, jiraBaseUrl: string): string {
+  if (!key) return "";
+  const base = jiraBaseUrl.replace(/\/$/, "");
+  return `<a href="${escapeHtml(base)}/browse/${escapeHtml(key)}" target="_blank" rel="noopener">${escapeHtml(key)}</a>`;
+}
+
+const RISK_CLASS: Record<AgingRisk, string> = {
+  ok: "risk-ok",
+  watch: "risk-watch",
+  "at-risk": "risk-at-risk",
+  critical: "risk-critical",
+};
+
+// exporté pour test unitaire (vérifier la cellule Issue rend un <a> cliquable).
+export function agingRowsHtml(data: AgingWipSummary, jiraBaseUrl: string): string {
+  if (data.issues.length === 0) {
+    return `<tr><td colspan="4">Aucun item en cours.</td></tr>`;
+  }
+  return data.issues
+    .slice(0, 15)
+    .map(
+      (i) =>
+        `<tr><td>${issueLink(i.issueKey, jiraBaseUrl)}</td><td>${escapeHtml(i.status)}</td><td>${i.ageDays.toFixed(1)}j</td><td class="${RISK_CLASS[i.riskLevel]}">${escapeHtml(i.riskLevel)}</td></tr>`,
+    )
+    .join("");
 }

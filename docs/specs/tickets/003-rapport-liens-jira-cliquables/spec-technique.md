@@ -48,32 +48,41 @@ interface RenderInput {
 
 Passer `jiraBaseUrl` dans l'objet `renderHtml({ ..., jiraBaseUrl })`.
 
-### Helper `issueLink` dans `renderHtml`
+### Helpers `issueLink` et `agingRowsHtml` au niveau module
+
+Implémentés top-level (et non en closure) pour permettre des tests unitaires directs sans passer par `renderHtml` (qui exige une `RenderInput` complète + accès DB).
 
 ```typescript
-function renderHtml(input: RenderInput): string {
-  const base = input.jiraBaseUrl.replace(/\/$/, "");  // trim trailing slash
+// exporté pour test unitaire (cas trim slash + échappement HTML).
+export function issueLink(key: string, jiraBaseUrl: string): string {
+  if (!key) return "";
+  const base = jiraBaseUrl.replace(/\/$/, "");
+  return `<a href="${escapeHtml(base)}/browse/${escapeHtml(key)}" target="_blank" rel="noopener">${escapeHtml(key)}</a>`;
+}
 
-  const issueLink = (key: string): string =>
-    key
-      ? `<a href="${escapeHtml(base)}/browse/${escapeHtml(key)}" target="_blank" rel="noopener">${escapeHtml(key)}</a>`
-      : escapeHtml(key);
+const RISK_CLASS: Record<AgingRisk, string> = {
+  ok: "risk-ok",
+  watch: "risk-watch",
+  "at-risk": "risk-at-risk",
+  critical: "risk-critical",
+};
 
-  // ... reste de la fonction ...
+// exporté pour test unitaire (vérifier la cellule Issue rend un <a> cliquable).
+export function agingRowsHtml(data: AgingWipSummary, jiraBaseUrl: string): string {
+  if (data.issues.length === 0) {
+    return `<tr><td colspan="4">Aucun item en cours.</td></tr>`;
+  }
+  return data.issues
+    .slice(0, 15)
+    .map(
+      (i) =>
+        `<tr><td>${issueLink(i.issueKey, jiraBaseUrl)}</td><td>${escapeHtml(i.status)}</td><td>${i.ageDays.toFixed(1)}j</td><td class="${RISK_CLASS[i.riskLevel]}">${escapeHtml(i.riskLevel)}</td></tr>`,
+    )
+    .join("");
 }
 ```
 
-### Mise à jour de `agingTableRows`
-
-```typescript
-// Avant (ligne ~282)
-`<tr><td>${escapeHtml(i.issueKey)}</td>...`
-
-// Après
-`<tr><td>${issueLink(i.issueKey)}</td>...`
-```
-
-`issueLink` est défini dans la closure de `renderHtml`, donc accessible directement.
+`renderHtml` appelle directement `agingRowsHtml(input.agingWip, input.jiraBaseUrl)` — pas de lambda intermédiaire.
 
 ---
 

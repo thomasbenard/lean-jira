@@ -16,4 +16,4 @@ Passer `jiraBaseUrl` (lu depuis `config.jira.baseUrl`) à `generateReport` et à
 
 ## Statut
 
-**à faire**
+**livré**
