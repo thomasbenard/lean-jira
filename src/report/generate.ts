@@ -392,28 +392,46 @@ export function renderHtml(input: RenderInput): string {
 <head>
 <meta charset="utf-8">
 <title>Rapport Lean — ${escapeHtml(input.projectKey)}</title>
+<script>
+  (function() { if (localStorage.getItem('lean-theme') === 'dark') document.documentElement.classList.add('dark'); })();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
-  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 1100px; margin: 2rem auto; padding: 0 1.5rem; color: #1a1a1a; background: #fafafa; }
+  :root {
+    --bg: #fafafa; --bg-card: #fff; --border: #e3e3e3; --border-heavy: #ddd;
+    --text: #1a1a1a; --text-muted: #666; --text-unit: #888;
+    --table-th: #f5f5f5; --table-border: #eee;
+    --advanced-bg: #f9fafb; --btn-bg: #e5e7eb; --btn-color: #374151;
+    --stale-bg: #fff3cd; --stale-border: #f59e0b; --stale-text: #92400e;
+  }
+  html.dark {
+    --bg: #0f1117; --bg-card: #1e2030; --border: #2d3148; --border-heavy: #3d4166;
+    --text: #e2e8f0; --text-muted: #94a3b8; --text-unit: #64748b;
+    --table-th: #252840; --table-border: #2d3148;
+    --advanced-bg: #191b2e; --btn-bg: #2d3148; --btn-color: #cbd5e1;
+    --stale-bg: #3d2a00; --stale-border: #f59e0b; --stale-text: #fcd34d;
+  }
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 1100px; margin: 2rem auto; padding: 0 1.5rem; color: var(--text); background: var(--bg); }
   h1 { margin-bottom: 0.25rem; }
-  .meta { color: #666; font-size: 0.9rem; margin-bottom: 2rem; }
-  h2 { border-bottom: 2px solid #ddd; padding-bottom: 0.4rem; margin-top: 2.5rem; }
+  .header-row { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+  .meta { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem; }
+  h2 { border-bottom: 2px solid var(--border-heavy); padding-bottom: 0.4rem; margin-top: 2.5rem; }
   .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
-  .kpi { background: white; border: 1px solid #e3e3e3; border-radius: 6px; padding: 1rem; }
-  .kpi .label { display: block; font-size: 0.8rem; color: #666; text-transform: uppercase; letter-spacing: 0.05em; }
+  .kpi { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; }
+  .kpi .label { display: block; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
   .kpi .value { display: block; font-size: 1.8rem; font-weight: 600; margin-top: 0.4rem; }
   .health-dot { margin-right: 0.3rem; font-size: 0.75rem; }
   .health-green { color: #10b981; }
   .health-orange { color: #f59e0b; }
   .health-red    { color: #ef4444; }
-  .kpi .unit { font-size: 0.9rem; color: #888; margin-left: 0.15rem; }
+  .kpi .unit { font-size: 0.9rem; color: var(--text-unit); margin-left: 0.15rem; }
   .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-  .chart-card { background: white; border: 1px solid #e3e3e3; border-radius: 6px; padding: 1rem; }
+  .chart-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; }
   .chart-card h3 { margin: 0 0 0.5rem 0; font-size: 1rem; }
   canvas { max-height: 280px; }
-  table { width: 100%; border-collapse: collapse; background: white; }
-  table th, table td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #eee; }
-  table th { background: #f5f5f5; font-size: 0.85rem; }
+  table { width: 100%; border-collapse: collapse; background: var(--bg-card); }
+  table th, table td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--table-border); }
+  table th { background: var(--table-th); font-size: 0.85rem; }
   .by-size { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
   .aging-wrap { display: grid; grid-template-columns: 1.4fr 1fr; gap: 1.5rem; }
   .risk-ok { color: #10b981; font-weight: 600; }
@@ -423,12 +441,12 @@ export function renderHtml(input: RenderInput): string {
   @media (max-width: 800px) { .charts, .by-size, .aging-wrap, .by-size-trends { grid-template-columns: 1fr; } }
   .by-size-trends { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem; }
   .bucket-selector { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
-  .bucket-btn { padding: 0.25rem 0.6rem; border-radius: 4px; border: 1px solid #d1d5db; background: #f9fafb; cursor: pointer; font-size: 0.8rem; color: #374151; }
+  .bucket-btn { padding: 0.25rem 0.6rem; border-radius: 4px; border: 1px solid var(--border); background: var(--advanced-bg); cursor: pointer; font-size: 0.8rem; color: var(--btn-color); }
   .bucket-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
   .bucket-btn:disabled { opacity: 0.5; cursor: default; }
   .help-wrap { position: relative; display: inline-block; }
   .help-btn {
-    background: #e5e7eb; border: none; color: #374151; cursor: pointer;
+    background: var(--btn-bg); border: none; color: var(--btn-color); cursor: pointer;
     width: 18px; height: 18px; border-radius: 50%; font-size: 11px; font-weight: 600;
     display: inline-flex; align-items: center; justify-content: center;
     margin-left: 0.4rem; vertical-align: middle; padding: 0; line-height: 1;
@@ -449,23 +467,28 @@ export function renderHtml(input: RenderInput): string {
   }
   .help-wrap:hover .help-popover, .help-wrap:focus-within .help-popover { display: block; }
   .stale-warning {
-    background: #fff3cd;
-    border: 1px solid #f59e0b;
-    color: #92400e;
+    background: var(--stale-bg);
+    border: 1px solid var(--stale-border);
+    color: var(--stale-text);
     padding: 0.6rem 1rem;
     border-radius: 6px;
     margin-bottom: 1.5rem;
     font-size: 0.9rem;
   }
-  details.advanced-section { margin-top: 1.5rem; border: 1px solid #e3e3e3; border-radius: 6px; background: #f9fafb; }
-  details.advanced-section > summary { padding: 0.75rem 1rem; cursor: pointer; font-weight: 600; font-size: 0.95rem; color: #374151; list-style: none; user-select: none; }
+  details.advanced-section { margin-top: 1.5rem; border: 1px solid var(--border); border-radius: 6px; background: var(--advanced-bg); }
+  details.advanced-section > summary { padding: 0.75rem 1rem; cursor: pointer; font-weight: 600; font-size: 0.95rem; color: var(--text); list-style: none; user-select: none; }
   details.advanced-section > summary::-webkit-details-marker { display: none; }
   details.advanced-section > summary:hover { color: #2563eb; }
   details.advanced-section > :not(summary) { padding: 0 1rem 1rem; }
+  .theme-btn { background: var(--btn-bg); border: 1px solid var(--border); color: var(--text); cursor: pointer; padding: 0.3rem 0.75rem; border-radius: 4px; font-size: 0.85rem; white-space: nowrap; }
+  .theme-btn:hover { opacity: 0.8; }
 </style>
 </head>
 <body>
+<div class="header-row">
 <h1>Rapport Lean — ${escapeHtml(input.projectKey)}</h1>
+<button class="theme-btn" id="themeToggle" aria-label="Basculer thème"></button>
+</div>
 <p class="meta">Généré le ${escapeHtml(input.generatedAt)} · ${syncMetaLabel(input.lastSyncAt)} · Dernière fenêtre hebdo : ${escapeHtml(input.lastSnapshotDate)}</p>
 ${staleBannerHtml(input.isSyncStale, input.lastSyncAt)}
 <h2>Livraison</h2>
@@ -552,6 +575,20 @@ ${staleBannerHtml(input.isSyncStale, input.lastSyncAt)}
 </div>
 
 <script>
+const _isDark = document.documentElement.classList.contains('dark');
+(function() {
+  const btn = document.getElementById('themeToggle');
+  btn.textContent = _isDark ? '☀ Clair' : '☾ Sombre';
+  btn.addEventListener('click', () => {
+    localStorage.setItem('lean-theme', _isDark ? 'light' : 'dark');
+    location.reload();
+  });
+})();
+if (_isDark) {
+  Chart.defaults.color = '#94a3b8';
+  Chart.defaults.borderColor = '#2d3148';
+}
+
 const CHARTS = ${JSON.stringify(input.charts)};
 
 const COLOR_MEDIAN = "#2563eb";
@@ -560,10 +597,12 @@ const COLOR_P95 = "#ef4444";
 const COLOR_COUNT = "#10b981";
 const COLOR_DAYS = "#8b5cf6";
 
+const _gridColor = _isDark ? '#2d3148' : 'rgba(0,0,0,0.1)';
+const _tickColor = _isDark ? '#94a3b8' : '#666';
 const baseOpts = {
   responsive: true, maintainAspectRatio: false,
   plugins: { legend: { position: "bottom", labels: { boxWidth: 12 } } },
-  scales: { y: { beginAtZero: true } },
+  scales: { y: { beginAtZero: true, grid: { color: _gridColor }, ticks: { color: _tickColor } } },
 };
 
 function computeMovingAvg(values, windowSize = 4) {
