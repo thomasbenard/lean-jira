@@ -56,6 +56,7 @@ npm start           # Run compiled build
 
 `metrics` options: `-m <name>` (single metric), `--json`, `--include-outliers`.
 `report` option: `-o <path>` (output file, default `./report.html`).
+`autoconfig` options: `-c <path>` (config path, default `./config.yaml`), `--apply` (destructive: overwrites `board.columns` in config.yaml after 3s delay; backs up to `config.yaml.bak`).
 `list-metrics` subcommand prints all registered metric names.
 
 No test or lint commands defined.
@@ -69,7 +70,7 @@ Jira REST API v2 → SQLite (WAL) → metric computations → stdout / HTML repo
 ```
 
 **Layers** (`src/`):
-- `main.ts` — Commander.js CLI; routes `sync` / `metrics` / `snapshots` / `report` / `list-metrics`
+- `main.ts` — Commander.js CLI; routes `sync` / `metrics` / `snapshots` / `report` / `autoconfig` / `list-metrics`; exports `inferBoardColumns()`, `renderBoardColumnsYaml()`, `InferredColumn`
 - `sync.ts` — fetches sprints + issues (with changelog), upserts to DB; `replaceTransitions` per issue; incremental mode via `getLastSyncDate()` (JQL `updated >= "<date>"` filter when prior sync exists)
 - `jira/client.ts` — Axios + 200ms sleep between pages
 - `db/store.ts` — better-sqlite3; WAL; atomic transactions

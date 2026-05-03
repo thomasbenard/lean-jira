@@ -38,6 +38,19 @@ export interface JiraSprint {
   originBoardId?: number;
 }
 
+export interface JiraBoardColumnRaw {
+  name: string;
+  statuses: Array<{ id: string; self: string }>;
+}
+
+export interface JiraBoardConfig {
+  id: number;
+  name: string;
+  columnConfig: {
+    columns: JiraBoardColumnRaw[];
+  };
+}
+
 export interface ChangelogHistory {
   id: string;
   created: string;

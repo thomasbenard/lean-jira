@@ -18,6 +18,7 @@ CLI qui synchronise les données d'un board Jira Kanban, calcule des métriques 
 | `npm run report` | Génère un rapport HTML autonome avec charts de tendances |
 | `npm run refresh` | Enchaîne sync → snapshots → report (arrêt sur erreur) |
 | `npm run validate` | Vérifie que les statuts du config existent en base (après un sync) |
+| `npm run autoconfig` | Génère `board.columns` depuis l'API Jira (types inférés par position). Avec `--apply` : écrase `config.yaml` + backup `.bak`. Détecte automatiquement les statuts legacy depuis l'historique DB. |
 | `npm run build` | Compile TypeScript → `./dist` |
 | `npm start` | Lance le build compilé |
 

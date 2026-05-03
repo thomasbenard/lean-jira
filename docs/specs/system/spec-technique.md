@@ -157,6 +157,43 @@ Construit par `buildMetricConfig(db, app)` dans `src/main.ts`. Les listes de sta
 
 ---
 
+## Commande `autoconfig` (`main.ts`)
+
+Génère `board.columns` depuis l'API Jira Agile par inférence de position. Usage : `npm run autoconfig` (aperçu stdout) ou `npm run autoconfig -- --apply` (écrase `config.yaml`).
+
+### Fonctions exportées
+
+| Fonction | Signature | Description |
+|---|---|---|
+| `inferBoardColumns` | `(boardConfig: JiraBoardConfig, statuses: JiraStatus[]) → InferredColumn[]` | Inférence position : première=todo, dernière=done, intermédiaires=active. Premier actif → `devStart: true`. |
+| `renderBoardColumnsYaml` | `(columns: InferredColumn[], legacyDoneStatuses?: string[]) → string` | Génère YAML avec commentaires inline, `legacyStatuses` par colonne, `legacyDoneStatuses` au niveau board. |
+| `enrichWithLegacyStatuses` | `(columns, boardConfig, allStatuses, db, cutoffDate?) → EnrichmentResult` | Croise `transitions` DB depuis `cutoffDate` avec l'API Jira pour détecter les statuts legacy : mute `columns[todoIdx].legacyStatuses` en place, retourne `legacyDoneStatuses` + `unresolvable`. |
+
+`InferredColumn extends BoardColumn { warning?: string }` — champ `warning` interne, strippé avant écriture YAML.
+
+`EnrichmentResult { legacyDoneStatuses: string[]; unresolvable: string[] }`.
+
+**Algorithme d'enrichissement** :
+1. `getDistinctTransitionStatuses(db, cutoffDate)` → noms historiques DB depuis `cutoffDate`.
+2. Candidats = noms DB absents des colonnes courantes.
+3. Pour chaque candidat : si trouvé dans `allStatuses` (API) avec ID absent du board → `category='new'` → `legacyStatuses` colonne todo ; `category='done'` → `legacyDoneStatuses` ; `category='indeterminate'` → `unresolvable`. Si absent de l'API → `unresolvable`.
+4. Statuts `unresolvable` génèrent un warning stderr. L'utilisateur doit les affecter manuellement.
+
+DB access conditionnel : si `config.db.path` n'existe pas, `enrichWithLegacyStatuses` n'est pas appelée.
+
+### `src/db/store.ts` — `getDistinctTransitionStatuses`
+
+```typescript
+export function getDistinctTransitionStatuses(db: Database.Database, since?: string): string[]
+// SELECT DISTINCT to_status FROM transitions [WHERE transitioned_at >= since]
+```
+
+### Backup `--apply`
+
+Avant écriture, copie `config.yaml` → `config.yaml.bak` (gitignored). Le chemin bak est `configPath + ".bak"`.
+
+---
+
 ## Flux de synchronisation (`sync.ts`)
 
 1. `GET /rest/api/2/status` → upsert `statuses` (avec `category_key`).

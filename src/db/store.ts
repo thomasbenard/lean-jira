@@ -118,6 +118,13 @@ export function getLastSyncDate(db: Database.Database, projectKey: string): stri
   return row?.last ?? null;
 }
 
+export function getDistinctTransitionStatuses(db: Database.Database, since?: string): string[] {
+  const rows = since
+    ? db.prepare("SELECT DISTINCT to_status FROM transitions WHERE transitioned_at >= ?").all(since)
+    : db.prepare("SELECT DISTINCT to_status FROM transitions").all();
+  return (rows as Array<{ to_status: string }>).map((r) => r.to_status);
+}
+
 export function logSync(db: Database.Database, projectKey: string, issuesCount: number): void {
   db.prepare(
     "INSERT INTO sync_log (synced_at, issues_count, project_key) VALUES (?, ?, ?)"

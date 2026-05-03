@@ -4,12 +4,14 @@ import yaml from "yaml";
 import path from "path";
 import Database from "better-sqlite3";
 import { sync } from "./sync";
-import { openDb, getDoneStatusNames, getAllStatuses } from "./db/store";
+import { openDb, getDoneStatusNames, getAllStatuses, getDistinctTransitionStatuses } from "./db/store";
 import { runAllMetrics, runMetric, ALL_METRICS } from "./metrics/index";
 import { BUCKET_LABELS, BUCKET_ORDER, SizeBucket } from "./metrics/utils";
 import { backfillSnapshots } from "./snapshots/compute";
 import { generateReport } from "./report/generate";
 import { MetricConfig } from "./metrics/types";
+import { JiraClient } from "./jira/client";
+import { JiraBoardConfig, JiraStatus } from "./jira/types";
 
 type ColumnType = "todo" | "active" | "queue" | "done";
 
@@ -160,6 +162,135 @@ function buildMetricConfig(db: Database.Database, app: AppConfig, opts: { exclud
   };
 }
 
+export interface InferredColumn extends BoardColumn {
+  warning?: string;
+}
+
+export function inferBoardColumns(
+  boardConfig: JiraBoardConfig,
+  statuses: JiraStatus[],
+): InferredColumn[] {
+  const cols = boardConfig.columnConfig.columns;
+  const statusById = new Map(statuses.map((s) => [s.id, s]));
+  let devStartAssigned = false;
+
+  return cols.map((col, index) => {
+    const resolved = col.statuses.map((s) => statusById.get(s.id));
+    const names = resolved.map((s, i) => s?.name ?? `# ID:${col.statuses[i].id} non résolu`);
+    const categories = resolved.map((s) => s?.statusCategory.key ?? "indeterminate");
+
+    let type: ColumnType;
+    let warning: string | undefined;
+
+    if (index === 0) {
+      type = "todo";
+    } else if (index === cols.length - 1) {
+      type = "done";
+    } else {
+      type = "active";
+      if (categories.length > 0 && categories.every((k) => k === "done")) {
+        warning = `⚠ statuts classés "done" par Jira — vérifier si type: done est plus approprié`;
+      }
+    }
+
+    const column: InferredColumn = { name: col.name, type, statuses: names };
+    if (warning) column.warning = warning;
+
+    if (type === "active" && !devStartAssigned) {
+      column.devStart = true;
+      devStartAssigned = true;
+    }
+
+    return column;
+  });
+}
+
+export function renderBoardColumnsYaml(columns: InferredColumn[], legacyDoneStatuses?: string[]): string {
+  const lines: string[] = ["board:", "  columns:"];
+  for (const col of columns) {
+    lines.push(`    - name: "${col.name}"`);
+    if (col.warning) {
+      lines.push(`      type: ${col.type}   # ${col.warning}`);
+    } else if (col.type === "active" && !col.devStart) {
+      lines.push(`      type: ${col.type}   # changer en "queue" si temps d'attente`);
+    } else {
+      lines.push(`      type: ${col.type}`);
+    }
+    if (col.devStart) {
+      lines.push(`      devStart: true   # première colonne intermédiaire — vérifier si correct`);
+    }
+    if (col.statuses.length === 0) {
+      lines.push(`      statuses: []   # aucun statut associé`);
+    } else {
+      lines.push("      statuses:");
+      for (const s of col.statuses) {
+        lines.push(`        - "${s}"`);
+      }
+    }
+    if (col.legacyStatuses && col.legacyStatuses.length > 0) {
+      lines.push("      legacyStatuses:");
+      for (const s of col.legacyStatuses) {
+        lines.push(`        - "${s}"`);
+      }
+    }
+    lines.push("");
+  }
+  if (legacyDoneStatuses && legacyDoneStatuses.length > 0) {
+    lines.push("  legacyDoneStatuses:");
+    for (const s of legacyDoneStatuses) {
+      lines.push(`    - "${s}"`);
+    }
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+export interface EnrichmentResult {
+  legacyDoneStatuses: string[];
+  unresolvable: string[];
+}
+
+export function enrichWithLegacyStatuses(
+  columns: InferredColumn[],
+  boardConfig: JiraBoardConfig,
+  allStatuses: JiraStatus[],
+  db: Database.Database,
+): EnrichmentResult {
+  const dbNames = getDistinctTransitionStatuses(db);
+  const currentNames = new Set(columns.flatMap((c) => c.statuses));
+  const legacyCandidates = dbNames.filter((n) => !currentNames.has(n));
+
+  const statusByName = new Map(allStatuses.map((s) => [s.name, s]));
+  const currentStatusIds = new Set(
+    boardConfig.columnConfig.columns.flatMap((c) => c.statuses.map((s) => s.id)),
+  );
+  const todoColIndex = columns.findIndex((c) => c.type === "todo");
+
+  const legacyDoneStatuses: string[] = [];
+  const unresolvable: string[] = [];
+
+  for (const name of legacyCandidates) {
+    const jiraStatus = statusByName.get(name);
+    if (!jiraStatus) {
+      unresolvable.push(name);
+      continue;
+    }
+    if (currentStatusIds.has(jiraStatus.id)) {
+      continue;
+    }
+    const category = jiraStatus.statusCategory.key;
+    if (category === "done") {
+      legacyDoneStatuses.push(name);
+    } else if (category === "new" && todoColIndex >= 0) {
+      columns[todoColIndex].legacyStatuses = [...(columns[todoColIndex].legacyStatuses ?? []), name];
+    } else {
+      unresolvable.push(name);
+    }
+  }
+
+  return { legacyDoneStatuses, unresolvable };
+}
+
 const program = new Command();
 
 program
@@ -273,6 +404,72 @@ program
       process.exit(1);
     } else {
       console.log("\n✓ Config valide.");
+    }
+  });
+
+program
+  .command("autoconfig")
+  .description("Génère board.columns depuis l'API Jira (types inférés par position)")
+  .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
+  .option("--apply", "Écrase board.columns dans config.yaml (destructif)")
+  .action(async (opts) => {
+    const config = loadConfig(path.resolve(opts.config));
+    const client = new JiraClient(config.jira);
+
+    const [boardConfig, allStatuses] = await Promise.all([
+      client.fetchBoardConfiguration(),
+      client.fetchAllStatuses(),
+    ]);
+
+    const cols = boardConfig.columnConfig.columns;
+    if (cols.length === 0) {
+      console.error("⚠ Board vide — aucune colonne détectée.");
+      process.exit(1);
+    }
+    if (cols.length === 1) {
+      console.warn("⚠ Board à une seule colonne — configuration probablement incomplète.");
+    }
+
+    const columns = inferBoardColumns(boardConfig, allStatuses);
+    const hasDevStart = columns.some((c) => c.devStart);
+    if (!hasDevStart) {
+      console.warn("⚠ Aucune colonne intermédiaire — positionner devStart: true manuellement.");
+    }
+
+    let legacyDoneStatuses: string[] = [];
+    const dbPath = path.resolve(config.db.path);
+    if (fs.existsSync(dbPath)) {
+      const db = openDb(dbPath);
+      const result = enrichWithLegacyStatuses(columns, boardConfig, allStatuses, db);
+      legacyDoneStatuses = result.legacyDoneStatuses;
+      for (const name of result.unresolvable) {
+        console.warn(`⚠ Statut legacy non assignable automatiquement : "${name}" — ajouter manuellement comme legacyStatus dans la bonne colonne`);
+      }
+    }
+
+    if (opts.apply) {
+      const configPath = path.resolve(opts.config);
+      console.warn(`⚠ --apply va écraser board.columns dans ${opts.config}. Attente 3s…`);
+      await new Promise((r) => setTimeout(r, 3000));
+      const raw = fs.readFileSync(configPath, "utf-8");
+      const parsed = yaml.parse(raw) as AppConfig;
+      parsed.board = {
+        ...parsed.board,
+        columns: columns.map(({ warning: _w, ...c }) => c),
+        legacyDoneStatuses: legacyDoneStatuses.length > 0 ? legacyDoneStatuses : parsed.board.legacyDoneStatuses,
+      };
+      const bakPath = configPath + ".bak";
+      fs.copyFileSync(configPath, bakPath);
+      fs.writeFileSync(configPath, yaml.stringify(parsed), "utf-8");
+      console.log("✓ board.columns mis à jour dans", opts.config);
+    } else {
+      console.log(`# Board "${boardConfig.name}" — généré automatiquement depuis l'API Jira`);
+      console.log("# Vérifier devStart: true — positionné sur la première colonne intermédiaire par défaut");
+      console.log('# Les colonnes intermédiaires sont en type: active — changer en "queue" pour les colonnes d\'attente');
+      if (legacyDoneStatuses.length === 0) {
+        console.log("# Ajouter legacyDoneStatuses si des statuts historiques n'apparaissent plus dans l'API\n");
+      }
+      console.log(renderBoardColumnsYaml(columns, legacyDoneStatuses.length > 0 ? legacyDoneStatuses : undefined));
     }
   });
 

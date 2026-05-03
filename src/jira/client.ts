@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from "axios";
-import { JiraIssue, JiraSprint, JiraStatus } from "./types";
+import { JiraIssue, JiraSprint, JiraStatus, JiraBoardConfig } from "./types";
 
 interface JiraConfig {
   baseUrl: string;
@@ -65,6 +65,13 @@ export class JiraClient {
     // Liste globale des statuts de l'instance avec statusCategory.
     const response = await this.http.get(`/rest/api/2/status`);
     return response.data as JiraStatus[];
+  }
+
+  async fetchBoardConfiguration(): Promise<JiraBoardConfig> {
+    const response = await this.http.get(
+      `/rest/agile/1.0/board/${this.boardId}/configuration`,
+    );
+    return response.data as JiraBoardConfig;
   }
 
   async fetchAllSprints(): Promise<JiraSprint[]> {

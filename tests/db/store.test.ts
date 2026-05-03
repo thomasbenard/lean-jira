@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "../helpers/db";
-import { upsertIssues, upsertSprints, upsertStatuses, replaceTransitions, getDoneStatusNames, getAllStatuses, logSync, getLastSyncDate } from "../../src/db/store";
+import { upsertIssues, upsertSprints, upsertStatuses, replaceTransitions, getDoneStatusNames, getAllStatuses, logSync, getLastSyncDate, getDistinctTransitionStatuses } from "../../src/db/store";
 import type Database from "better-sqlite3";
 import { makeIssue, makeSprint, makeTransitions, resetSeq } from "../helpers/seeders";
 
@@ -199,5 +199,47 @@ describe("getLastSyncDate", () => {
     db.prepare("INSERT INTO sync_log (synced_at, issues_count, project_key) VALUES (?, ?, ?)").run("2026-04-29T09:00:00.000Z", 5, "AUTRE");
     db.prepare("INSERT INTO sync_log (synced_at, issues_count, project_key) VALUES (?, ?, ?)").run("2026-04-01T08:00:00.000Z", 3, "PROJ");
     expect(getLastSyncDate(db, "PROJ")).toBe("2026-04-01T08:00:00.000Z");
+  });
+});
+
+describe("getDistinctTransitionStatuses", () => {
+  it("DB vide → retourne tableau vide", () => {
+    expect(getDistinctTransitionStatuses(db)).toEqual([]);
+  });
+
+  it("retourne les noms distincts de to_status sans filtre de date", () => {
+    upsertIssues(db, [makeIssue({ key: "PROJ-1" }), makeIssue({ key: "PROJ-2" })]);
+    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [
+      { to: "En cours", at: "2025-12-01T09:00:00Z" },
+      { to: "Done", at: "2025-12-02T09:00:00Z" },
+    ]));
+    replaceTransitions(db, "PROJ-2", makeTransitions("PROJ-2", [
+      { to: "En cours", at: "2025-12-03T09:00:00Z" },
+      { to: "Terminé", at: "2025-12-04T09:00:00Z" },
+    ]));
+    const result = getDistinctTransitionStatuses(db);
+    expect(result).toContain("En cours");
+    expect(result).toContain("Done");
+    expect(result).toContain("Terminé");
+    expect(result.length).toBe(3);
+  });
+
+  it("filtre les transitions antérieures à since", () => {
+    upsertIssues(db, [makeIssue({ key: "PROJ-1" })]);
+    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [
+      { to: "Ancien statut", at: "2025-01-01T09:00:00Z" },
+      { to: "Statut récent", at: "2026-01-01T09:00:00Z" },
+    ]));
+    const result = getDistinctTransitionStatuses(db, "2026-01-01");
+    expect(result).toContain("Statut récent");
+    expect(result).not.toContain("Ancien statut");
+  });
+
+  it("déduplique les noms de statuts sur plusieurs issues", () => {
+    upsertIssues(db, [makeIssue({ key: "PROJ-1" }), makeIssue({ key: "PROJ-2" })]);
+    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "En cours", at: "2026-01-01T09:00:00Z" }]));
+    replaceTransitions(db, "PROJ-2", makeTransitions("PROJ-2", [{ to: "En cours", at: "2026-01-02T09:00:00Z" }]));
+    const result = getDistinctTransitionStatuses(db);
+    expect(result.filter((s) => s === "En cours").length).toBe(1);
   });
 });
