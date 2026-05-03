@@ -306,6 +306,27 @@ Les issues non estimées sont comptées séparément (`unestimatedCount`) mais *
 
 ---
 
+---
+
+### `bug-backlog`
+
+**Définition** : pour une date de fin de fenêtre D et une fenêtre `[startDate, endDate]` (7 jours en mode snapshot) :
+
+- `openCount` : bugs dont le dernier statut connu avant D n'est pas dans `doneStatuses`.
+- `created` : bugs avec `created_at ∈ [startDate, endDate]`.
+- `closed` : bugs dont la **première** transition vers un statut done a `transitioned_at ∈ [startDate, endDate]`.
+- `netFlow = closed − created`.
+
+**Règle d'état "ouvert"** : le dernier statut avant D est déterminé par une sous-requête corrélée sur `MAX(transitioned_at)` par issue. Si aucune transition n'existe avant D, le bug est ouvert. Si la dernière transition mène à un statut done, le bug est fermé — même s'il a été fermé puis rouvert après D.
+
+**Cas limites** : `bugIssueTypes` vide → `{ openCount: 0, netFlow: 0, created: 0, closed: 0 }`. `doneStatuses` vide → tous les bugs créés avant D comptent comme ouverts.
+
+**Snapshot** : fenêtre 7 jours (`WEEKLY_METRICS`). Stocke `openCount`, `netFlow`, `created`, `closed` (bucket `""`).
+
+**Sortie** : `{ openCount, netFlow, created, closed }`.
+
+---
+
 ## WIP (Work In Progress)
 
 ### `wip` — snapshot courant
@@ -479,7 +500,7 @@ Pour chaque date D :
 |---|---|
 | Durée (lead, cycle, normalized, bug-cycle, flow-efficiency) | `cutoffDate = D − 30j`, `windowEndDate = D` |
 | **By-size (lead-time-by-size, cycle-time-by-size) + aging-wip** | `cutoffDate = config.cutoffDate` (global), `windowEndDate = D` — cumulative depuis l'origine |
-| Débit (throughput, bug-throughput, throughput-weighted) | `cutoffDate = D − 7j`, `windowEndDate = D` |
+| Débit (throughput, bug-throughput, throughput-weighted, bug-backlog) | `cutoffDate = D − 7j`, `windowEndDate = D` |
 | WIP | Algorithme historique ci-dessus, pas de fenêtre glissante |
 | `forecast` | **Skip** — Monte Carlo non déterministe, computé live en report |
 
@@ -493,6 +514,7 @@ Pour chaque date D :
 | `avgDays` (DurationStats) | `count`, `median`, `p85` |
 | `byWeek` sans estimation | `count` (total semaine) |
 | `byWeek` avec estimation | `count`, `estimatedDays` |
+| `openCount` (bug-backlog) | `openCount`, `netFlow`, `created`, `closed` |
 | WIP | `count` |
 
 Tout résultat ne correspondant à aucune de ces formes est silencieusement ignoré. Pour ajouter une métrique snapshottable avec une nouvelle forme, ajouter une branche dans `extractStats`.

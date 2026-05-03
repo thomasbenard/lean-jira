@@ -133,11 +133,13 @@ Board is defined as an ordered list of columns under `board.columns`. Each colum
 | `flow-efficiency` | aggregate / median / P15 | active / (active+queue) over cycle-time window |
 | `aging-wip` | per-issue ages + risk classification | current items vs historical cycle-time P50/P85/P95 |
 | `forecast` | byHorizon (1/2/4/8 weeks) | Monte Carlo on last 12 weeks of throughput; outputs P15/P50/P85/P95 |
+| `dev-time-allocation` | byWeek (featureDays/bugDays/bugRatio) + avgBugRatio | weekly cycle-time split features vs bugs |
+| `bug-backlog` | openCount / netFlow / created / closed | point-in-time open bugs + weekly net flow (closed − created) |
 
 ## Adding a metric
 
 1. Create `src/metrics/<name>.ts` implementing `Metric<T>`
 2. If the metric measures duration to delivery, build SQL with `buildDeliveredCte(config.doneStatuses)` from `utils.ts` — never use `issues.resolved_at` as the endpoint (`config.doneStatuses` is passed from `MetricConfig`, itself derived from `board.columns` + `board.legacyDoneStatuses`)
 3. Import and push into `ALL_METRICS` in `src/metrics/index.ts`
-4. Result shape determines how `snapshots/compute.ts` extracts stats. Recognized shapes: `buckets` (Record<SizeBucket, DurationStats>), `aggregateFlowEfficiency` (flow-efficiency-like), `riskCounts` (aging-wip-like), `avgDays` (DurationStats), `byWeek` (debit). Other shapes are silently skipped — add an explicit `extractStats` branch if the metric needs persistent history.
+4. Result shape determines how `snapshots/compute.ts` extracts stats. Recognized shapes: `buckets` (Record<SizeBucket, DurationStats>), `aggregateFlowEfficiency` (flow-efficiency-like), `riskCounts` (aging-wip-like), `avgDays` (DurationStats), `openCount` (bug-backlog-like), `avgBugRatio` (dev-time-allocation-like), `byWeek` (debit). Other shapes are silently skipped — add an explicit `extractStats` branch if the metric needs persistent history.
 5. If the metric is non-deterministic (e.g. Monte Carlo) or shouldn't be back-filled, add an explicit skip in `snapshots/compute.ts` (see `forecast`).

@@ -3,10 +3,11 @@ import { type MetricConfig } from "../metrics/types";
 import { ALL_METRICS } from "../metrics";
 import { BUCKET_ORDER, type DurationStats } from "../metrics/utils";
 import { type DevTimeAllocationSummary } from "../metrics/devTimeAllocation";
+import { type BugBacklogResult } from "../metrics/bugBacklog";
 
 const ROLLING_WINDOW_DAYS = 30;
 const WEEK_DAYS = 7;
-const WEEKLY_METRICS = new Set(["throughput", "throughput-weighted", "bug-throughput", "dev-time-allocation"]);
+const WEEKLY_METRICS = new Set(["throughput", "throughput-weighted", "bug-throughput", "dev-time-allocation", "bug-backlog"]);
 // Métriques cumulatives : fenêtre depuis cutoffDate global (pas 30j glissants).
 // Permet comparaison directe avec `npm run metrics`.
 const CUMULATIVE_METRICS = new Set(["lead-time-by-size", "cycle-time-by-size", "aging-wip"]);
@@ -136,6 +137,12 @@ export function extractStats(date: string, metricName: string, result: Record<st
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "median", value: r.medianFlowEfficiency });
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "activeDays", value: r.totalActiveDays });
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "queueDays", value: r.totalQueueDays });
+  } else if ("openCount" in result) {
+    const r = result as unknown as BugBacklogResult;
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "openCount", value: r.openCount });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "netFlow", value: r.netFlow });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "created", value: r.created });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "closed", value: r.closed });
   } else if ("avgBugRatio" in result) {
     const r = result as unknown as DevTimeAllocationSummary;
     let totalFeature = 0;

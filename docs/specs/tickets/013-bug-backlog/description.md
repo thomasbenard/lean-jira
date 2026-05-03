@@ -30,4 +30,4 @@ directement, nouvelle branche `extractStats`, ~6 scénarios TDD. Pas de migratio
 
 ## Statut
 
-**à faire**
+**livré**

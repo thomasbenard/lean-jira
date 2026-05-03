@@ -71,6 +71,11 @@ const HELP_TEXTS: Record<string, { title: string; body: string } | undefined> = 
       "Somme des cycle times livrés par semaine, split features (US/TS) vs bugs. " +
       "bugRatio = bugDays / totalDays. Hausse du ratio = dérive vers mode pompier.",
   },
+  bugBacklog: {
+    title: "Bug backlog",
+    body:
+      "Nombre de bugs ouverts à la fin de chaque semaine (courbe, axe gauche) et flux net hebdomadaire fermés − créés (barres, axe droit). netFlow > 0 = backlog réduit. netFlow < 0 = backlog grossit.",
+  },
   leadTimeNormalized: {
     title: "Lead time normalisé",
     body:
@@ -150,6 +155,7 @@ export function generateReport(
     flowEfficiency: buildSeries(metricRows("flow-efficiency"), "", ["aggregate", "median"]),
     agingWipRisk: buildSeries(metricRows("aging-wip"), "", ["ok", "watch", "atRisk", "critical"]),
     devTimeAllocation: buildSeries(metricRows("dev-time-allocation"), "", ["featureDays", "bugDays", "bugRatio"]),
+    bugBacklog: buildSeries(metricRows("bug-backlog"), "", ["openCount", "netFlow"]),
   };
 
   const lastDate = snapshots[snapshots.length - 1].snapshot_date;
@@ -430,6 +436,7 @@ ${staleBannerHtml(input.isSyncStale, input.lastSyncAt)}
   <div class="chart-card"><h3>Allocation dev : features vs bugs${helpBtn("devTimeAllocation")}</h3><canvas id="devTimeAllocationChart"></canvas></div>
   <div class="chart-card"><h3>Cycle normalisé (réel / estimé)${helpBtn("cycleTimeNormalized")}</h3><canvas id="cycleNormalizedChart"></canvas></div>
   <div class="chart-card"><h3>Flow efficiency (ratio)${helpBtn("flowEfficiency")}</h3><canvas id="flowEfficiencyChart"></canvas></div>
+  <div class="chart-card"><h3>Bug backlog${helpBtn("bugBacklog")}</h3><canvas id="bugBacklogChart"></canvas></div>
 </div>
 
 <h2>Distribution cycle time${helpBtn("cycleHistogram")}</h2>
@@ -802,6 +809,54 @@ function initBucketSelector(dataByBucket, canvasId, selectorId) {
 
 initBucketSelector(LEAD_BY_SIZE,  'leadBySizeChart',  'leadBySizeBuckets');
 initBucketSelector(CYCLE_BY_SIZE, 'cycleBySizeChart', 'cycleBySizeBuckets');
+
+(function renderBugBacklog() {
+  const series = CHARTS.bugBacklog;
+  const ctx = document.getElementById("bugBacklogChart");
+  if (!ctx || !series || series.dates.length === 0) return;
+  const netFlows = series.series["netFlow"] ?? [];
+  new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: series.dates,
+      datasets: [
+        {
+          type: "bar",
+          label: "Flux net (fermés − créés)",
+          data: netFlows,
+          backgroundColor: netFlows.map(v => v >= 0 ? "#10b98188" : "#ef444488"),
+          borderColor: netFlows.map(v => v >= 0 ? "#10b981" : "#ef4444"),
+          borderWidth: 1,
+          yAxisID: "y2",
+        },
+        {
+          type: "line",
+          label: "Bugs ouverts",
+          data: series.series["openCount"] ?? [],
+          borderColor: "#2563eb",
+          backgroundColor: "#2563eb22",
+          tension: 0.2,
+          pointRadius: 2,
+          yAxisID: "y",
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: { legend: { position: "bottom" } },
+      scales: {
+        y: { beginAtZero: true, title: { display: true, text: "Bugs ouverts" } },
+        y2: {
+          position: "right",
+          title: { display: true, text: "Flux net" },
+          grid: { drawOnChartArea: false },
+        },
+      },
+    },
+  });
+})();
 </script>
 </body>
 </html>`;
