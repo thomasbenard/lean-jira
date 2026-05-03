@@ -39,13 +39,14 @@ const defaultStatuses: JiraStatus[] = [
 ];
 
 describe("inferBoardColumns — règle 1 : inférence par position", () => {
-  it("board à 4 colonnes : première=todo, dernière=done, intermédiaires=active", () => {
+  it("board à 4 colonnes : première=todo, dernière=done, intermédiaires inférées par position/keywords", () => {
+    // "En cours" = active (pas de keyword), "Review" = queue (keyword "review")
     const board = makeBoard(["Backlog", "En cours", "Review", "Terminé"], [["1"], ["2"], ["3"], ["4"]]);
     const cols = inferBoardColumns(board, defaultStatuses);
     expect(cols[0].type).toBe("todo");
     expect(cols[3].type).toBe("done");
     expect(cols[1].type).toBe("active");
-    expect(cols[2].type).toBe("active");
+    expect(cols[2].type).toBe("queue");
   });
 
   it("board à 2 colonnes : première=todo, dernière=done, pas de devStart", () => {
@@ -79,14 +80,15 @@ describe("inferBoardColumns — règle 2 : devStart", () => {
 });
 
 describe("inferBoardColumns — règle 3 : avertissement catégorie done", () => {
-  it("colonne intermédiaire avec tous statuts catégorie done → type reste active, warning présent", () => {
+  it("colonne intermédiaire avec tous statuts catégorie done → warning présent (type selon keywords)", () => {
+    // "Accepté" = pas de keyword → type active ; warning car statuts catégorie done
     const statuses = [
       makeStatus("1", "Todo", "new"),
-      makeStatus("2", "À valider", "done"),
+      makeStatus("2", "Accepté", "done"),
       makeStatus("5", "Validé", "done"),
       makeStatus("4", "Terminé", "done"),
     ];
-    const board = makeBoard(["Todo", "À valider", "Done"], [["1"], ["2", "5"], ["4"]]);
+    const board = makeBoard(["Todo", "Accepté", "Done"], [["1"], ["2", "5"], ["4"]]);
     const cols = inferBoardColumns(board, statuses);
     expect(cols[1].type).toBe("active");
     expect(cols[1].warning).toMatch(/done/);
@@ -239,6 +241,91 @@ describe("enrichWithLegacyStatuses", () => {
     const result = enrichWithLegacyStatuses(cols, board, allStatuses, db);
     expect(cols[0].legacyStatuses).toContain("Ancien");
     expect(result.unresolvable).not.toContain("Ancien");
+  });
+});
+
+describe("inferBoardColumns — règle 5 : inférence queue par mots-clés", () => {
+  it("colonne intermédiaire nommée 'Code Review' → type queue, queueKeyword = 'review'", () => {
+    const board = makeBoard(["Todo", "Code Review", "Done"], [["1"], ["2"], ["4"]]);
+    const cols = inferBoardColumns(board, defaultStatuses);
+    expect(cols[1].type).toBe("queue");
+    expect(cols[1].queueKeyword).toBe("review");
+  });
+
+  it("match insensible à la casse : 'VALIDATION CLIENT' → queue, queueKeyword = 'validation'", () => {
+    const board = makeBoard(["Todo", "VALIDATION CLIENT", "Done"], [["1"], ["2"], ["4"]]);
+    const cols = inferBoardColumns(board, defaultStatuses);
+    expect(cols[1].type).toBe("queue");
+    expect(cols[1].queueKeyword).toBe("validation");
+  });
+
+  it("pas de mot-clé : 'Développement' → active, queueKeyword undefined", () => {
+    const board = makeBoard(["Todo", "Développement", "Done"], [["1"], ["2"], ["4"]]);
+    const cols = inferBoardColumns(board, defaultStatuses);
+    expect(cols[1].type).toBe("active");
+    expect(cols[1].queueKeyword).toBeUndefined();
+  });
+
+  it("première colonne intermédiaire queue → devStart sur la suivante colonne active", () => {
+    const board = makeBoard(["Todo", "Review", "Développement", "Done"], [["1"], ["2"], ["3"], ["4"]]);
+    const cols = inferBoardColumns(board, defaultStatuses);
+    expect(cols[1].type).toBe("queue");
+    expect(cols[1].devStart).toBeFalsy();
+    expect(cols[2].type).toBe("active");
+    expect(cols[2].devStart).toBe(true);
+  });
+
+  it("toutes colonnes intermédiaires queue → aucun devStart", () => {
+    const board = makeBoard(["Todo", "Review", "Validation", "Done"], [["1"], ["2"], ["3"], ["4"]]);
+    const cols = inferBoardColumns(board, defaultStatuses);
+    expect(cols.every((c) => !c.devStart)).toBe(true);
+  });
+
+  it("plusieurs mots-clés dans le nom : 'QA Review' → premier match dans QUEUE_KEYWORDS = 'review'", () => {
+    const board = makeBoard(["Todo", "QA Review", "Done"], [["1"], ["2"], ["4"]]);
+    const cols = inferBoardColumns(board, defaultStatuses);
+    expect(cols[1].type).toBe("queue");
+    expect(cols[1].queueKeyword).toBe("review");
+  });
+
+  it("nom vide → pas de match, type active", () => {
+    const board = makeBoard(["Todo", "", "Done"], [["1"], ["2"], ["4"]]);
+    const cols = inferBoardColumns(board, defaultStatuses);
+    expect(cols[1].type).toBe("active");
+    expect(cols[1].queueKeyword).toBeUndefined();
+  });
+});
+
+describe("renderBoardColumnsYaml — commentaire inline pour queue inféré par mot-clé", () => {
+  it("colonne queue inférée par mot-clé → commentaire '# inféré depuis le mot-clé X — vérifier'", () => {
+    const board = makeBoard(["Todo", "Code Review", "Done"], [["1"], ["2"], ["4"]]);
+    const cols = inferBoardColumns(board, defaultStatuses);
+    const yaml = renderBoardColumnsYaml(cols);
+    expect(yaml).toContain('# inféré depuis le mot-clé "review" — vérifier');
+  });
+
+  it("colonne active sans mot-clé (non-devStart) → commentaire '# changer en queue si temps d\\'attente' inchangé", () => {
+    // deuxième colonne intermédiaire : pas devStart, pas de keyword → commentaire aide doit apparaître
+    const board = makeBoard(["Todo", "Dev", "Recette", "Done"], [["1"], ["2"], ["3"], ["4"]]);
+    const cols = inferBoardColumns(board, defaultStatuses);
+    const yaml = renderBoardColumnsYaml(cols);
+    expect(yaml).toContain('# changer en "queue" si temps d\'attente');
+  });
+});
+
+describe("mergeColumns — règle 5b : queueKeyword supprimé pour colonnes préexistantes", () => {
+  it("colonne déjà en config → queueKeyword absent après merge même si keyword matche", () => {
+    const existing: BoardColumn[] = [{ name: "Code Review", type: "queue", statuses: [] }];
+    const inferred: InferredColumn[] = [{ name: "Code Review", type: "queue", queueKeyword: "review", statuses: ["À revoir"] }];
+    const { columns } = mergeColumns(existing, inferred);
+    expect(columns[0].queueKeyword).toBeUndefined();
+  });
+
+  it("nouvelle colonne (absente config) → queueKeyword conservé", () => {
+    const existing: BoardColumn[] = [];
+    const inferred: InferredColumn[] = [{ name: "Code Review", type: "queue", queueKeyword: "review", statuses: ["À revoir"] }];
+    const { columns } = mergeColumns(existing, inferred);
+    expect(columns[0].queueKeyword).toBe("review");
   });
 });
 

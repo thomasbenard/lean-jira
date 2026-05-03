@@ -165,13 +165,13 @@ Génère `board.columns` depuis l'API Jira Agile par inférence de position. Usa
 
 | Fonction | Signature | Description |
 |---|---|---|
-| `inferBoardColumns` | `(boardConfig: JiraBoardConfig, statuses: JiraStatus[]) → InferredColumn[]` | Inférence position : première=todo, dernière=done, intermédiaires=active. Premier actif → `devStart: true`. |
+| `inferBoardColumns` | `(boardConfig: JiraBoardConfig, statuses: JiraStatus[]) → InferredColumn[]` | Inférence position : première=todo, dernière=done. Colonnes intermédiaires : `queue` si le nom contient un mot-clé de `QUEUE_KEYWORDS` (review, validation, valider, attente, wait, waiting, approval, approuver, staging, qa), sinon `active`. Premier `active` → `devStart: true`. Mot-clé déclencheur stocké dans `queueKeyword` (affiché en commentaire YAML). |
 | `renderBoardColumnsYaml` | `(columns: InferredColumn[]) → string` | Génère YAML avec commentaires inline, `legacyStatuses` par colonne. |
 | `enrichWithLegacyStatuses` | `(columns, boardConfig, allStatuses, db) → EnrichmentResult` | Croise `transitions` DB avec l'API Jira pour détecter les statuts legacy : mute `columns[todoIdx/doneIdx].legacyStatuses` en place, retourne `{ unresolvable }`. |
 | `mergeColumns` | `(existing: BoardColumn[], inferred: InferredColumn[]) → { columns: InferredColumn[]; warnings: string[] }` | Fusionne colonnes inférées avec config existante : préserve `type`, `devStart`, `legacyStatuses` par nom. Retourne warnings (nouvelles colonnes, colonnes absentes) sans side-effect. |
 | `buildUnresolvableComment` | `(names: string[]) → string` | Génère un bloc de commentaires YAML listant les statuts non classifiés, prêt à copier-coller. Retourne `""` si liste vide. |
 
-`InferredColumn extends BoardColumn { warning?: string }` — champ `warning` interne, strippé avant écriture YAML.
+`InferredColumn extends BoardColumn { warning?: string; queueKeyword?: string }` — champs internes utilisés pour les commentaires inline YAML, non écrits dans le fichier de config.
 
 `EnrichmentResult { unresolvable: string[] }`.
 

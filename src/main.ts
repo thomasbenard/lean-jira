@@ -179,8 +179,19 @@ function buildMetricConfig(db: Database.Database, app: AppConfig, opts: { exclud
   };
 }
 
+const QUEUE_KEYWORDS = [
+  "review", "validation", "valider", "attente",
+  "wait", "waiting", "approval", "approuver", "staging", "qa",
+];
+
+function matchesQueueKeyword(name: string): string | undefined {
+  const lower = name.toLowerCase();
+  return QUEUE_KEYWORDS.find((kw) => lower.includes(kw));
+}
+
 export interface InferredColumn extends BoardColumn {
   warning?: string;
+  queueKeyword?: string;
 }
 
 export function inferBoardColumns(
@@ -198,13 +209,19 @@ export function inferBoardColumns(
 
     let type: ColumnType;
     let warning: string | undefined;
+    let queueKeyword: string | undefined;
 
     if (index === 0) {
       type = "todo";
     } else if (index === cols.length - 1) {
       type = "done";
     } else {
-      type = "active";
+      queueKeyword = matchesQueueKeyword(col.name);
+      if (queueKeyword) {
+        type = "queue";
+      } else {
+        type = "active";
+      }
       if (categories.length > 0 && categories.every((k) => k === "done")) {
         warning = `⚠ statuts classés "done" par Jira — vérifier si type: done est plus approprié`;
       }
@@ -212,6 +229,7 @@ export function inferBoardColumns(
 
     const column: InferredColumn = { name: col.name, type, statuses: names };
     if (warning) column.warning = warning;
+    if (queueKeyword) column.queueKeyword = queueKeyword;
 
     if (type === "active" && !devStartAssigned) {
       column.devStart = true;
@@ -228,6 +246,8 @@ export function renderBoardColumnsYaml(columns: InferredColumn[]): string {
     lines.push(`    - name: "${col.name}"`);
     if (col.warning) {
       lines.push(`      type: ${col.type}   # ${col.warning}`);
+    } else if (col.queueKeyword) {
+      lines.push(`      type: ${col.type}   # inféré depuis le mot-clé "${col.queueKeyword}" — vérifier`);
     } else if (col.type === "active" && !col.devStart) {
       lines.push(`      type: ${col.type}   # changer en "queue" si temps d'attente`);
     } else {
@@ -330,6 +350,7 @@ export function mergeColumns(
       type: prev.type,
       devStart: prev.devStart,
       legacyStatuses: prev.legacyStatuses,
+      queueKeyword: undefined,
     };
   });
 
@@ -542,7 +563,7 @@ program
     } else {
       console.log(`# Board "${boardConfig.name}" — généré automatiquement depuis l'API Jira`);
       console.log("# Vérifier devStart: true — positionné sur la première colonne intermédiaire par défaut");
-      console.log('# Les colonnes intermédiaires sont en type: active — changer en "queue" pour les colonnes d\'attente\n');
+      console.log('# Colonnes intermédiaires : type "queue" inféré par mot-clé (review, qa, validation…) — sinon type: active\n');
       console.log(renderBoardColumnsYaml(columns));
       if (unresolvableComment) console.log(unresolvableComment);
     }

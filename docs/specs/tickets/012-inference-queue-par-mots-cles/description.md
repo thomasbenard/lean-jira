@@ -20,4 +20,4 @@ Ajouter une liste conservative de mots-clés (`QUEUE_KEYWORDS`) dans `src/main.t
 
 ## Statut
 
-**à faire**
+**livré**

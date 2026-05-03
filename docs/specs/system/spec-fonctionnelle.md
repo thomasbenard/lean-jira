@@ -18,7 +18,7 @@ CLI qui synchronise les données d'un board Jira Kanban, calcule des métriques 
 | `npm run report` | Génère un rapport HTML autonome avec charts de tendances |
 | `npm run refresh` | Enchaîne sync → snapshots → report (arrêt sur erreur) |
 | `npm run validate` | Vérifie que les statuts du config existent en base (après un sync) |
-| `npm run autoconfig` | Génère `board.columns` depuis l'API Jira. Si `board.columns` existe déjà : fusionne (préserve `type`/`devStart`/`legacyStatuses`, met à jour `statuses`). Avec `--apply` : écrit dans `config.yaml` + backup `.bak`. Détecte les statuts legacy depuis l'historique DB. Warnings et commentaire YAML des statuts non classés affichés en fin de sortie. |
+| `npm run autoconfig` | Génère `board.columns` depuis l'API Jira. Colonnes intermédiaires inférées `queue` si le nom contient un mot-clé connu (review, validation, valider, attente, wait, waiting, approval, approuver, staging, qa), sinon `active`. Commentaire YAML inline indique le mot-clé déclencheur pour les colonnes `queue` inférées. Si `board.columns` existe déjà : fusionne (préserve `type`/`devStart`/`legacyStatuses`, met à jour `statuses`). Avec `--apply` : écrit dans `board.yaml` + backup `.bak`. Détecte les statuts legacy depuis l'historique DB. Warnings et commentaire YAML des statuts non classés affichés en fin de sortie. |
 | `npm run build` | Compile TypeScript → `./dist` |
 | `npm start` | Lance le build compilé |
 
