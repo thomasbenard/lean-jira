@@ -288,6 +288,24 @@ Les issues non estimées sont comptées séparément (`unestimatedCount`) mais *
 
 ---
 
+### `dev-time-allocation`
+
+**Définition** : somme des cycle times livrés par semaine, splitée en jours features (`featureDays`) et jours bugs (`bugDays`). `bugRatio = bugDays / (featureDays + bugDays)`, 0 si aucune livraison.
+
+**Périmètre** : même population que `cycle-time` — issues ayant à la fois une transition `todoStatuses` ET une transition `devStartStatuses`.
+
+**Algorithme** :
+1. Pour chaque issue livrée : `days = workingDaysBetween(devStart, done_at)`.
+2. Attribution : `issue_type IN bugIssueTypes` → `bugDays`, sinon → `featureDays`.
+3. Groupage par semaine ISO de `done_at` (calculée côté TypeScript via `isoWeek()`).
+4. `avgBugRatio` = moyenne arithmétique des `bugRatio` sur les semaines ayant au moins une livraison.
+
+**Snapshot** : fenêtre 7 jours (comme les métriques de débit). Stocke `featureDays` (total), `bugDays` (total), `bugRatio` (`avgBugRatio`).
+
+**Sortie** : `{byWeek: [{week, featureDays, bugDays, bugRatio}], avgBugRatio}`.
+
+---
+
 ## WIP (Work In Progress)
 
 ### `wip` — snapshot courant

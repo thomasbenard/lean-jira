@@ -14,6 +14,7 @@ import { wipMetric } from "./wip";
 import { flowEfficiencyMetric } from "./flowEfficiency";
 import { agingWipMetric } from "./agingWip";
 import { forecastMetric } from "./forecast";
+import { devTimeAllocationMetric } from "./devTimeAllocation";
 
 // Registre central. Ajouter une métrique = importer + pousser ici.
 const ALL_METRICS = [
@@ -31,6 +32,7 @@ const ALL_METRICS = [
   flowEfficiencyMetric,
   agingWipMetric,
   forecastMetric,
+  devTimeAllocationMetric,
 ];
 
 export function runAllMetrics(db: Database.Database, config: MetricConfig): Record<string, unknown> {

@@ -27,4 +27,4 @@ dans le report. 5-7 scénarios de test attendus.
 
 ## Statut
 
-**à faire**
+**livré**

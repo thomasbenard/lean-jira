@@ -2,10 +2,11 @@ import Database from "better-sqlite3";
 import { MetricConfig } from "../metrics/types";
 import { ALL_METRICS } from "../metrics";
 import { BUCKET_ORDER, DurationStats } from "../metrics/utils";
+import { DevTimeAllocationSummary } from "../metrics/devTimeAllocation";
 
 const ROLLING_WINDOW_DAYS = 30;
 const WEEK_DAYS = 7;
-const WEEKLY_METRICS = new Set(["throughput", "throughput-weighted", "bug-throughput"]);
+const WEEKLY_METRICS = new Set(["throughput", "throughput-weighted", "bug-throughput", "dev-time-allocation"]);
 // Métriques cumulatives : fenêtre depuis cutoffDate global (pas 30j glissants).
 // Permet comparaison directe avec `npm run metrics`.
 const CUMULATIVE_METRICS = new Set(["lead-time-by-size", "cycle-time-by-size", "aging-wip"]);
@@ -135,6 +136,14 @@ export function extractStats(date: string, metricName: string, result: Record<st
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "median", value: r.medianFlowEfficiency });
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "activeDays", value: r.totalActiveDays });
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "queueDays", value: r.totalQueueDays });
+  } else if ("avgBugRatio" in result) {
+    const r = result as unknown as DevTimeAllocationSummary;
+    let totalFeature = 0;
+    let totalBug = 0;
+    for (const w of r.byWeek) { totalFeature += w.featureDays; totalBug += w.bugDays; }
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "featureDays", value: totalFeature });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "bugDays", value: totalBug });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "bugRatio", value: r.avgBugRatio });
   } else if ("byWeek" in result) {
     const byWeek = result.byWeek as Array<{
       count?: number;

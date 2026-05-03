@@ -65,6 +65,12 @@ const HELP_TEXTS: Record<string, { title: string; body: string }> = {
     body:
       "Cycle time des issues type Bug uniquement (non estimés par nature). Mesure la réactivité aux incidents (vs cycle time global qui mélange features + bugs).",
   },
+  devTimeAllocation: {
+    title: "Allocation dev : features vs bugs",
+    body:
+      "Somme des cycle times livrés par semaine, split features (US/TS) vs bugs. " +
+      "bugRatio = bugDays / totalDays. Hausse du ratio = dérive vers mode pompier.",
+  },
   leadTimeNormalized: {
     title: "Lead time normalisé",
     body:
@@ -143,6 +149,7 @@ export function generateReport(
     cycleTimeNormalized: buildSeries(metricRows("cycle-time-normalized"), "", ["median", "p85"]),
     flowEfficiency: buildSeries(metricRows("flow-efficiency"), "", ["aggregate", "median"]),
     agingWipRisk: buildSeries(metricRows("aging-wip"), "", ["ok", "watch", "atRisk", "critical"]),
+    devTimeAllocation: buildSeries(metricRows("dev-time-allocation"), "", ["featureDays", "bugDays", "bugRatio"]),
   };
 
   const lastDate = snapshots[snapshots.length - 1].snapshot_date;
@@ -156,6 +163,7 @@ export function generateReport(
     bugThroughputCount: pickValue(latestRows, "bug-throughput", "", "count"),
     bugCycleTimeMedian: pickValue(latestRows, "bug-cycle-time", "", "median"),
     flowEfficiencyAggregate: pickValue(latestRows, "flow-efficiency", "", "aggregate"),
+    devTimeAvgBugRatio: pickValue(latestRows, "dev-time-allocation", "", "bugRatio"),
   };
 
   const leadBySize = latestBySize(latestRows.filter((r) => r.metric_name === "lead-time-by-size"));
@@ -406,6 +414,7 @@ ${staleBannerHtml(input.isSyncStale, input.lastSyncAt)}
   <div class="kpi"><span class="label">Bugs livrés (7j)${helpBtn("bugThroughput")}</span><span class="value">${fmtInt(input.kpis.bugThroughputCount)}</span></div>
   <div class="kpi"><span class="label">Bug cycle médian${helpBtn("bugCycleTime")}</span><span class="value">${fmt(input.kpis.bugCycleTimeMedian)}</span></div>
   <div class="kpi"><span class="label">Flow efficiency${helpBtn("flowEfficiency")}</span><span class="value">${fmtPct(input.kpis.flowEfficiencyAggregate)}</span></div>
+  <div class="kpi"><span class="label">Bug ratio moyen${helpBtn("devTimeAllocation")}</span><span class="value">${fmtPct(input.kpis.devTimeAvgBugRatio)}</span></div>
 </div>
 
 <h2>Tendances hebdomadaires</h2>
@@ -417,6 +426,7 @@ ${staleBannerHtml(input.isSyncStale, input.lastSyncAt)}
   <div class="chart-card"><h3>WIP (fin de semaine)${helpBtn("wip")}</h3><canvas id="wipChart"></canvas></div>
   <div class="chart-card"><h3>Bugs livrés (issues / 7j)${helpBtn("bugThroughput")}</h3><canvas id="bugThroughputChart"></canvas></div>
   <div class="chart-card"><h3>Bug cycle time (jours)${helpBtn("bugCycleTime")}</h3><canvas id="bugCycleTimeChart"></canvas></div>
+  <div class="chart-card"><h3>Allocation dev : features vs bugs${helpBtn("devTimeAllocation")}</h3><canvas id="devTimeAllocationChart"></canvas></div>
   <div class="chart-card"><h3>Cycle normalisé (réel / estimé)${helpBtn("cycleTimeNormalized")}</h3><canvas id="cycleNormalizedChart"></canvas></div>
   <div class="chart-card"><h3>Flow efficiency (ratio)${helpBtn("flowEfficiency")}</h3><canvas id="flowEfficiencyChart"></canvas></div>
 </div>
@@ -559,6 +569,65 @@ lineChart("flowEfficiencyChart", CHARTS.flowEfficiency, [
   { key: "aggregate", label: "Agrégat (pondéré durée)", color: COLOR_MEDIAN },
   { key: "median", label: "Médiane (par issue)", color: COLOR_P85 },
 ], true);
+
+(function renderDevTimeAllocation() {
+  const series = CHARTS.devTimeAllocation;
+  const ctx = document.getElementById("devTimeAllocationChart");
+  if (!ctx || !series || series.dates.length === 0) return;
+  new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: series.dates,
+      datasets: [
+        {
+          label: "Features (j ouvrés)",
+          data: series.series["featureDays"],
+          backgroundColor: "#2563eb88",
+          borderColor: "#2563eb",
+          borderWidth: 1,
+          stack: "days",
+          yAxisID: "y",
+        },
+        {
+          label: "Bugs (j ouvrés)",
+          data: series.series["bugDays"],
+          backgroundColor: "#ef444488",
+          borderColor: "#ef4444",
+          borderWidth: 1,
+          stack: "days",
+          yAxisID: "y",
+        },
+        {
+          type: "line",
+          label: "Bug ratio (%)",
+          data: (series.series["bugRatio"] ?? []).map(v => v * 100),
+          borderColor: "#f97316",
+          backgroundColor: "transparent",
+          tension: 0.2,
+          pointRadius: 2,
+          yAxisID: "y2",
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: { legend: { position: "bottom" } },
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true, beginAtZero: true, title: { display: true, text: "Jours ouvrés" } },
+        y2: {
+          position: "right",
+          beginAtZero: true,
+          max: 100,
+          title: { display: true, text: "Bug ratio (%)" },
+          grid: { drawOnChartArea: false },
+        },
+      },
+    },
+  });
+})();
 
 const HISTOGRAM = ${JSON.stringify(input.histogram)};
 const CYCLE_STATS = ${JSON.stringify(input.cycleStats)};
