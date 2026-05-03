@@ -290,15 +290,15 @@ Les issues non estimées sont comptées séparément (`unestimatedCount`) mais *
 
 ### `dev-time-allocation`
 
-**Définition** : somme des cycle times livrés par semaine, splitée en jours features (`featureDays`) et jours bugs (`bugDays`). `bugRatio = bugDays / (featureDays + bugDays)`, 0 si aucune livraison.
+**Définition** : somme des cycle times (livrés + WIP en cours) par semaine, splitée en jours features (`featureDays`) et jours bugs (`bugDays`). `bugRatio = bugDays / (featureDays + bugDays)`, 0 si aucun jour.
 
-**Périmètre** : même population que `cycle-time` — issues ayant à la fois une transition `todoStatuses` ET une transition `devStartStatuses`.
+**Périmètre** : issues ayant à la fois une transition `todoStatuses` ET une transition `devStartStatuses`, qu'elles soient livrées ou en cours. `excludeIssueTypes` appliqué aux deux populations.
 
 **Algorithme** :
-1. Pour chaque issue livrée : `days = workingDaysBetween(devStart, done_at)`.
-2. Attribution : `issue_type IN bugIssueTypes` → `bugDays`, sinon → `featureDays`.
-3. Groupage par semaine ISO de `done_at` (calculée côté TypeScript via `isoWeek()`).
-4. `avgBugRatio` = moyenne arithmétique des `bugRatio` sur les semaines ayant au moins une livraison.
+1. **Issues livrées** : pour chaque issue avec `done_at` dans la fenêtre, `days = workingDaysBetween(devStart, done_at)` distribué sur les semaines ISO entre devStart et done_at (`distributeAcrossWeeks`).
+2. **Issues WIP** : pour chaque issue sans `done_at` avant `today` (`windowEndDate ?? date du jour`), `days = workingDaysBetween(devStart, today)` distribué de même. Issues démarrées avant `cutoffDate` incluses si encore en cours.
+3. Attribution : `issue_type IN bugIssueTypes` → `bugDays`, sinon → `featureDays`.
+4. `avgBugRatio` = moyenne **pondérée par volume** : `totalBugDays / (totalBugDays + totalFeatureDays)`.
 
 **Snapshot** : fenêtre 7 jours (comme les métriques de débit). Stocke `featureDays` (total), `bugDays` (total), `bugRatio` (`avgBugRatio`).
 

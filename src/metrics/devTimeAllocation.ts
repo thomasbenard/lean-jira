@@ -77,6 +77,7 @@ export const devTimeAllocationMetric: Metric<DevTimeAllocationSummary> = {
     const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
     const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes);
 
+    // windowEndDate absent en mode live → date du jour réelle ; snapshot toujours fourni par compute.ts
     const today = config.windowEndDate ?? new Date().toISOString().slice(0, 10);
 
     const rows = db.prepare(`

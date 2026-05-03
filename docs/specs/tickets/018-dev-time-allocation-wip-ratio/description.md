@@ -20,4 +20,4 @@ Deux corrections indépendantes dans `devTimeAllocation.ts` :
 
 ## Statut
 
-**à faire**
+**livré**

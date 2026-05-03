@@ -155,7 +155,7 @@ Basés sur l'estimation initiale (`originalEstimate`) de l'issue (1 jour = 8 h) 
 | `flow-efficiency` | % du temps réellement travaillé vs temps total en cycle (actif / (actif + queue)) | Issues livrées sur fenêtre cycle-time |
 | `aging-wip` | Âge des items en cours comparé aux percentiles historiques de cycle time (classification de risque) | WIP courant |
 | `forecast` | Fourchette Monte Carlo de livraisons possibles sur 1/2/4/8 semaines, basée sur les 12 dernières semaines de throughput | Historique récent |
-| `dev-time-allocation` | Somme des cycle times livrés par semaine, split features vs bugs. `bugRatio = bugDays / totalDays`. Détecte la dérive vers le mode pompier. | Issues avec transition todo ET devStart |
+| `dev-time-allocation` | Somme des cycle times livrés **+ WIP en cours** par semaine, split features vs bugs. `avgBugRatio = totalBugDays / totalDays` (pondéré par volume). Détecte la dérive vers le mode pompier sans lag de livraison. | Issues avec transition todo ET devStart (livrées ou en cours) |
 | `bug-backlog` | Nombre de bugs ouverts à la fin de chaque semaine (`openCount`) et flux net hebdomadaire `closed − created` (`netFlow`). `netFlow > 0` = backlog se réduit, `< 0` = grossit. Pas de scoping sprint. | Tous les bugs (issues de type `bugIssueTypes`) |
 
 **Invariant lead/cycle** : les métriques `lead-time` et `cycle-time` (et leurs variantes) filtrent sur les issues ayant **à la fois** une transition `todoStatuses` et une transition `devStartStatuses`, ce qui garantit `lead_time ≥ cycle_time` par issue et rend les percentiles comparables.

@@ -212,6 +212,23 @@ describe("WIP et ratio pondéré", () => {
     expect(result.byWeek.some((w) => w.featureDays > 0)).toBe(false);
   });
 
+  it("excludeIssueTypes exclut les issues WIP correspondantes", () => {
+    // Feature WIP de type Epic (exclue) + Bug WIP → seul le bug doit apparaître
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1", issueType: "Epic" }), [
+      { to: "To Do",       at: "2025-01-13T00:00:00Z" },
+      { to: "In Progress", at: "2025-01-13T00:00:00Z" },
+    ]);
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-2", issueType: "Bug" }), [
+      { to: "To Do",       at: "2025-01-13T00:00:00Z" },
+      { to: "In Progress", at: "2025-01-13T00:00:00Z" },
+    ]);
+    const cfg = { ...TEST_CONFIG, excludeIssueTypes: ["Epic"], windowEndDate: "2025-01-17" };
+    const result = devTimeAllocationMetric.compute(db, cfg);
+    const totalFeature = result.byWeek.reduce((s, w) => s + w.featureDays, 0);
+    expect(totalFeature).toBe(0); // Epic exclue
+    expect(result.byWeek.some((w) => w.bugDays > 0)).toBe(true);
+  });
+
   it("avgBugRatio pondéré par volume, pas moyenne des ratios hebdos", () => {
     // W02: Bug 1j (bugRatio=1.0)  W15: Feature 3j + Bug 2j (bugRatio=0.4)
     // Pondéré : (1+2)/(1+3+2) = 0.5   Non pondéré (old) : (1.0+0.4)/2 = 0.7

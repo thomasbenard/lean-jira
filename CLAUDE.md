@@ -134,7 +134,7 @@ Board is defined as an ordered list of columns under `board.columns`. Each colum
 | `flow-efficiency` | aggregate / median / P15 | active / (active+queue) over cycle-time window |
 | `aging-wip` | per-issue ages + risk classification | current items vs historical cycle-time P50/P85/P95 |
 | `forecast` | byHorizon (1/2/4/8 weeks) | Monte Carlo on last 12 weeks of throughput; outputs P15/P50/P85/P95 |
-| `dev-time-allocation` | byWeek (featureDays/bugDays/bugRatio) + avgBugRatio | weekly cycle-time split features vs bugs |
+| `dev-time-allocation` | byWeek (featureDays/bugDays/bugRatio) + avgBugRatio | weekly cycle-time split features vs bugs; includes WIP (done_at fictif = today); avgBugRatio weighted by volume |
 | `bug-backlog` | openCount / netFlow / created / closed | point-in-time open bugs + weekly net flow (closed − created) |
 
 ## Adding a metric
