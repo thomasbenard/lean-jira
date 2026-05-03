@@ -456,6 +456,16 @@ program
       console.log('# Les colonnes intermédiaires sont en type: active — changer en "queue" pour les colonnes d\'attente\n');
       console.log(renderBoardColumnsYaml(columns));
     }
+
+    console.log("");
+    console.log("╔══ Types de colonnes disponibles ══════════════════════════════════════╗");
+    console.log("║  todo   — file d'attente initiale (début lead time)                   ║");
+    console.log("║  active — travail en cours actif (touch time, flow efficiency)        ║");
+    console.log("║           ↳ + devStart: true → début cycle time (1 seule colonne)     ║");
+    console.log("║  queue  — attente passive : review, QA, blocked… (queue time)         ║");
+    console.log("║           ↳ flow efficiency = active / (active + queue)               ║");
+    console.log("║  done   — livraison équipe (fin lead time et cycle time)              ║");
+    console.log("╚═══════════════════════════════════════════════════════════════════════╝");
   });
 
 program
