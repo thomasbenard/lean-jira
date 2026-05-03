@@ -224,6 +224,34 @@ Champs récupérés par issue : `summary`, `issuetype`, `status`, `created`, `re
 
 ---
 
+## Rapport HTML (`report/generate.ts`)
+
+`generateReport(db, projectKey, jiraBaseUrl, outputPath, config, healthThresholds?)` lit `metric_snapshots` et produit un fichier HTML autonome (Chart.js via CDN, CSS inline).
+
+### Signaux de santé (`healthThresholds`)
+
+Paramètre optionnel de type `HealthThresholds` (exporté depuis `generate.ts`). Si absent → aucun signal. Structure :
+
+```typescript
+interface ThresholdPair { warn: number; crit: number; }
+interface HealthThresholds {
+  leadTimeMedianDays?: ThresholdPair;
+  cycleTimeMedianDays?: ThresholdPair;
+  throughputWeekly?: ThresholdPair;
+  wipCount?: ThresholdPair;
+  bugCycleTimeMedianDays?: ThresholdPair;
+  bugRatio?: ThresholdPair;
+}
+```
+
+Helpers d'évaluation (exportés, fonctions pures) :
+- `evalLowerBetter(value, t)` : vert si `value <= t.warn`, orange si `<= t.crit`, rouge sinon. `null` ou `t` absent → `"none"`.
+- `evalHigherBetter(value, t)` : vert si `value >= t.warn`, orange si `>= t.crit`, rouge sinon. Utilisé pour `throughputWeekly`.
+
+Rendu : `<span class="health-dot health-{green|orange|red}">●</span>` inséré avant la valeur dans la card KPI. Champ `metrics.healthThresholds` dans `board.yaml` → passé par `main.ts` à `generateReport()`.
+
+---
+
 ## Snapshots historiques (`snapshots/compute.ts`)
 
 `backfillSnapshots` :

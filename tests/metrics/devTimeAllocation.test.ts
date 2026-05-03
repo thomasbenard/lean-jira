@@ -81,19 +81,22 @@ describe("devTimeAllocationMetric.compute", () => {
     expect(result.byWeek).toHaveLength(0);
   });
 
-  it("agrégation par semaine de livraison (done_at), pas par semaine de début", () => {
-    // Démarré semaine précédente, livré 2025-03-22 (semaine 2025-W12)
-    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1", issueType: "Story" }), [
-      { to: "To Do",       at: "2026-03-01T09:00:00Z" },
-      { to: "In Progress", at: "2026-03-01T09:00:00Z" },
-      { to: "Done",        at: "2026-03-22T09:00:00Z" },
+  it("distribution multi-semaine : 13j bug W02→W04 réparti 5+5+3 sur 3 semaines", () => {
+    // Bug démarré lun 2025-01-06 (W02), livré jeu 2025-01-23 (W04) = 13j ouvrés
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1", issueType: "Bug" }), [
+      { to: "To Do",       at: "2025-01-06T09:00:00Z" },
+      { to: "In Progress", at: "2025-01-06T09:00:00Z" },
+      { to: "Done",        at: "2025-01-23T09:00:00Z" },
     ]);
-    const cfg = { ...TEST_CONFIG, cutoffDate: "2026-01-01" };
-    const result = devTimeAllocationMetric.compute(db, cfg);
-    expect(result.byWeek).toHaveLength(1);
-    // Semaine de done_at, pas de started_at
-    expect(result.byWeek[0].week).toContain("2026");
-    expect(result.byWeek[0].featureDays).toBeGreaterThan(0);
+    const result = devTimeAllocationMetric.compute(db, TEST_CONFIG);
+    expect(result.byWeek).toHaveLength(3);
+    const w02 = result.byWeek.find((w) => w.week === "2025-W02");
+    const w03 = result.byWeek.find((w) => w.week === "2025-W03");
+    const w04 = result.byWeek.find((w) => w.week === "2025-W04");
+    expect(w02?.bugDays).toBe(5);
+    expect(w03?.bugDays).toBe(5);
+    expect(w04?.bugDays).toBe(3);
+    expect(w02?.featureDays).toBe(0);
   });
 
   it("bugRatio correct pour semaine mixte (13j features + 3j bug)", () => {

@@ -119,6 +119,7 @@ Board is defined as an ordered list of columns under `board.columns`. Each colum
 - columns `type: done` ∪ `board.legacyDoneStatuses` → `doneStatuses` → fallback for legacy renamed statuses absent from `/rest/api/2/status`; unioned with DB-derived done set
 - `metrics.cutoffDate` → global lower bound (issues delivered before are ignored)
 - `metrics.bugIssueTypes` → routed to BUG bucket; excluded from normalized/weighted metrics
+- `metrics.healthThresholds` → optional KPI health signals in the report; each key maps to `{ warn, crit }` pair; absent = no signal; keys: `leadTimeMedianDays`, `cycleTimeMedianDays`, `throughputWeekly` (higher=better), `wipCount`, `bugCycleTimeMedianDays`, `bugRatio`
 
 ## Metric catalog
 

@@ -44,3 +44,15 @@ metrics:
   # weighted throughput). Métriques dédiées: bug-cycle-time, bug-throughput.
   bugIssueTypes:
     - "Bug"
+
+  # Seuils des signaux de santé sur les KPIs du rapport.
+  # Absents = aucun signal affiché. Toutes les clés sont optionnelles.
+  # Durées en jours ouvrés. bugRatio = ratio 0-1 (0.20 = 20%).
+  # throughputWeekly : directionnel "plus haut = mieux" (orange si < warn, rouge si < crit).
+  # healthThresholds:
+  #   leadTimeMedianDays:     { warn: 5,    crit: 10   }
+  #   cycleTimeMedianDays:    { warn: 3,    crit: 7    }
+  #   throughputWeekly:       { warn: 3,    crit: 1    }
+  #   wipCount:               { warn: 5,    crit: 8    }
+  #   bugCycleTimeMedianDays: { warn: 3,    crit: 7    }
+  #   bugRatio:               { warn: 0.20, crit: 0.40 }

@@ -8,6 +8,37 @@ import { cycleTimeMetric } from "../metrics/cycleTime";
 import { getLastSyncDate } from "../db/store";
 
 const STALE_THRESHOLD_DAYS = 7;
+
+export interface ThresholdPair {
+  warn: number;
+  crit: number;
+}
+
+export interface HealthThresholds {
+  leadTimeMedianDays?: ThresholdPair;
+  cycleTimeMedianDays?: ThresholdPair;
+  throughputWeekly?: ThresholdPair;
+  wipCount?: ThresholdPair;
+  bugCycleTimeMedianDays?: ThresholdPair;
+  bugRatio?: ThresholdPair;
+}
+
+export type HealthSignal = "green" | "orange" | "red" | "none";
+
+export function evalLowerBetter(value: number | null, t: ThresholdPair | undefined): HealthSignal {
+  if (value === null || t === undefined) return "none";
+  if (value <= t.warn) return "green";
+  if (value <= t.crit) return "orange";
+  return "red";
+}
+
+export function evalHigherBetter(value: number | null, t: ThresholdPair | undefined): HealthSignal {
+  if (value === null || t === undefined) return "none";
+  if (value >= t.warn) return "green";
+  if (value >= t.crit) return "orange";
+  return "red";
+}
+
 const MS_PER_DAY = 86_400_000;
 
 interface SnapshotRow {
@@ -124,6 +155,7 @@ export function generateReport(
   jiraBaseUrl: string,
   outputPath: string,
   config: MetricConfig,
+  healthThresholds?: HealthThresholds,
 ): void {
   const snapshots = db.prepare(
     "SELECT snapshot_date, metric_name, bucket, stat, value FROM metric_snapshots ORDER BY snapshot_date ASC"
@@ -217,6 +249,7 @@ export function generateReport(
       avg: cycleTime.avgDays,
       count: cycleTime.count,
     },
+    healthThresholds,
   });
 
   fs.writeFileSync(outputPath, html);
@@ -287,6 +320,7 @@ interface RenderInput {
   forecast: ForecastSummary;
   histogram: HistogramBin[];
   cycleStats: { median: number; p85: number; p95: number; avg: number; count: number };
+  healthThresholds?: HealthThresholds;
 }
 
 function buildHistogram(values: number[]): HistogramBin[] {
@@ -340,6 +374,19 @@ export function renderHtml(input: RenderInput): string {
     return `<span class="help-wrap"><button class="help-btn" aria-label="Aide">?</button><span class="help-popover" role="tooltip"><strong>${escapeHtml(h.title)}</strong>${escapeHtml(h.body)}</span></span>`;
   };
 
+  const dot = (signal: HealthSignal): string =>
+    signal === "none" ? "" : `<span class="health-dot health-${signal}">●</span>`;
+
+  const thresholds = input.healthThresholds;
+  const signals = {
+    leadTime: dot(evalLowerBetter(input.kpis.leadTimeMedian, thresholds?.leadTimeMedianDays)),
+    cycleTime: dot(evalLowerBetter(input.kpis.cycleTimeMedian, thresholds?.cycleTimeMedianDays)),
+    throughput: dot(evalHigherBetter(input.kpis.throughputCount, thresholds?.throughputWeekly)),
+    wip: dot(evalLowerBetter(input.kpis.wipCount, thresholds?.wipCount)),
+    bugCycle: dot(evalLowerBetter(input.kpis.bugCycleTimeMedian, thresholds?.bugCycleTimeMedianDays)),
+    bugRatio: dot(evalLowerBetter(input.kpis.devTimeAvgBugRatio, thresholds?.bugRatio)),
+  };
+
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -355,6 +402,10 @@ export function renderHtml(input: RenderInput): string {
   .kpi { background: white; border: 1px solid #e3e3e3; border-radius: 6px; padding: 1rem; }
   .kpi .label { display: block; font-size: 0.8rem; color: #666; text-transform: uppercase; letter-spacing: 0.05em; }
   .kpi .value { display: block; font-size: 1.8rem; font-weight: 600; margin-top: 0.4rem; }
+  .health-dot { margin-right: 0.3rem; font-size: 0.75rem; }
+  .health-green { color: #10b981; }
+  .health-orange { color: #f59e0b; }
+  .health-red    { color: #ef4444; }
   .kpi .unit { font-size: 0.9rem; color: #888; margin-left: 0.15rem; }
   .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
   .chart-card { background: white; border: 1px solid #e3e3e3; border-radius: 6px; padding: 1rem; }
@@ -419,10 +470,10 @@ export function renderHtml(input: RenderInput): string {
 ${staleBannerHtml(input.isSyncStale, input.lastSyncAt)}
 <h2>Livraison</h2>
 <div class="kpis">
-  <div class="kpi"><span class="label">Lead time médian${helpBtn("leadTime")}</span><span class="value">${fmt(input.kpis.leadTimeMedian)}</span></div>
-  <div class="kpi"><span class="label">Cycle time médian${helpBtn("cycleTime")}</span><span class="value">${fmt(input.kpis.cycleTimeMedian)}</span></div>
-  <div class="kpi"><span class="label">Throughput (7j)${helpBtn("throughput")}</span><span class="value">${fmtInt(input.kpis.throughputCount)}</span></div>
-  <div class="kpi"><span class="label">WIP${helpBtn("wip")}</span><span class="value">${fmtInt(input.kpis.wipCount)}</span></div>
+  <div class="kpi"><span class="label">Lead time médian${helpBtn("leadTime")}</span><span class="value">${signals.leadTime}${fmt(input.kpis.leadTimeMedian)}</span></div>
+  <div class="kpi"><span class="label">Cycle time médian${helpBtn("cycleTime")}</span><span class="value">${signals.cycleTime}${fmt(input.kpis.cycleTimeMedian)}</span></div>
+  <div class="kpi"><span class="label">Throughput (7j)${helpBtn("throughput")}</span><span class="value">${signals.throughput}${fmtInt(input.kpis.throughputCount)}</span></div>
+  <div class="kpi"><span class="label">WIP${helpBtn("wip")}</span><span class="value">${signals.wip}${fmtInt(input.kpis.wipCount)}</span></div>
 </div>
 <div class="charts">
   <div class="chart-card"><h3>Lead time (jours)${helpBtn("leadTime")}</h3><canvas id="leadTimeChart"></canvas></div>
@@ -471,8 +522,8 @@ ${staleBannerHtml(input.isSyncStale, input.lastSyncAt)}
 <h2>Bugs &amp; dette qualité</h2>
 <div class="kpis">
   <div class="kpi"><span class="label">Bugs livrés (7j)${helpBtn("bugThroughput")}</span><span class="value">${fmtInt(input.kpis.bugThroughputCount)}</span></div>
-  <div class="kpi"><span class="label">Bug cycle médian${helpBtn("bugCycleTime")}</span><span class="value">${fmt(input.kpis.bugCycleTimeMedian)}</span></div>
-  <div class="kpi"><span class="label">Bug ratio moyen${helpBtn("devTimeAllocation")}</span><span class="value">${fmtPct(input.kpis.devTimeAvgBugRatio)}</span></div>
+  <div class="kpi"><span class="label">Bug cycle médian${helpBtn("bugCycleTime")}</span><span class="value">${signals.bugCycle}${fmt(input.kpis.bugCycleTimeMedian)}</span></div>
+  <div class="kpi"><span class="label">Bug ratio moyen${helpBtn("devTimeAllocation")}</span><span class="value">${signals.bugRatio}${fmtPct(input.kpis.devTimeAvgBugRatio)}</span></div>
 </div>
 <div class="charts">
   <div class="chart-card"><h3>Bugs livrés (issues / 7j)${helpBtn("bugThroughput")}</h3><canvas id="bugThroughputChart"></canvas></div>

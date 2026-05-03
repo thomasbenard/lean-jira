@@ -207,7 +207,7 @@ Le rapport est organisé en 3 sections thématiques H2, dans cet ordre :
 
 #### 1. Livraison
 
-- **KPIs** (4, dernière fenêtre) : lead time médian, cycle time médian, throughput (7j), WIP.
+- **KPIs** (4, dernière fenêtre) : lead time médian, cycle time médian, throughput (7j), WIP. Si `metrics.healthThresholds` est configuré dans `board.yaml`, chaque KPI concerné affiche un point coloré (●) avant sa valeur : vert (zone saine), orange (à surveiller), rouge (dégradé). Signal absent si le seuil n'est pas configuré pour ce KPI ou si la valeur est `null`.
 - **Graphes principaux** (5) : lead time, cycle time, throughput, throughput pondéré, WIP. Chaque graphique affiche une courbe de tendance superposée calculée par moyenne mobile sur une fenêtre de 4 semaines (gris ardoise `#64748b88`, pointillé `[6,4]`, label "Tendance"). Les 3 premiers points ne sont pas tracés (fenêtre insuffisante).
 - **Distribution cycle time** : histogramme avec lignes P50/P85/P95.
 - **Par taille** : tableaux statiques lead time et cycle time par bucket (dernière snapshot : count/médiane/P85).
@@ -215,7 +215,7 @@ Le rapport est organisé en 3 sections thématiques H2, dans cet ordre :
 
 #### 2. Bugs & dette qualité
 
-- **KPIs** (3) : bugs livrés (7j), bug cycle time médian, bug ratio moyen.
+- **KPIs** (3) : bugs livrés (7j), bug cycle time médian, bug ratio moyen. Bug cycle time médian et bug ratio moyen affichent également le signal de santé si configuré.
 - **Graphes** (4) : bug throughput, bug cycle time, allocation dev features vs bugs, bug backlog. Le graphe **Bug Backlog** est double-axe : barres hebdomadaires `netFlow` (vert si ≥ 0, rouge si < 0) sur l'axe droit, courbe `openCount` sur l'axe gauche.
 
 #### 3. Capacité & prévision

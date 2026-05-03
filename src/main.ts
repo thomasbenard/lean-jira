@@ -8,7 +8,7 @@ import { openDb, getDoneStatusNames, getAllStatuses, getDistinctTransitionStatus
 import { runAllMetrics, runMetric, ALL_METRICS } from "./metrics/index";
 import { BUCKET_LABELS, BUCKET_ORDER } from "./metrics/utils";
 import { backfillSnapshots } from "./snapshots/compute";
-import { generateReport } from "./report/generate";
+import { generateReport, type HealthThresholds } from "./report/generate";
 import { type MetricConfig } from "./metrics/types";
 import { JiraClient } from "./jira/client";
 import { type JiraBoardConfig, type JiraStatus } from "./jira/types";
@@ -115,6 +115,7 @@ export interface BoardFileConfig {
     cutoffDate?: string;
     bugIssueTypes?: string[];
     excludeIssueTypes?: string[];
+    healthThresholds?: HealthThresholds;
   };
 }
 
@@ -437,7 +438,7 @@ program
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config);
-    generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig);
+    generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds);
     console.log(`Rapport généré : ${path.resolve(opts.output)}`);
   });
 
