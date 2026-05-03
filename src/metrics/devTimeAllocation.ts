@@ -25,6 +25,26 @@ function isoWeek(dateISO: string): string {
   return `${year}-W${String(weekNo).padStart(2, "0")}`;
 }
 
+function distributeAcrossWeeks(startedAt: string, doneAt: string, totalDays: number): Map<string, number> {
+  const result = new Map<string, number>();
+  if (totalDays <= 0) return result;
+  const doneWeek = isoWeek(doneAt);
+  const d = new Date(startedAt.length <= 10 ? startedAt + "T00:00:00Z" : startedAt);
+  const dow = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() - (dow - 1)); // rewind to Monday of start week
+  let remaining = totalDays;
+  while (remaining > 0) {
+    const week = isoWeek(d.toISOString().slice(0, 10));
+    const isLast = week === doneWeek;
+    const alloc = isLast ? remaining : Math.min(5, remaining);
+    result.set(week, (result.get(week) ?? 0) + alloc);
+    remaining -= alloc;
+    if (isLast) break;
+    d.setUTCDate(d.getUTCDate() + 7);
+  }
+  return result;
+}
+
 export const devTimeAllocationMetric: Metric<DevTimeAllocationSummary> = {
   name: "dev-time-allocation",
   description:
@@ -67,14 +87,16 @@ export const devTimeAllocationMetric: Metric<DevTimeAllocationSummary> = {
     for (const r of rows) {
       if (r.done_at < r.started_at) {continue;}
       const days = workingDaysBetween(r.started_at, r.done_at);
-      const week = isoWeek(r.done_at);
-      let entry = byWeekMap.get(week);
-      if (!entry) {
-        entry = { featureDays: 0, bugDays: 0 };
-        byWeekMap.set(week, entry);
+      const isBug = bugTypes.has(r.issue_type);
+      for (const [week, alloc] of distributeAcrossWeeks(r.started_at, r.done_at, days)) {
+        let entry = byWeekMap.get(week);
+        if (!entry) {
+          entry = { featureDays: 0, bugDays: 0 };
+          byWeekMap.set(week, entry);
+        }
+        if (isBug) {entry.bugDays += alloc;}
+        else {entry.featureDays += alloc;}
       }
-      if (bugTypes.has(r.issue_type)) {entry.bugDays += days;}
-      else {entry.featureDays += days;}
     }
 
     const byWeek: DevTimeAllocationByWeek[] = Array.from(byWeekMap.entries())

@@ -99,32 +99,26 @@ describe("devTimeAllocationMetric.compute", () => {
     expect(w02?.featureDays).toBe(0);
   });
 
-  it("bugRatio correct pour semaine mixte (13j features + 3j bug)", () => {
-    // 2 features : 5j + 8j = 13j
+  it("bugRatio correct pour semaine mixte feature + bug", () => {
+    // Feature 3j + Bug 2j dans W15 (tout en intra-semaine → 1 seule entrée)
     seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1", issueType: "Story" }), [
-      { to: "To Do",       at: "2025-04-07T09:00:00Z" },
-      { to: "In Progress", at: "2025-04-07T09:00:00Z" },
-      { to: "Done",        at: "2025-04-14T09:00:00Z" }, // 5j ouvrés
+      { to: "To Do",       at: "2025-04-08T09:00:00Z" },
+      { to: "In Progress", at: "2025-04-08T09:00:00Z" },
+      { to: "Done",        at: "2025-04-11T09:00:00Z" }, // 3j ouvrés (Tue→Fri)
     ]);
-    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-2", issueType: "Story" }), [
-      { to: "To Do",       at: "2025-04-01T09:00:00Z" },
-      { to: "In Progress", at: "2025-04-01T09:00:00Z" },
-      { to: "Done",        at: "2025-04-14T09:00:00Z" }, // 10j ouvrés
-    ]);
-    // 1 bug : 3j
-    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-3", issueType: "Bug" }), [
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-2", issueType: "Bug" }), [
       { to: "To Do",       at: "2025-04-09T09:00:00Z" },
       { to: "In Progress", at: "2025-04-09T09:00:00Z" },
-      { to: "Done",        at: "2025-04-14T09:00:00Z" }, // 3j ouvrés (Wed→Mon)
+      { to: "Done",        at: "2025-04-11T09:00:00Z" }, // 2j ouvrés (Wed→Fri)
     ]);
     const cfg = { ...TEST_CONFIG, cutoffDate: "2025-04-01" };
     const result = devTimeAllocationMetric.compute(db, cfg);
     expect(result.byWeek).toHaveLength(1);
     const w = result.byWeek[0];
-    expect(w.bugDays).toBe(3);
-    const total = w.featureDays + w.bugDays;
-    expect(Math.abs(w.bugRatio - w.bugDays / total)).toBeLessThan(0.001);
-    expect(result.avgBugRatio).toBeCloseTo(w.bugRatio, 5);
+    expect(w.featureDays).toBe(3);
+    expect(w.bugDays).toBe(2);
+    expect(w.bugRatio).toBeCloseTo(2 / 5, 5);
+    expect(result.avgBugRatio).toBeCloseTo(2 / 5, 5);
   });
 
   it("cycle time négatif (done_at < started_at) ignoré silencieusement", () => {
