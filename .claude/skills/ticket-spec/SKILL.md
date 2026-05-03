@@ -40,6 +40,24 @@ Before writing anything, collect the minimum viable context:
 
 Don't ask multiple questions at once. One question is enough — the code reading fills most gaps.
 
+### Inconnues bloquantes vs inférables
+
+Après lecture du code (Step 2), classifier les inconnues restantes :
+
+**Bloquantes** (ne peut pas inférer depuis le code — toujours demander si absent) :
+- Persona : qui bénéficie de la feature ? (lead technique, PO, développeur…)
+- Bénéfice métier : quel problème concret résout ce ticket ?
+- Contrainte explicite : perf cible, compatibilité requise, migration DB interdite, etc.
+
+**Inférables** (le code suffit — ne pas demander) :
+- Fichiers à toucher
+- Approche technique (pattern existant à dupliquer)
+- Cas limites (dérivables des types et branches existants)
+
+**Règle** : si ≥1 inconnue bloquante subsiste après lecture du code, poser **une** question.
+Présenter d'abord ce qui a été inféré : *"J'ai inféré X — est-ce correct ? Et <inconnue bloquante> ?"*
+Attendre la réponse avant d'écrire quoi que ce soit.
+
 ## Step 2 — Read the relevant source code
 
 This step is mandatory. Specs that aren't anchored in real code produce wrong file paths,
