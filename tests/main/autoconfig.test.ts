@@ -129,20 +129,13 @@ describe("renderBoardColumnsYaml", () => {
     expect(out).toContain('"To Do"');
   });
 
-  it("rend legacyDoneStatuses au niveau board si fournis", () => {
+  it("legacyStatuses sur colonne done rendus dans YAML", () => {
     const board = makeBoard(["Todo", "En cours", "Done"], [["1"], ["2"], ["4"]]);
     const cols = inferBoardColumns(board, defaultStatuses);
-    const out = renderBoardColumnsYaml(cols, ["Delivred", "DELIVERED"]);
-    expect(out).toContain("legacyDoneStatuses:");
+    cols[2].legacyStatuses = ["Delivred", "DELIVERED"];
+    const out = renderBoardColumnsYaml(cols);
     expect(out).toContain('"Delivred"');
     expect(out).toContain('"DELIVERED"');
-  });
-
-  it("n'affiche pas legacyDoneStatuses si tableau vide", () => {
-    const board = makeBoard(["Todo", "En cours", "Done"], [["1"], ["2"], ["4"]]);
-    const cols = inferBoardColumns(board, defaultStatuses);
-    const out = renderBoardColumnsYaml(cols, []);
-    expect(out).not.toContain("legacyDoneStatuses:");
   });
 });
 
@@ -162,22 +155,20 @@ describe("enrichWithLegacyStatuses", () => {
   it("statut en DB catégorie new, absent du board → legacyStatuses du todo column", () => {
     const board = makeBoard(["Todo", "En cours", "Done"], [["1"], ["2"], ["4"]]);
     const cols = inferBoardColumns(board, defaultStatuses);
-    // "Ready to do" est dans allStatuses (catégorie new, id=10) mais pas dans boardConfig
     const allStatuses = [...defaultStatuses, makeStatus("10", "Ready to do", "new")];
     seedTransition("PROJ-1", "Ready to do", "2026-01-01T09:00:00Z");
     const result = enrichWithLegacyStatuses(cols, board, allStatuses, db);
     expect(cols[0].legacyStatuses).toContain("Ready to do");
-    expect(result.legacyDoneStatuses).not.toContain("Ready to do");
     expect(result.unresolvable).not.toContain("Ready to do");
   });
 
-  it("statut en DB catégorie done, absent du board → legacyDoneStatuses", () => {
+  it("statut en DB catégorie done, absent du board → legacyStatuses de la colonne done", () => {
     const board = makeBoard(["Todo", "En cours", "Done"], [["1"], ["2"], ["4"]]);
     const cols = inferBoardColumns(board, defaultStatuses);
     const allStatuses = [...defaultStatuses, makeStatus("10", "Delivred", "done")];
     seedTransition("PROJ-1", "Delivred", "2026-01-01T09:00:00Z");
     const result = enrichWithLegacyStatuses(cols, board, allStatuses, db);
-    expect(result.legacyDoneStatuses).toContain("Delivred");
+    expect(cols[2].legacyStatuses).toContain("Delivred");
     expect(result.unresolvable).not.toContain("Delivred");
   });
 

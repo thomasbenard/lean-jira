@@ -205,7 +205,7 @@ export function inferBoardColumns(
   });
 }
 
-export function renderBoardColumnsYaml(columns: InferredColumn[], legacyDoneStatuses?: string[]): string {
+export function renderBoardColumnsYaml(columns: InferredColumn[]): string {
   const lines: string[] = ["board:", "  columns:"];
   for (const col of columns) {
     lines.push(`    - name: "${col.name}"`);
@@ -235,18 +235,10 @@ export function renderBoardColumnsYaml(columns: InferredColumn[], legacyDoneStat
     }
     lines.push("");
   }
-  if (legacyDoneStatuses && legacyDoneStatuses.length > 0) {
-    lines.push("  legacyDoneStatuses:");
-    for (const s of legacyDoneStatuses) {
-      lines.push(`    - "${s}"`);
-    }
-    lines.push("");
-  }
   return lines.join("\n");
 }
 
 export interface EnrichmentResult {
-  legacyDoneStatuses: string[];
   unresolvable: string[];
 }
 
@@ -265,8 +257,7 @@ export function enrichWithLegacyStatuses(
     boardConfig.columnConfig.columns.flatMap((c) => c.statuses.map((s) => s.id)),
   );
   const todoColIndex = columns.findIndex((c) => c.type === "todo");
-
-  const legacyDoneStatuses: string[] = [];
+  const doneColIndex = columns.findIndex((c) => c.type === "done");
   const unresolvable: string[] = [];
 
   for (const name of legacyCandidates) {
@@ -279,8 +270,8 @@ export function enrichWithLegacyStatuses(
       continue;
     }
     const category = jiraStatus.statusCategory.key;
-    if (category === "done") {
-      legacyDoneStatuses.push(name);
+    if (category === "done" && doneColIndex >= 0) {
+      columns[doneColIndex].legacyStatuses = [...(columns[doneColIndex].legacyStatuses ?? []), name];
     } else if (category === "new" && todoColIndex >= 0) {
       columns[todoColIndex].legacyStatuses = [...(columns[todoColIndex].legacyStatuses ?? []), name];
     } else {
@@ -288,7 +279,7 @@ export function enrichWithLegacyStatuses(
     }
   }
 
-  return { legacyDoneStatuses, unresolvable };
+  return { unresolvable };
 }
 
 const program = new Command();
@@ -436,12 +427,10 @@ program
       console.warn("⚠ Aucune colonne intermédiaire — positionner devStart: true manuellement.");
     }
 
-    let legacyDoneStatuses: string[] = [];
     const dbPath = path.resolve(config.db.path);
     if (fs.existsSync(dbPath)) {
       const db = openDb(dbPath);
       const result = enrichWithLegacyStatuses(columns, boardConfig, allStatuses, db);
-      legacyDoneStatuses = result.legacyDoneStatuses;
       for (const name of result.unresolvable) {
         console.warn(`⚠ Statut legacy non assignable automatiquement : "${name}" — ajouter manuellement comme legacyStatus dans la bonne colonne`);
       }
@@ -456,7 +445,6 @@ program
       parsed.board = {
         ...parsed.board,
         columns: columns.map(({ warning: _w, ...c }) => c),
-        legacyDoneStatuses: legacyDoneStatuses.length > 0 ? legacyDoneStatuses : parsed.board.legacyDoneStatuses,
       };
       const bakPath = configPath + ".bak";
       fs.copyFileSync(configPath, bakPath);
@@ -465,11 +453,8 @@ program
     } else {
       console.log(`# Board "${boardConfig.name}" — généré automatiquement depuis l'API Jira`);
       console.log("# Vérifier devStart: true — positionné sur la première colonne intermédiaire par défaut");
-      console.log('# Les colonnes intermédiaires sont en type: active — changer en "queue" pour les colonnes d\'attente');
-      if (legacyDoneStatuses.length === 0) {
-        console.log("# Ajouter legacyDoneStatuses si des statuts historiques n'apparaissent plus dans l'API\n");
-      }
-      console.log(renderBoardColumnsYaml(columns, legacyDoneStatuses.length > 0 ? legacyDoneStatuses : undefined));
+      console.log('# Les colonnes intermédiaires sont en type: active — changer en "queue" pour les colonnes d\'attente\n');
+      console.log(renderBoardColumnsYaml(columns));
     }
   });
 
