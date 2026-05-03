@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { type Metric, type MetricConfig } from "./types";
-import { buildDeliveredCte, buildWindowFragment, percentile, placeholders, removeUpperOutliers, workingDaysBetween } from "./utils";
+import { buildDeliveredCte, buildExcludeIssueTypesFragment, buildWindowFragment, percentile, placeholders, removeUpperOutliers, workingDaysBetween } from "./utils";
 
 export interface FlowEfficiencyIssue {
   issueKey: string;
@@ -41,6 +41,7 @@ export const flowEfficiencyMetric: Metric<FlowEfficiencySummary> = {
     const devStartPh = placeholders(config.devStartStatuses);
     const delivered = buildDeliveredCte(config.doneStatuses);
     const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
+    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes);
 
     // Population identique à cycle-time + transitions cycle agrégées en une seule requête
     // pour éviter N requêtes (une par issue).
@@ -52,7 +53,7 @@ export const flowEfficiencyMetric: Metric<FlowEfficiencySummary> = {
         JOIN issues i ON i.key = t.issue_key
         JOIN delivered d ON d.issue_key = t.issue_key
         WHERE t.to_status IN (${devStartPh})
-          ${cutoffSql} ${endSql}
+          ${excludeSql} ${cutoffSql} ${endSql}
           AND EXISTS (SELECT 1 FROM transitions t2 WHERE t2.issue_key = t.issue_key AND t2.to_status IN (${todoPh}))
         GROUP BY i.key, d.done_at
       )
@@ -65,6 +66,7 @@ export const flowEfficiencyMetric: Metric<FlowEfficiencySummary> = {
     `).all(
       ...delivered.args,
       ...config.devStartStatuses,
+      ...excludeArgs,
       ...cutoffArgs,
       ...endArgs,
       ...config.todoStatuses,

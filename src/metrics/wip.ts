@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import { type Metric, type MetricConfig } from "./types";
+import { buildExcludeIssueTypesFragment } from "./utils";
 
 export interface WipResult {
   currentWip: number;
@@ -21,10 +22,12 @@ export const wipMetric: Metric<WipResult> = {
     }
 
     const placeholders = config.inProgressStatuses.map(() => "?").join(",");
+    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes, "");
     const rows = db.prepare(`
       SELECT key FROM issues
       WHERE current_sprint_id = ? AND current_status IN (${placeholders})
-    `).all(sprint.id, ...config.inProgressStatuses) as { key: string }[];
+        ${excludeSql}
+    `).all(sprint.id, ...config.inProgressStatuses, ...excludeArgs) as { key: string }[];
 
     return {
       currentWip: rows.length,

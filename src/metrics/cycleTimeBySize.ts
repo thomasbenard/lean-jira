@@ -2,6 +2,7 @@ import type Database from "better-sqlite3";
 import { type Metric, type MetricConfig } from "./types";
 import {
   buildDeliveredCte,
+  buildExcludeIssueTypesFragment,
   buildWindowFragment,
   bucketize,
   BUCKET_ORDER,
@@ -26,6 +27,7 @@ export const cycleTimeBySizeMetric: Metric<CycleTimeBySizeResult> = {
     const devStartPh = placeholders(config.devStartStatuses);
     const delivered = buildDeliveredCte(config.doneStatuses);
     const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
+    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes);
 
     const rows = db.prepare(`
       WITH ${delivered.cte}
@@ -35,12 +37,13 @@ export const cycleTimeBySizeMetric: Metric<CycleTimeBySizeResult> = {
       JOIN issues i ON i.key = t.issue_key
       JOIN delivered d ON d.issue_key = t.issue_key
       WHERE t.to_status IN (${devStartPh})
-        ${cutoffSql} ${endSql}
+        ${excludeSql} ${cutoffSql} ${endSql}
         AND EXISTS (SELECT 1 FROM transitions t2 WHERE t2.issue_key = t.issue_key AND t2.to_status IN (${todoPh}))
       GROUP BY t.issue_key, d.done_at
     `).all(
       ...delivered.args,
       ...config.devStartStatuses,
+      ...excludeArgs,
       ...cutoffArgs,
       ...endArgs,
       ...config.todoStatuses,

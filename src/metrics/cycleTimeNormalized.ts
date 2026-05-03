@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { type Metric, type MetricConfig } from "./types";
-import { buildBugExclusionFragment, buildDeliveredCte, buildWindowFragment, type DurationStats, placeholders, SECONDS_PER_DAY, statsFromDays, workingDaysBetween } from "./utils";
+import { buildBugExclusionFragment, buildDeliveredCte, buildExcludeIssueTypesFragment, buildWindowFragment, type DurationStats, placeholders, SECONDS_PER_DAY, statsFromDays, workingDaysBetween } from "./utils";
 
 export interface CycleTimeNormalizedResult extends DurationStats {
   unit: string;
@@ -17,6 +17,7 @@ export const cycleTimeNormalizedMetric: Metric<CycleTimeNormalizedResult> = {
     const delivered = buildDeliveredCte(config.doneStatuses);
     const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
     const { bugSql, bugArgs } = buildBugExclusionFragment(config.bugIssueTypes);
+    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes);
 
     const rows = db.prepare(`
       WITH ${delivered.cte}
@@ -26,13 +27,14 @@ export const cycleTimeNormalizedMetric: Metric<CycleTimeNormalizedResult> = {
       JOIN delivered d ON d.issue_key = t.issue_key
       WHERE t.to_status IN (${devStartPh})
         AND i.original_estimate_seconds > 0
-        ${bugSql}
+        ${excludeSql} ${bugSql}
         ${cutoffSql} ${endSql}
         AND EXISTS (SELECT 1 FROM transitions t2 WHERE t2.issue_key = t.issue_key AND t2.to_status IN (${todoPh}))
       GROUP BY t.issue_key, d.done_at
     `).all(
       ...delivered.args,
       ...config.devStartStatuses,
+      ...excludeArgs,
       ...bugArgs,
       ...cutoffArgs,
       ...endArgs,

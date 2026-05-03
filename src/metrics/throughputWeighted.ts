@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { type Metric, type MetricConfig } from "./types";
-import { buildBugExclusionFragment, buildDeliveredCte, buildWindowFragment, SECONDS_PER_DAY } from "./utils";
+import { buildBugExclusionFragment, buildDeliveredCte, buildExcludeIssueTypesFragment, buildWindowFragment, SECONDS_PER_DAY } from "./utils";
 
 export interface ThroughputWeightedByWeek {
   week: string;
@@ -23,6 +23,7 @@ export const throughputWeightedMetric: Metric<ThroughputWeightedSummary> = {
     const delivered = buildDeliveredCte(config.doneStatuses);
     const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
     const { bugSql, bugArgs } = buildBugExclusionFragment(config.bugIssueTypes);
+    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes);
 
     const rows = db.prepare(`
       WITH ${delivered.cte}
@@ -33,10 +34,10 @@ export const throughputWeightedMetric: Metric<ThroughputWeightedSummary> = {
         SUM(CASE WHEN i.original_estimate_seconds IS NULL OR i.original_estimate_seconds <= 0 THEN 1 ELSE 0 END) AS unestimated_count
       FROM delivered d
       JOIN issues i ON i.key = d.issue_key
-      WHERE 1=1 ${bugSql} ${cutoffSql} ${endSql}
+      WHERE 1=1 ${excludeSql} ${bugSql} ${cutoffSql} ${endSql}
       GROUP BY week
       ORDER BY week ASC
-    `).all(...delivered.args, ...bugArgs, ...cutoffArgs, ...endArgs) as {
+    `).all(...delivered.args, ...excludeArgs, ...bugArgs, ...cutoffArgs, ...endArgs) as {
       week: string;
       total_seconds: number;
       estimated_count: number;

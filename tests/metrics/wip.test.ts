@@ -89,4 +89,17 @@ describe("wipMetric.compute", () => {
     const result = wipMetric.compute(db, TEST_CONFIG);
     expect(result.currentWip).toBe(1);
   });
+
+  it("excludeIssueTypes exclut Feature et Epic du WIP", () => {
+    const sprint = makeSprint({ id: 1, state: "active" });
+    seedSprint(db, sprint);
+    upsertIssues(db, [
+      makeIssue({ key: "PROJ-1", currentSprintId: 1, currentStatus: "In Progress", issueType: "Feature" }),
+      makeIssue({ key: "PROJ-2", currentSprintId: 1, currentStatus: "In Progress", issueType: "Epic" }),
+      makeIssue({ key: "PROJ-3", currentSprintId: 1, currentStatus: "In Progress", issueType: "Story" }),
+    ]);
+    const result = wipMetric.compute(db, { ...TEST_CONFIG, excludeIssueTypes: ["Feature", "Epic"] });
+    expect(result.currentWip).toBe(1);
+    expect(result.issueKeys).toEqual(["PROJ-3"]);
+  });
 });

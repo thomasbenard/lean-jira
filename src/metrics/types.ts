@@ -24,6 +24,8 @@ export interface MetricConfig {
   // Types Jira considérés comme bugs. Bucket dédié "BUG" + exclusion des
   // métriques d'estimation (normalized, weighted throughput).
   bugIssueTypes: string[];
+  // Types Jira exclus de toutes les métriques (ex: Feature, Epic).
+  excludeIssueTypes: string[];
 }
 
 // Contrat que chaque métrique doit implémenter

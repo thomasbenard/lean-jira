@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { type Metric, type MetricConfig } from "./types";
-import { buildDeliveredCte, percentile } from "./utils";
+import { buildDeliveredCte, buildExcludeIssueTypesFragment, percentile } from "./utils";
 
 export interface ForecastHorizon {
   weeks: number;
@@ -37,16 +37,18 @@ export const forecastMetric: Metric<ForecastSummary> = {
     const delivered = buildDeliveredCte(config.doneStatuses);
     const endSql = config.windowEndDate ? "AND d.done_at <= ?" : "";
     const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
+    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes);
 
     const rows = db.prepare(`
       WITH ${delivered.cte}
       SELECT strftime('%Y-W%W', substr(d.done_at, 1, 10)) AS week, COUNT(*) AS c
       FROM delivered d
-      WHERE 1=1 ${endSql}
+      JOIN issues i ON i.key = d.issue_key
+      WHERE 1=1 ${excludeSql} ${endSql}
       GROUP BY week
       ORDER BY week DESC
       LIMIT ?
-    `).all(...delivered.args, ...endArgs, HISTORY_WEEKS) as { week: string; c: number }[];
+    `).all(...delivered.args, ...excludeArgs, ...endArgs, HISTORY_WEEKS) as { week: string; c: number }[];
 
     const samples = rows.map((r) => r.c).reverse();
     if (samples.length === 0) {

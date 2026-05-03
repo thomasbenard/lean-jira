@@ -75,5 +75,6 @@ export const TEST_CONFIG: MetricConfig = {
   activeStatuses: ["In Progress"],
   queueStatuses: ["In Review"],
   bugIssueTypes: ["Bug"],
+  excludeIssueTypes: [],
   excludeOutliers: false,
 };

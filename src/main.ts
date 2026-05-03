@@ -114,6 +114,7 @@ export interface BoardFileConfig {
   metrics?: {
     cutoffDate?: string;
     bugIssueTypes?: string[];
+    excludeIssueTypes?: string[];
   };
 }
 
@@ -177,6 +178,7 @@ function buildMetricConfig(db: Database.Database, app: AppConfig, opts: { exclud
     cutoffDate: app.metrics?.cutoffDate,
     excludeOutliers: opts.excludeOutliers !== false,
     bugIssueTypes: app.metrics?.bugIssueTypes ?? ["Bug"],
+    excludeIssueTypes: app.metrics?.excludeIssueTypes ?? [],
   };
 }
 

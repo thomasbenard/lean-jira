@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { type Metric, type MetricConfig } from "./types";
-import { avg, buildDeliveredCte, buildWindowFragment, placeholders, workingDaysBetween } from "./utils";
+import { avg, buildDeliveredCte, buildExcludeIssueTypesFragment, buildWindowFragment, placeholders, workingDaysBetween } from "./utils";
 
 export interface DevTimeAllocationByWeek {
   week: string;
@@ -35,6 +35,7 @@ export const devTimeAllocationMetric: Metric<DevTimeAllocationSummary> = {
     const devStartPh = placeholders(config.devStartStatuses);
     const delivered = buildDeliveredCte(config.doneStatuses);
     const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
+    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes);
 
     const rows = db.prepare(`
       WITH ${delivered.cte}
@@ -46,7 +47,7 @@ export const devTimeAllocationMetric: Metric<DevTimeAllocationSummary> = {
       JOIN issues i ON i.key = t.issue_key
       JOIN delivered d ON d.issue_key = t.issue_key
       WHERE t.to_status IN (${devStartPh})
-        ${cutoffSql} ${endSql}
+        ${excludeSql} ${cutoffSql} ${endSql}
         AND EXISTS (SELECT 1 FROM transitions t2
                     WHERE t2.issue_key = t.issue_key
                       AND t2.to_status IN (${todoPh}))
@@ -54,6 +55,7 @@ export const devTimeAllocationMetric: Metric<DevTimeAllocationSummary> = {
     `).all(
       ...delivered.args,
       ...config.devStartStatuses,
+      ...excludeArgs,
       ...cutoffArgs,
       ...endArgs,
       ...config.todoStatuses,

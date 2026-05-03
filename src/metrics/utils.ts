@@ -74,6 +74,18 @@ export function buildWindowFragment(
   };
 }
 
+export function buildExcludeIssueTypesFragment(
+  excludeIssueTypes: string[],
+  alias = "i",
+): { excludeSql: string; excludeArgs: string[] } {
+  if (excludeIssueTypes.length === 0) {return { excludeSql: "", excludeArgs: [] };}
+  const col = alias ? `${alias}.issue_type` : "issue_type";
+  return {
+    excludeSql: `AND ${col} NOT IN (${placeholders(excludeIssueTypes)})`,
+    excludeArgs: [...excludeIssueTypes],
+  };
+}
+
 export function buildBugExclusionFragment(bugIssueTypes: string[]): { bugSql: string; bugArgs: string[] } {
   if (bugIssueTypes.length === 0) {return { bugSql: "", bugArgs: [] };}
   return {

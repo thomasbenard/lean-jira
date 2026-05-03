@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { type Metric, type MetricConfig } from "./types";
-import { buildDeliveredCte, buildWindowFragment, type DurationStats, placeholders, statsFromDays, workingDaysBetween } from "./utils";
+import { buildDeliveredCte, buildExcludeIssueTypesFragment, buildWindowFragment, type DurationStats, placeholders, statsFromDays, workingDaysBetween } from "./utils";
 
 export interface CycleTimeResult {
   issueKey: string;
@@ -23,6 +23,7 @@ export const cycleTimeMetric: Metric<CycleTimeSummary> = {
     const devStartPh = placeholders(config.devStartStatuses);
     const delivered = buildDeliveredCte(config.doneStatuses);
     const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
+    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes);
 
     // EXISTS garantit la même population que lead-time. JOIN delivered élimine
     // les issues sans transition vers un statut team-done (toujours en cours).
@@ -33,12 +34,13 @@ export const cycleTimeMetric: Metric<CycleTimeSummary> = {
       JOIN issues i ON i.key = t.issue_key
       JOIN delivered d ON d.issue_key = t.issue_key
       WHERE t.to_status IN (${devStartPh})
-        ${cutoffSql} ${endSql}
+        ${excludeSql} ${cutoffSql} ${endSql}
         AND EXISTS (SELECT 1 FROM transitions t2 WHERE t2.issue_key = t.issue_key AND t2.to_status IN (${todoPh}))
       GROUP BY t.issue_key, d.done_at
     `).all(
       ...delivered.args,
       ...config.devStartStatuses,
+      ...excludeArgs,
       ...cutoffArgs,
       ...endArgs,
       ...config.todoStatuses,

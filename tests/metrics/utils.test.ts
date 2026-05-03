@@ -7,6 +7,7 @@ import {
   statsFromDays,
   avg,
   buildDeliveredCte,
+  buildExcludeIssueTypesFragment,
   SECONDS_PER_DAY,
 } from "../../src/metrics/utils";
 
@@ -213,6 +214,36 @@ describe("avg", () => {
 
   it("[1,2,3,4,5] → 3", () => {
     expect(avg([1, 2, 3, 4, 5])).toBe(3);
+  });
+});
+
+describe("buildExcludeIssueTypesFragment", () => {
+  it("liste vide → sql vide, args vides", () => {
+    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment([]);
+    expect(excludeSql).toBe("");
+    expect(excludeArgs).toEqual([]);
+  });
+
+  it("1 type, alias par défaut 'i' → AND i.issue_type NOT IN (?)", () => {
+    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(["Feature"]);
+    expect(excludeSql).toBe("AND i.issue_type NOT IN (?)");
+    expect(excludeArgs).toEqual(["Feature"]);
+  });
+
+  it("2 types → 2 placeholders", () => {
+    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(["Feature", "Epic"]);
+    expect(excludeSql).toBe("AND i.issue_type NOT IN (?,?)");
+    expect(excludeArgs).toEqual(["Feature", "Epic"]);
+  });
+
+  it("alias personnalisé → préfixe correct", () => {
+    const { excludeSql } = buildExcludeIssueTypesFragment(["Epic"], "issues");
+    expect(excludeSql).toBe("AND issues.issue_type NOT IN (?)");
+  });
+
+  it("alias vide → sans préfixe de table", () => {
+    const { excludeSql } = buildExcludeIssueTypesFragment(["Epic"], "");
+    expect(excludeSql).toBe("AND issue_type NOT IN (?)");
   });
 });
 

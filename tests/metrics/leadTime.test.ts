@@ -85,4 +85,20 @@ describe("leadTimeMetric.compute", () => {
     const result = leadTimeMetric.compute(db, { ...TEST_CONFIG, windowEndDate: "2025-01-09" });
     expect(result.count).toBe(0);
   });
+
+  it("excludeIssueTypes exclut les issues Feature et Epic", () => {
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1", issueType: "Feature" }), [
+      { to: "To Do",       at: "2025-01-06T09:00:00Z" },
+      { to: "In Progress", at: "2025-01-08T09:00:00Z" },
+      { to: "Done",        at: "2025-01-10T09:00:00Z" },
+    ]);
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-2", issueType: "Story" }), [
+      { to: "To Do",       at: "2025-01-06T09:00:00Z" },
+      { to: "In Progress", at: "2025-01-08T09:00:00Z" },
+      { to: "Done",        at: "2025-01-10T09:00:00Z" },
+    ]);
+    const result = leadTimeMetric.compute(db, { ...TEST_CONFIG, excludeIssueTypes: ["Feature", "Epic"] });
+    expect(result.count).toBe(1);
+    expect(result.issues[0].issueKey).toBe("PROJ-2");
+  });
 });

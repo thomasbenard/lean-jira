@@ -64,4 +64,18 @@ describe("throughputMetric.compute", () => {
     expect(result.byWeek).toHaveLength(1);
     expect(result.byWeek[0].week).toBe("2025-W01");
   });
+
+  it("excludeIssueTypes exclut Feature et Epic du débit", () => {
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1", issueType: "Feature" }), [
+      { to: "Done", at: "2025-01-06T09:00:00Z" },
+    ]);
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-2", issueType: "Epic" }), [
+      { to: "Done", at: "2025-01-06T09:00:00Z" },
+    ]);
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-3", issueType: "Story" }), [
+      { to: "Done", at: "2025-01-06T09:00:00Z" },
+    ]);
+    const result = throughputMetric.compute(db, { ...TEST_CONFIG, excludeIssueTypes: ["Feature", "Epic"] });
+    expect(result.byWeek[0].count).toBe(1);
+  });
 });
