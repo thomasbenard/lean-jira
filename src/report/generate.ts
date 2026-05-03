@@ -308,7 +308,7 @@ function buildHistogram(values: number[]): HistogramBin[] {
   return bins;
 }
 
-function renderHtml(input: RenderInput): string {
+export function renderHtml(input: RenderInput): string {
   const fmt = (v: number | null, unit = "j"): string =>
     v === null ? "—" : `${v.toFixed(1)}<span class="unit">${unit}</span>`;
   const fmtInt = (v: number | null): string => (v === null ? "—" : String(Math.round(v)));
@@ -406,64 +406,35 @@ function renderHtml(input: RenderInput): string {
     margin-bottom: 1.5rem;
     font-size: 0.9rem;
   }
+  details.advanced-section { margin-top: 1.5rem; border: 1px solid #e3e3e3; border-radius: 6px; background: #f9fafb; }
+  details.advanced-section > summary { padding: 0.75rem 1rem; cursor: pointer; font-weight: 600; font-size: 0.95rem; color: #374151; list-style: none; user-select: none; }
+  details.advanced-section > summary::-webkit-details-marker { display: none; }
+  details.advanced-section > summary:hover { color: #2563eb; }
+  details.advanced-section > :not(summary) { padding: 0 1rem 1rem; }
 </style>
 </head>
 <body>
 <h1>Rapport Lean — ${escapeHtml(input.projectKey)}</h1>
 <p class="meta">Généré le ${escapeHtml(input.generatedAt)} · ${syncMetaLabel(input.lastSyncAt)} · Dernière fenêtre hebdo : ${escapeHtml(input.lastSnapshotDate)}</p>
 ${staleBannerHtml(input.isSyncStale, input.lastSyncAt)}
-<h2>État actuel (fenêtre 30j glissante)</h2>
+<h2>Livraison</h2>
 <div class="kpis">
   <div class="kpi"><span class="label">Lead time médian${helpBtn("leadTime")}</span><span class="value">${fmt(input.kpis.leadTimeMedian)}</span></div>
   <div class="kpi"><span class="label">Cycle time médian${helpBtn("cycleTime")}</span><span class="value">${fmt(input.kpis.cycleTimeMedian)}</span></div>
   <div class="kpi"><span class="label">Throughput (7j)${helpBtn("throughput")}</span><span class="value">${fmtInt(input.kpis.throughputCount)}</span></div>
   <div class="kpi"><span class="label">WIP${helpBtn("wip")}</span><span class="value">${fmtInt(input.kpis.wipCount)}</span></div>
-  <div class="kpi"><span class="label">Bugs livrés (7j)${helpBtn("bugThroughput")}</span><span class="value">${fmtInt(input.kpis.bugThroughputCount)}</span></div>
-  <div class="kpi"><span class="label">Bug cycle médian${helpBtn("bugCycleTime")}</span><span class="value">${fmt(input.kpis.bugCycleTimeMedian)}</span></div>
-  <div class="kpi"><span class="label">Flow efficiency${helpBtn("flowEfficiency")}</span><span class="value">${fmtPct(input.kpis.flowEfficiencyAggregate)}</span></div>
-  <div class="kpi"><span class="label">Bug ratio moyen${helpBtn("devTimeAllocation")}</span><span class="value">${fmtPct(input.kpis.devTimeAvgBugRatio)}</span></div>
 </div>
-
-<h2>Tendances hebdomadaires</h2>
 <div class="charts">
   <div class="chart-card"><h3>Lead time (jours)${helpBtn("leadTime")}</h3><canvas id="leadTimeChart"></canvas></div>
   <div class="chart-card"><h3>Cycle time (jours)${helpBtn("cycleTime")}</h3><canvas id="cycleTimeChart"></canvas></div>
   <div class="chart-card"><h3>Throughput (issues / 7j)${helpBtn("throughput")}</h3><canvas id="throughputChart"></canvas></div>
   <div class="chart-card"><h3>Throughput pondéré (j-h estimés)${helpBtn("throughputWeighted")}</h3><canvas id="throughputWeightedChart"></canvas></div>
   <div class="chart-card"><h3>WIP (fin de semaine)${helpBtn("wip")}</h3><canvas id="wipChart"></canvas></div>
-  <div class="chart-card"><h3>Bugs livrés (issues / 7j)${helpBtn("bugThroughput")}</h3><canvas id="bugThroughputChart"></canvas></div>
-  <div class="chart-card"><h3>Bug cycle time (jours)${helpBtn("bugCycleTime")}</h3><canvas id="bugCycleTimeChart"></canvas></div>
-  <div class="chart-card"><h3>Allocation dev : features vs bugs${helpBtn("devTimeAllocation")}</h3><canvas id="devTimeAllocationChart"></canvas></div>
-  <div class="chart-card"><h3>Cycle normalisé (réel / estimé)${helpBtn("cycleTimeNormalized")}</h3><canvas id="cycleNormalizedChart"></canvas></div>
-  <div class="chart-card"><h3>Flow efficiency (ratio)${helpBtn("flowEfficiency")}</h3><canvas id="flowEfficiencyChart"></canvas></div>
-  <div class="chart-card"><h3>Bug backlog${helpBtn("bugBacklog")}</h3><canvas id="bugBacklogChart"></canvas></div>
 </div>
-
-<h2>Distribution cycle time${helpBtn("cycleHistogram")}</h2>
+<h3>Distribution cycle time${helpBtn("cycleHistogram")}</h3>
 <p class="meta">${input.cycleStats.count} issues · médiane ${input.cycleStats.median.toFixed(1)}j · P85 ${input.cycleStats.p85.toFixed(1)}j · P95 ${input.cycleStats.p95.toFixed(1)}j · moyenne ${input.cycleStats.avg.toFixed(1)}j</p>
 <div class="chart-card"><canvas id="cycleHistogramChart" style="max-height: 320px"></canvas></div>
-
-<h2>Forecast Monte Carlo${helpBtn("forecast")}</h2>
-<p class="meta">Pool : ${input.forecast.weeksUsed} semaines de throughput récent · ${input.forecast.simulations} simulations</p>
-<table>
-  <thead><tr><th>Horizon</th><th>P15<br><small>(85% conf.)</small></th><th>P50<br><small>(médiane)</small></th><th>P85</th><th>P95</th></tr></thead>
-  <tbody>${forecastTableRows(input.forecast)}</tbody>
-</table>
-
-<h2>Aging WIP — au ${escapeHtml(input.agingWip.asOf)}${helpBtn("agingWip")}</h2>
-<p class="meta">Seuils cycle-time historique : P50 ${input.agingWip.percentiles.p50.toFixed(1)}j · P85 ${input.agingWip.percentiles.p85.toFixed(1)}j · P95 ${input.agingWip.percentiles.p95.toFixed(1)}j · ${input.agingWip.count} items en cours</p>
-<div class="aging-wrap">
-  <div class="chart-card"><h3>Distribution âge × statut</h3><canvas id="agingScatter" style="max-height: 360px"></canvas></div>
-  <div>
-    <h3>Top items par âge</h3>
-    <table>
-      <thead><tr><th>Issue</th><th>Statut</th><th>Âge</th><th>Risque</th></tr></thead>
-      <tbody>${agingRowsHtml(input.agingWip, input.jiraBaseUrl)}</tbody>
-    </table>
-  </div>
-</div>
-
-<h2>Par taille — fenêtre du ${escapeHtml(input.lastSnapshotDate)}</h2>
+<h3>Par taille — fenêtre du ${escapeHtml(input.lastSnapshotDate)}</h3>
 <div class="by-size">
   <div>
     <h3>Lead time${helpBtn("leadTimeBySize")}</h3>
@@ -476,16 +447,56 @@ ${staleBannerHtml(input.isSyncStale, input.lastSyncAt)}
     <tbody>${bySizeRows(input.cycleBySize)}</tbody></table>
   </div>
 </div>
-<div class="by-size-trends">
-  <div class="chart-card">
-    <h3>Lead time par taille (jours)${helpBtn("leadTimeBySize")}</h3>
-    <div class="bucket-selector" id="leadBySizeBuckets"></div>
-    <canvas id="leadBySizeChart"></canvas>
+<details class="advanced-section">
+  <summary>Métriques avancées ▾</summary>
+  <div class="charts">
+    <div class="chart-card"><h3>Lead normalisé (réel / estimé)${helpBtn("leadTimeNormalized")}</h3><canvas id="leadNormalizedChart"></canvas></div>
+    <div class="chart-card"><h3>Cycle normalisé (réel / estimé)${helpBtn("cycleTimeNormalized")}</h3><canvas id="cycleNormalizedChart"></canvas></div>
+    <div class="chart-card"><h3>Flow efficiency (ratio)${helpBtn("flowEfficiency")}</h3><canvas id="flowEfficiencyChart"></canvas></div>
   </div>
-  <div class="chart-card">
-    <h3>Cycle time par taille (jours)${helpBtn("cycleTimeBySize")}</h3>
-    <div class="bucket-selector" id="cycleBySizeBuckets"></div>
-    <canvas id="cycleBySizeChart"></canvas>
+  <div class="by-size-trends">
+    <div class="chart-card">
+      <h3>Lead time par taille (jours)${helpBtn("leadTimeBySize")}</h3>
+      <div class="bucket-selector" id="leadBySizeBuckets"></div>
+      <canvas id="leadBySizeChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Cycle time par taille (jours)${helpBtn("cycleTimeBySize")}</h3>
+      <div class="bucket-selector" id="cycleBySizeBuckets"></div>
+      <canvas id="cycleBySizeChart"></canvas>
+    </div>
+  </div>
+</details>
+
+<h2>Bugs &amp; dette qualité</h2>
+<div class="kpis">
+  <div class="kpi"><span class="label">Bugs livrés (7j)${helpBtn("bugThroughput")}</span><span class="value">${fmtInt(input.kpis.bugThroughputCount)}</span></div>
+  <div class="kpi"><span class="label">Bug cycle médian${helpBtn("bugCycleTime")}</span><span class="value">${fmt(input.kpis.bugCycleTimeMedian)}</span></div>
+  <div class="kpi"><span class="label">Bug ratio moyen${helpBtn("devTimeAllocation")}</span><span class="value">${fmtPct(input.kpis.devTimeAvgBugRatio)}</span></div>
+</div>
+<div class="charts">
+  <div class="chart-card"><h3>Bugs livrés (issues / 7j)${helpBtn("bugThroughput")}</h3><canvas id="bugThroughputChart"></canvas></div>
+  <div class="chart-card"><h3>Bug cycle time (jours)${helpBtn("bugCycleTime")}</h3><canvas id="bugCycleTimeChart"></canvas></div>
+  <div class="chart-card"><h3>Allocation dev : features vs bugs${helpBtn("devTimeAllocation")}</h3><canvas id="devTimeAllocationChart"></canvas></div>
+  <div class="chart-card"><h3>Bug backlog${helpBtn("bugBacklog")}</h3><canvas id="bugBacklogChart"></canvas></div>
+</div>
+
+<h2>Capacité &amp; prévision</h2>
+<p class="meta">Forecast${helpBtn("forecast")} — Pool : ${input.forecast.weeksUsed} semaines de throughput récent · ${input.forecast.simulations} simulations</p>
+<table>
+  <thead><tr><th>Horizon</th><th>P15<br><small>(85% conf.)</small></th><th>P50<br><small>(médiane)</small></th><th>P85</th><th>P95</th></tr></thead>
+  <tbody>${forecastTableRows(input.forecast)}</tbody>
+</table>
+<h3>Aging WIP — au ${escapeHtml(input.agingWip.asOf)}${helpBtn("agingWip")}</h3>
+<p class="meta">Seuils cycle-time historique : P50 ${input.agingWip.percentiles.p50.toFixed(1)}j · P85 ${input.agingWip.percentiles.p85.toFixed(1)}j · P95 ${input.agingWip.percentiles.p95.toFixed(1)}j · ${input.agingWip.count} items en cours</p>
+<div class="aging-wrap">
+  <div class="chart-card"><h3>Distribution âge × statut</h3><canvas id="agingScatter" style="max-height: 360px"></canvas></div>
+  <div>
+    <h3>Top items par âge</h3>
+    <table>
+      <thead><tr><th>Issue</th><th>Statut</th><th>Âge</th><th>Risque</th></tr></thead>
+      <tbody>${agingRowsHtml(input.agingWip, input.jiraBaseUrl)}</tbody>
+    </table>
   </div>
 </div>
 
@@ -570,6 +581,10 @@ lineChart("bugCycleTimeChart", CHARTS.bugCycleTime, [
   { key: "p85", label: "P85", color: COLOR_P85 },
 ], true);
 lineChart("cycleNormalizedChart", CHARTS.cycleTimeNormalized, [
+  { key: "median", label: "Médiane (ratio)", color: COLOR_MEDIAN },
+  { key: "p85", label: "P85 (ratio)", color: COLOR_P85 },
+], true);
+lineChart("leadNormalizedChart", CHARTS.leadTimeNormalized, [
   { key: "median", label: "Médiane (ratio)", color: COLOR_MEDIAN },
   { key: "p85", label: "P85 (ratio)", color: COLOR_P85 },
 ], true);

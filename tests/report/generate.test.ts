@@ -1,7 +1,67 @@
 import { describe, it, expect } from "vitest";
-import { issueLink, agingRowsHtml, buildBucketSeries, syncMetaLabel, staleBannerHtml, computeMovingAvg } from "../../src/report/generate";
+import { issueLink, agingRowsHtml, buildBucketSeries, syncMetaLabel, staleBannerHtml, computeMovingAvg, renderHtml } from "../../src/report/generate";
 import type { AgingWipSummary } from "../../src/metrics/agingWip";
 import type { SnapshotRow } from "../../src/snapshots/compute";
+
+type RenderInput = Parameters<typeof renderHtml>[0];
+
+function makeRenderInput(): RenderInput {
+  const empty = { dates: [], series: {} };
+  return {
+    projectKey: "TEST",
+    jiraBaseUrl: "https://test.atlassian.net",
+    generatedAt: "2025-01-01 00:00:00",
+    lastSnapshotDate: "2025-01-01",
+    lastSyncAt: null,
+    isSyncStale: false,
+    kpis: {
+      leadTimeMedian: null,
+      cycleTimeMedian: null,
+      throughputCount: null,
+      wipCount: null,
+      bugThroughputCount: null,
+      bugCycleTimeMedian: null,
+      flowEfficiencyAggregate: null,
+      devTimeAvgBugRatio: null,
+    },
+    charts: {
+      leadTime: empty,
+      cycleTime: empty,
+      throughput: empty,
+      throughputWeighted: empty,
+      wip: empty,
+      bugThroughput: empty,
+      bugCycleTime: empty,
+      leadTimeNormalized: empty,
+      cycleTimeNormalized: empty,
+      flowEfficiency: empty,
+      agingWipRisk: empty,
+      devTimeAllocation: empty,
+      bugBacklog: empty,
+    },
+    leadBySize: {},
+    cycleBySize: {},
+    leadTimeBySizeCharts: {},
+    cycleTimeBySizeCharts: {},
+    agingWip: {
+      asOf: "2025-01-01",
+      count: 0,
+      percentiles: { p50: 0, p85: 0, p95: 0 },
+      riskCounts: { ok: 0, watch: 0, atRisk: 0, critical: 0 },
+      issues: [],
+      unit: "j",
+    },
+    forecast: {
+      recentWeeks: [],
+      weeksUsed: 0,
+      byHorizon: [],
+      simulations: 0,
+      unit: "issues",
+    },
+    histogram: [],
+    cycleStats: { median: 0, p85: 0, p95: 0, avg: 0, count: 0 },
+  };
+}
 
 describe("issueLink", () => {
   it("génère un lien <a> vers la page Jira de l'issue", () => {
@@ -180,5 +240,56 @@ describe("computeMovingAvg", () => {
 
   it("window personnalisée de 2", () => {
     expect(computeMovingAvg([1, 3, 5, 7], 2)).toEqual([null, 2, 4, 6]);
+  });
+});
+
+describe("renderHtml — groupement thématique", () => {
+  it("accordéon métriques avancées est fermé par défaut (attribut open absent)", () => {
+    const html = renderHtml(makeRenderInput());
+    expect(html).toContain('<details class="advanced-section">');
+    expect(html).not.toMatch(/<details[^>]+open/);
+  });
+
+  it("3 sections H2 dans l'ordre Livraison → Bugs → Capacité", () => {
+    const html = renderHtml(makeRenderInput());
+    const livraisonPos = html.indexOf("<h2>Livraison</h2>");
+    const bugsPos = html.indexOf("<h2>Bugs");
+    const capacitePos = html.indexOf("<h2>Capacité");
+    expect(livraisonPos).toBeGreaterThan(-1);
+    expect(bugsPos).toBeGreaterThan(livraisonPos);
+    expect(capacitePos).toBeGreaterThan(bugsPos);
+  });
+
+  it("section Livraison contient les 4 KPIs livraison, pas les KPIs bugs", () => {
+    const html = renderHtml(makeRenderInput());
+    const livSection = html.slice(html.indexOf("<h2>Livraison</h2>"), html.indexOf("<h2>Bugs"));
+    expect(livSection).toContain("Lead time médian");
+    expect(livSection).toContain("Cycle time médian");
+    expect(livSection).toContain("Throughput (7j)");
+    expect(livSection).toContain("WIP");
+    expect(livSection).not.toContain("Bugs livrés");
+    expect(livSection).not.toContain("Bug cycle");
+  });
+
+  it("accordéon contient les graphes avancés dans l'ordre : lead normalisé, cycle normalisé, flow efficiency + by-size trends", () => {
+    const html = renderHtml(makeRenderInput());
+    const detailsStart = html.indexOf('<details class="advanced-section">');
+    const detailsEnd = html.indexOf("</details>", detailsStart);
+    const accordeon = html.slice(detailsStart, detailsEnd);
+    expect(accordeon).toContain("leadNormalizedChart");
+    expect(accordeon).toContain("cycleNormalizedChart");
+    expect(accordeon).toContain("flowEfficiencyChart");
+    expect(accordeon).toContain("leadBySizeChart");
+    expect(accordeon).toContain("cycleBySizeChart");
+    expect(accordeon.indexOf("leadNormalizedChart")).toBeLessThan(accordeon.indexOf("cycleNormalizedChart"));
+    expect(accordeon.indexOf("cycleNormalizedChart")).toBeLessThan(accordeon.indexOf("flowEfficiencyChart"));
+  });
+
+  it("section Bugs contient les KPIs bugs", () => {
+    const html = renderHtml(makeRenderInput());
+    const bugsSection = html.slice(html.indexOf("<h2>Bugs"), html.indexOf("<h2>Capacité"));
+    expect(bugsSection).toContain("Bugs livrés (7j)");
+    expect(bugsSection).toContain("Bug cycle médian");
+    expect(bugsSection).toContain("Bug ratio moyen");
   });
 });
