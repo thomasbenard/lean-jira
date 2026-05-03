@@ -132,3 +132,106 @@ describe("devTimeAllocationMetric.compute", () => {
     expect(result.byWeek).toHaveLength(0);
   });
 });
+
+describe("WIP et ratio pondéré", () => {
+  it("bug WIP distribue ses jours ouvrés sur les semaines écoulées", () => {
+    // Bug démarré lun 2025-01-06 (W02), aucune livraison, windowEndDate = ven 2025-01-17 (W03)
+    // workingDaysBetween(Jan06 00:00Z, Jan17 00:00Z) = 9j → W02: 5j, W03: 4j
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1", issueType: "Bug" }), [
+      { to: "To Do",       at: "2025-01-06T00:00:00Z" },
+      { to: "In Progress", at: "2025-01-06T00:00:00Z" },
+    ]);
+    const cfg = { ...TEST_CONFIG, windowEndDate: "2025-01-17" };
+    const result = devTimeAllocationMetric.compute(db, cfg);
+    const w02 = result.byWeek.find((w) => w.week === "2025-W02");
+    const w03 = result.byWeek.find((w) => w.week === "2025-W03");
+    expect(w02?.bugDays).toBe(5);
+    expect(w03?.bugDays).toBe(4);
+    expect(result.avgBugRatio).toBe(1);
+  });
+
+  it("feature WIP contribue aux featureDays de la semaine courante", () => {
+    // Feature démarrée lun 2025-01-13 (W03), windowEndDate = ven 2025-01-17 (W03)
+    // workingDaysBetween(Jan13 00:00Z, Jan17 00:00Z) = 4j → tout dans W03
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1", issueType: "Story" }), [
+      { to: "To Do",       at: "2025-01-13T00:00:00Z" },
+      { to: "In Progress", at: "2025-01-13T00:00:00Z" },
+    ]);
+    const cfg = { ...TEST_CONFIG, windowEndDate: "2025-01-17" };
+    const result = devTimeAllocationMetric.compute(db, cfg);
+    const w03 = result.byWeek.find((w) => w.week === "2025-W03");
+    expect(w03?.featureDays).toBe(4);
+    expect(w03?.bugDays).toBe(0);
+  });
+
+  it("issue livrée et WIP coexistent dans byWeek sans doublon", () => {
+    // Bug livré cycle 2j (W02) + Feature WIP 4j (W03), windowEndDate = ven 2025-01-17
+    seedBug("PROJ-1"); // done 2025-01-10T09:00:00Z → 2j bugDays in W02
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-2", issueType: "Story" }), [
+      { to: "To Do",       at: "2025-01-13T00:00:00Z" },
+      { to: "In Progress", at: "2025-01-13T00:00:00Z" },
+    ]);
+    const cfg = { ...TEST_CONFIG, windowEndDate: "2025-01-17" };
+    const result = devTimeAllocationMetric.compute(db, cfg);
+    const w02 = result.byWeek.find((w) => w.week === "2025-W02");
+    const w03 = result.byWeek.find((w) => w.week === "2025-W03");
+    expect(w02?.bugDays).toBe(2);
+    expect(w02?.featureDays ?? 0).toBe(0);
+    expect(w03?.featureDays).toBe(4);
+    expect(w03?.bugDays ?? 0).toBe(0);
+  });
+
+  it("issue livrée avant today non comptée comme WIP", () => {
+    // Story livrée jeu 2025-01-09 (1j cycle), windowEndDate = lun 2025-01-13
+    // Doit apparaître comme livrée uniquement, totalFeatureDays = 1
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1", issueType: "Story" }), [
+      { to: "To Do",       at: "2025-01-06T09:00:00Z" },
+      { to: "In Progress", at: "2025-01-08T09:00:00Z" },
+      { to: "Done",        at: "2025-01-09T09:00:00Z" },
+    ]);
+    const cfg = { ...TEST_CONFIG, windowEndDate: "2025-01-13" };
+    const result = devTimeAllocationMetric.compute(db, cfg);
+    const totalFeature = result.byWeek.reduce((s, w) => s + w.featureDays, 0);
+    expect(totalFeature).toBe(1);
+  });
+
+  it("snapshot historique : issue WIP à la date D comptée comme WIP même si livrée après", () => {
+    // Issue démarrée mer 2025-01-08 00:00Z, livrée ven 2025-01-17 (après D=2025-01-13)
+    // À D=lun 2025-01-13 : WIP → jours W02 (mer+jeu+ven) = 3j bugDays
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1", issueType: "Bug" }), [
+      { to: "To Do",       at: "2025-01-06T00:00:00Z" },
+      { to: "In Progress", at: "2025-01-08T00:00:00Z" },
+      { to: "Done",        at: "2025-01-17T09:00:00Z" },
+    ]);
+    const cfg = { ...TEST_CONFIG, windowEndDate: "2025-01-13" };
+    const result = devTimeAllocationMetric.compute(db, cfg);
+    const w02 = result.byWeek.find((w) => w.week === "2025-W02");
+    expect(w02?.bugDays).toBeGreaterThan(0);
+    expect(w02?.featureDays ?? 0).toBe(0);
+    // L'issue ne doit pas apparaître comme livrée (done_at > windowEndDate)
+    expect(result.byWeek.some((w) => w.featureDays > 0)).toBe(false);
+  });
+
+  it("avgBugRatio pondéré par volume, pas moyenne des ratios hebdos", () => {
+    // W02: Bug 1j (bugRatio=1.0)  W15: Feature 3j + Bug 2j (bugRatio=0.4)
+    // Pondéré : (1+2)/(1+3+2) = 0.5   Non pondéré (old) : (1.0+0.4)/2 = 0.7
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1", issueType: "Bug" }), [
+      { to: "To Do",       at: "2025-01-06T09:00:00Z" },
+      { to: "In Progress", at: "2025-01-06T09:00:00Z" },
+      { to: "Done",        at: "2025-01-07T09:00:00Z" },
+    ]);
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-2", issueType: "Story" }), [
+      { to: "To Do",       at: "2025-04-07T09:00:00Z" },
+      { to: "In Progress", at: "2025-04-07T09:00:00Z" },
+      { to: "Done",        at: "2025-04-10T09:00:00Z" },
+    ]);
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-3", issueType: "Bug" }), [
+      { to: "To Do",       at: "2025-04-07T09:00:00Z" },
+      { to: "In Progress", at: "2025-04-07T09:00:00Z" },
+      { to: "Done",        at: "2025-04-09T09:00:00Z" },
+    ]);
+    const result = devTimeAllocationMetric.compute(db, TEST_CONFIG);
+    expect(result.avgBugRatio).toBeCloseTo(3 / 6, 5);
+    expect(result.avgBugRatio).not.toBeCloseTo(0.7, 1);
+  });
+});

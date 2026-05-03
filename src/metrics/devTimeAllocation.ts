@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { type Metric, type MetricConfig } from "./types";
-import { avg, buildDeliveredCte, buildExcludeIssueTypesFragment, buildWindowFragment, placeholders, workingDaysBetween } from "./utils";
+import { buildDeliveredCte, buildExcludeIssueTypesFragment, buildWindowFragment, placeholders, workingDaysBetween } from "./utils";
 
 export interface DevTimeAllocationByWeek {
   week: string;
@@ -23,6 +23,25 @@ function isoWeek(dateISO: string): string {
   const startOfYear = new Date(Date.UTC(year, 0, 1));
   const weekNo = Math.ceil(((d.getTime() - startOfYear.getTime()) / 86_400_000 + 1) / 7);
   return `${year}-W${String(weekNo).padStart(2, "0")}`;
+}
+
+function accumulateWeeks(
+  startedAt: string,
+  doneAt: string,
+  isBug: boolean,
+  byWeekMap: Map<string, { featureDays: number; bugDays: number }>,
+): void {
+  const days = workingDaysBetween(startedAt, doneAt);
+  if (days <= 0) return;
+  for (const [week, alloc] of distributeAcrossWeeks(startedAt, doneAt, days)) {
+    let entry = byWeekMap.get(week);
+    if (!entry) {
+      entry = { featureDays: 0, bugDays: 0 };
+      byWeekMap.set(week, entry);
+    }
+    if (isBug) entry.bugDays += alloc;
+    else entry.featureDays += alloc;
+  }
 }
 
 function distributeAcrossWeeks(startedAt: string, doneAt: string, totalDays: number): Map<string, number> {
@@ -48,14 +67,17 @@ function distributeAcrossWeeks(startedAt: string, doneAt: string, totalDays: num
 export const devTimeAllocationMetric: Metric<DevTimeAllocationSummary> = {
   name: "dev-time-allocation",
   description:
-    "Somme des cycle times livrés par semaine, split features vs bugs. bugRatio = bugDays / totalDays. Hausse = dérive vers mode pompier.",
+    "Somme des cycle times livrés + WIP en cours par semaine, split features vs bugs. bugRatio = bugDays / totalDays. Hausse = dérive vers mode pompier.",
 
   compute(db: Database.Database, config: MetricConfig): DevTimeAllocationSummary {
     const todoPh = placeholders(config.todoStatuses);
     const devStartPh = placeholders(config.devStartStatuses);
+    const donePh = placeholders(config.doneStatuses);
     const delivered = buildDeliveredCte(config.doneStatuses);
     const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
     const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes);
+
+    const today = config.windowEndDate ?? new Date().toISOString().slice(0, 10);
 
     const rows = db.prepare(`
       WITH ${delivered.cte}
@@ -81,22 +103,40 @@ export const devTimeAllocationMetric: Metric<DevTimeAllocationSummary> = {
       ...config.todoStatuses,
     ) as { issue_key: string; started_at: string; done_at: string; issue_type: string }[];
 
+    const wipRows = db.prepare(`
+      SELECT t.issue_key,
+             MIN(t.transitioned_at) AS started_at,
+             i.issue_type
+      FROM transitions t
+      JOIN issues i ON i.key = t.issue_key
+      WHERE t.to_status IN (${devStartPh})
+        ${excludeSql}
+        AND substr(t.transitioned_at, 1, 10) <= ?
+        AND EXISTS (SELECT 1 FROM transitions t2
+                    WHERE t2.issue_key = t.issue_key
+                      AND t2.to_status IN (${todoPh}))
+        AND NOT EXISTS (SELECT 1 FROM transitions td
+                        WHERE td.issue_key = t.issue_key
+                          AND td.to_status IN (${donePh})
+                          AND substr(td.transitioned_at, 1, 10) <= ?)
+      GROUP BY t.issue_key, i.issue_type
+    `).all(
+      ...config.devStartStatuses,
+      ...excludeArgs,
+      today,
+      ...config.todoStatuses,
+      ...config.doneStatuses,
+      today,
+    ) as { issue_key: string; started_at: string; issue_type: string }[];
+
     const bugTypes = new Set(config.bugIssueTypes);
     const byWeekMap = new Map<string, { featureDays: number; bugDays: number }>();
 
     for (const r of rows) {
-      if (r.done_at < r.started_at) {continue;}
-      const days = workingDaysBetween(r.started_at, r.done_at);
-      const isBug = bugTypes.has(r.issue_type);
-      for (const [week, alloc] of distributeAcrossWeeks(r.started_at, r.done_at, days)) {
-        let entry = byWeekMap.get(week);
-        if (!entry) {
-          entry = { featureDays: 0, bugDays: 0 };
-          byWeekMap.set(week, entry);
-        }
-        if (isBug) {entry.bugDays += alloc;}
-        else {entry.featureDays += alloc;}
-      }
+      accumulateWeeks(r.started_at, r.done_at, bugTypes.has(r.issue_type), byWeekMap);
+    }
+    for (const r of wipRows) {
+      accumulateWeeks(r.started_at, today, bugTypes.has(r.issue_type), byWeekMap);
     }
 
     const byWeek: DevTimeAllocationByWeek[] = Array.from(byWeekMap.entries())
@@ -106,6 +146,8 @@ export const devTimeAllocationMetric: Metric<DevTimeAllocationSummary> = {
         return { week, featureDays, bugDays, bugRatio: total > 0 ? bugDays / total : 0 };
       });
 
-    return { byWeek, avgBugRatio: avg(byWeek.map((w) => w.bugRatio)) };
+    const totalBugDays = byWeek.reduce((s, w) => s + w.bugDays, 0);
+    const totalDays = byWeek.reduce((s, w) => s + w.featureDays + w.bugDays, 0);
+    return { byWeek, avgBugRatio: totalDays > 0 ? totalBugDays / totalDays : 0 };
   },
 };
