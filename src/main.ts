@@ -97,7 +97,7 @@ export function validateStatusConfig(
   return { sections: resultSections, missingCount };
 }
 
-interface AppConfig {
+export interface JiraFileConfig {
   jira: {
     baseUrl: string;
     email: string;
@@ -105,17 +105,34 @@ interface AppConfig {
     projectKey: string;
     boardId: number;
   };
+  db: { path: string };
+}
+
+export interface BoardFileConfig {
   board: BoardConfig;
   metrics?: {
     cutoffDate?: string;
     bugIssueTypes?: string[];
   };
-  db: { path: string };
 }
 
-function loadConfig(configPath: string): AppConfig {
-  const raw = fs.readFileSync(configPath, "utf-8");
-  return yaml.parse(raw) as AppConfig;
+type AppConfig = JiraFileConfig & BoardFileConfig;
+
+export function loadJiraConfig(configPath: string): JiraFileConfig {
+  return yaml.parse(fs.readFileSync(configPath, "utf-8")) as JiraFileConfig;
+}
+
+export function loadBoardConfig(boardPath: string): BoardFileConfig {
+  if (!fs.existsSync(boardPath)) {
+    console.error(`board.yaml introuvable : ${boardPath}`);
+    console.error(`Lancer d'abord : npm run autoconfig -- --apply`);
+    process.exit(1);
+  }
+  return yaml.parse(fs.readFileSync(boardPath, "utf-8")) as BoardFileConfig;
+}
+
+export function loadConfigs(configPath: string, boardPath: string): AppConfig {
+  return { ...loadJiraConfig(configPath), ...loadBoardConfig(boardPath) };
 }
 
 // Construit le MetricConfig en fusionnant config.yaml + table statuses (statusCategory).
@@ -338,7 +355,7 @@ program
   .description("Récupère les données Jira et les stocke en base")
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
   .action(async (opts) => {
-    const config = loadConfig(path.resolve(opts.config));
+    const config = loadJiraConfig(path.resolve(opts.config));
     await sync(config);
   });
 
@@ -346,11 +363,12 @@ program
   .command("metrics")
   .description("Calcule et affiche toutes les métriques depuis la base")
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
+  .option("-b, --board-config <path>", "Chemin vers board.yaml", "./board.yaml")
   .option("-m, --metric <name>", "Métrique spécifique (optionnel)")
   .option("--json", "Sortie JSON brute")
   .option("--include-outliers", "Inclure les outliers extrêmes (Tukey upper fence) dans les calculs")
   .action((opts) => {
-    const config = loadConfig(path.resolve(opts.config));
+    const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config, { excludeOutliers: !opts.includeOutliers });
 
@@ -369,8 +387,9 @@ program
   .command("snapshots")
   .description("Recalcule l'historique des snapshots hebdomadaires (table metric_snapshots)")
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
+  .option("-b, --board-config <path>", "Chemin vers board.yaml", "./board.yaml")
   .action((opts) => {
-    const config = loadConfig(path.resolve(opts.config));
+    const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config);
     const count = backfillSnapshots(db, metricConfig);
@@ -381,9 +400,10 @@ program
   .command("report")
   .description("Génère un rapport HTML autonome (charts trends + KPIs) à partir des snapshots")
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
+  .option("-b, --board-config <path>", "Chemin vers board.yaml", "./board.yaml")
   .option("-o, --output <path>", "Chemin du fichier HTML de sortie", "./report.html")
   .action((opts) => {
-    const config = loadConfig(path.resolve(opts.config));
+    const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config);
     generateReport(db, config.jira.projectKey, config.jira.baseUrl, path.resolve(opts.output), metricConfig);
@@ -394,8 +414,9 @@ program
   .command("validate-config")
   .description("Vérifie que les statuts du config existent dans la base (après un sync)")
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
+  .option("-b, --board-config <path>", "Chemin vers board.yaml", "./board.yaml")
   .action((opts) => {
-    const config = loadConfig(path.resolve(opts.config));
+    const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     const db = openDb(config.db.path);
 
     const dbStatuses = getAllStatuses(db);
@@ -435,7 +456,7 @@ program
       for (const s of dbStatuses) {
         console.log(`  ${s.name.padEnd(30)} (${s.categoryKey})`);
       }
-      console.log(`\n${result.missingCount} statut(s) introuvable(s). Vérifier config.yaml.`);
+      console.log(`\n${result.missingCount} statut(s) introuvable(s). Vérifier board.yaml.`);
       process.exit(1);
     } else {
       console.log("\n✓ Config valide.");
@@ -446,10 +467,11 @@ program
   .command("autoconfig")
   .description("Génère board.columns depuis l'API Jira (types inférés par position)")
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
-  .option("--apply", "Écrase board.columns dans config.yaml (destructif)")
+  .option("-b, --board-config <path>", "Chemin vers board.yaml", "./board.yaml")
+  .option("--apply", "Crée/écrase board.yaml (destructif)")
   .action(async (opts) => {
-    const config = loadConfig(path.resolve(opts.config));
-    const client = new JiraClient(config.jira);
+    const jiraConfig = loadJiraConfig(path.resolve(opts.config));
+    const client = new JiraClient(jiraConfig.jira);
 
     const [boardConfig, allStatuses] = await Promise.all([
       client.fetchBoardConfiguration(),
@@ -466,11 +488,18 @@ program
     }
 
     const warnings: string[] = [];
+    const boardPath = path.resolve(opts.boardConfig);
 
-    const hasExistingColumns = (config.board?.columns?.length ?? 0) > 0;
+    // board.yaml chargé si présent — permet de préserver legacyStatuses existants (merge + suppress faux warnings).
+    // En --apply sans board.yaml : inférence fraîche. En dry-run sans board.yaml : idem.
+    let existingBoard: BoardFileConfig | null = null;
+    if (fs.existsSync(boardPath)) {
+      existingBoard = loadBoardConfig(boardPath);
+    }
+
     let columns: InferredColumn[];
-    if (hasExistingColumns) {
-      const merged = mergeColumns(config.board.columns, inferBoardColumns(boardConfig, allStatuses));
+    if (existingBoard !== null) {
+      const merged = mergeColumns(existingBoard.board.columns, inferBoardColumns(boardConfig, allStatuses));
       columns = merged.columns;
       warnings.push(...merged.warnings);
     } else {
@@ -482,7 +511,7 @@ program
     }
 
     let unresolvable: string[] = [];
-    const dbPath = path.resolve(config.db.path);
+    const dbPath = path.resolve(jiraConfig.db.path);
     if (fs.existsSync(dbPath)) {
       const db = openDb(dbPath);
       unresolvable = enrichWithLegacyStatuses(columns, boardConfig, allStatuses, db).unresolvable;
@@ -494,22 +523,22 @@ program
     const unresolvableComment = buildUnresolvableComment(unresolvable);
 
     if (opts.apply) {
-      const configPath = path.resolve(opts.config);
-      console.warn(`⚠ --apply va écraser board.columns dans ${opts.config}. Attente 3s…`);
+      console.warn(`⚠ --apply va créer/écraser ${opts.boardConfig}. Attente 3s…`);
       await new Promise((r) => setTimeout(r, 3000));
-      const raw = fs.readFileSync(configPath, "utf-8");
-      const parsed = yaml.parse(raw) as AppConfig;
-      const existingLegacyDone = parsed.board.legacyDoneStatuses ?? [];
-      parsed.board = {
-        ...parsed.board,
-        columns: columns.map(({ warning: _w, ...c }) => c),
-        ...(existingLegacyDone.length > 0 && { legacyDoneStatuses: existingLegacyDone }),
+      if (existingBoard !== null) {
+        fs.copyFileSync(boardPath, boardPath + ".bak");
+      }
+      const existingLegacyDone = existingBoard?.board?.legacyDoneStatuses ?? [];
+      const newBoard: BoardFileConfig = {
+        board: {
+          columns: columns.map(({ warning: _w, ...c }) => c),
+          ...(existingLegacyDone.length > 0 && { legacyDoneStatuses: existingLegacyDone }),
+        },
+        metrics: existingBoard?.metrics ?? { bugIssueTypes: ["Bug"] },
       };
-      const bakPath = configPath + ".bak";
-      fs.copyFileSync(configPath, bakPath);
-      const yamlContent = yaml.stringify(parsed);
-      fs.writeFileSync(configPath, unresolvableComment ? `${yamlContent}\n${unresolvableComment}\n` : yamlContent, "utf-8");
-      console.log("✓ board.columns mis à jour dans", opts.config);
+      const boardContent = yaml.stringify(newBoard);
+      fs.writeFileSync(boardPath, unresolvableComment ? `${boardContent}\n${unresolvableComment}\n` : boardContent, "utf-8");
+      console.log("✓ board.yaml créé/mis à jour :", opts.boardConfig);
     } else {
       console.log(`# Board "${boardConfig.name}" — généré automatiquement depuis l'API Jira`);
       console.log("# Vérifier devStart: true — positionné sur la première colonne intermédiaire par défaut");

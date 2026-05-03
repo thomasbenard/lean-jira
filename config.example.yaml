@@ -8,52 +8,5 @@ jira:
   projectKey: "YOUR_PROJECT_KEY"
   boardId: 1
 
-board:
-  columns:
-    # type: todo  → début du lead time
-    - name: "À faire"
-      type: todo
-      statuses:
-        - "To Do"
-        - "Ready"
-
-    # type: active + devStart: true → début du cycle time
-    # devStart peut être sur plusieurs colonnes ; leurs statuts sont unionés
-    - name: "Développement"
-      type: active
-      devStart: true
-      statuses:
-        - "In Progress"
-
-    # type: queue → temps d'attente (flow-efficiency)
-    - name: "Review"
-      type: queue
-      statuses:
-        - "In Review"
-
-    # type: done → livraison équipe
-    - name: "Done"
-      type: done
-      statuses:
-        - "Done"
-
-  # Statuts historiques renommés absents de l'API Jira courante.
-  # Complète la détection automatique via statusCategory.key='done'.
-  # Garder cette liste minimale — ajouter uniquement les statuts qui
-  # apparaissent dans l'historique des transitions mais plus dans /rest/api/2/status.
-  # legacyDoneStatuses:
-  #   - "Delivered"
-
-metrics:
-  # Optionnel. Issues résolues avant cette date sont ignorées par lead-time,
-  # cycle-time et throughput. Utile si l'instance a subi un bulk close lors
-  # d'une migration de workflow.
-  # cutoffDate: "2025-11-01"
-  # Types Jira considérés comme bugs (non estimés par nature). Bucket dédié
-  # "BUG" dans les by-size + exclus des métriques d'estimation (normalized,
-  # weighted throughput). Métriques dédiées: bug-cycle-time, bug-throughput.
-  bugIssueTypes:
-    - "Bug"
-
 db:
   path: "./lean-jira.db"

@@ -122,26 +122,35 @@ program
     // ... fetchBoardConfiguration, inferBoardColumns, enrichWithLegacyStatuses
     //     identiques à aujourd'hui ...
 
+    const boardPath = path.resolve(opts.boardConfig);
+
+    // Chargé si présent (dry-run ou --apply) pour préserver legacyStatuses → supprime faux warnings.
+    let existingBoard: BoardFileConfig | null = null;
+    if (fs.existsSync(boardPath)) {
+      existingBoard = loadBoardConfig(boardPath);
+    }
+
+    // merge si existingBoard non-null, sinon inférence fraîche
+    // ... enrichWithLegacyStatuses ...
+
     if (opts.apply) {
-      const boardPath = path.resolve(opts.boardConfig);
       console.warn(`⚠ --apply va créer/écraser ${opts.boardConfig}. Attente 3s…`);
       await new Promise((r) => setTimeout(r, 3000));
-
-      if (fs.existsSync(boardPath)) {
+      if (existingBoard !== null) {
         fs.copyFileSync(boardPath, boardPath + ".bak");
       }
-
       const newBoard: BoardFileConfig = {
         board: {
           columns: columns.map(({ warning: _w, ...c }) => c),
-          ...(result.unresolvable.length > 0 && { legacyDoneStatuses: [] }),
+          ...(existingBoard?.board?.legacyDoneStatuses?.length && { legacyDoneStatuses: existingBoard.board.legacyDoneStatuses }),
         },
-        metrics: { bugIssueTypes: ["Bug"] },
+        metrics: existingBoard?.metrics ?? { bugIssueTypes: ["Bug"] },
       };
-      fs.writeFileSync(boardPath, yaml.stringify(newBoard), "utf-8");
-      console.log("✓ board.yaml créé :", opts.boardConfig);
+      const boardContent = yaml.stringify(newBoard);
+      fs.writeFileSync(boardPath, unresolvableComment ? `${boardContent}\n${unresolvableComment}\n` : boardContent, "utf-8");
+      console.log("✓ board.yaml créé/mis à jour :", opts.boardConfig);
     } else {
-      // dry-run : stdout identique à aujourd'hui
+      // dry-run : stdout
     }
   });
 ```

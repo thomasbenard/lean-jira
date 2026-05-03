@@ -58,8 +58,10 @@ pas `board.yaml`.
 
 ### Commande `autoconfig`
 
-Sans `--apply` : comportement identique (affiche la config générée sur stdout). Lit `config.yaml`
-via `-c`. Le flag `-b` n'est pas utilisé en mode dry-run.
+Sans `--apply` : affiche la config générée sur stdout. Lit `config.yaml` via `-c`. Si `board.yaml`
+existe (via `-b`), le charge pour préserver les `legacyStatuses` déjà configurés — évite les faux
+warnings "statut legacy non assignable" pour des statuts déjà placés. Si `board.yaml` absent,
+inférence fraîche sans merge.
 
 Avec `--apply` :
 1. Lit les credentials depuis `config.yaml` (`-c`).
@@ -80,7 +82,7 @@ explicatifs (copie de la section board+metrics de l'ancien `config.example.yaml`
 
 ### `.gitignore`
 
-Ajouter `board.yaml.bak` (backup créé par `--apply`). `board.yaml` reste non-gitignored.
+Ajouter `board.yaml` et `board.yaml.bak`.
 
 ## Cas limites
 

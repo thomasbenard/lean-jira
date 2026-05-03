@@ -1,5 +1,7 @@
 config.yaml
 config.yaml.bak
+board.yaml
+board.yaml.bak
 .mcp.json
 *.db
 *.db-shm
