@@ -5,7 +5,14 @@ import { upsertIssues, replaceTransitions } from "../../src/db/store";
 import { makeIssue, makeTransitions, resetSeq } from "../helpers/seeders";
 import type Database from "better-sqlite3";
 
-import { inferBoardColumns, renderBoardColumnsYaml, enrichWithLegacyStatuses } from "../../src/main";
+import {
+  inferBoardColumns,
+  renderBoardColumnsYaml,
+  enrichWithLegacyStatuses,
+  mergeColumns,
+  buildUnresolvableComment,
+} from "../../src/main";
+import type { BoardColumn, InferredColumn } from "../../src/main";
 
 function makeStatus(id: string, name: string, categoryKey: "new" | "indeterminate" | "done"): JiraStatus {
   return { id, name, statusCategory: { key: categoryKey, name: categoryKey } };
@@ -97,6 +104,19 @@ describe("inferBoardColumns — règle 4 : ID non résolu", () => {
     const board = makeBoard(["Todo", "Mystère", "Done"], [["1"], ["999"], ["4"]]);
     const cols = inferBoardColumns(board, defaultStatuses);
     expect(cols[1].statuses).toContain("# ID:999 non résolu");
+  });
+});
+
+describe("buildUnresolvableComment", () => {
+  it("liste vide → chaîne vide", () => {
+    expect(buildUnresolvableComment([])).toBe("");
+  });
+
+  it("contient chaque nom comme ligne de commentaire YAML", () => {
+    const out = buildUnresolvableComment(["Ancien WIP", "Statut fantôme"]);
+    expect(out).toContain('"Ancien WIP"');
+    expect(out).toContain('"Statut fantôme"');
+    expect(out.split("\n").every((l) => l === "" || l.startsWith("#"))).toBe(true);
   });
 });
 
@@ -200,6 +220,17 @@ describe("enrichWithLegacyStatuses", () => {
     expect(cols[0].legacyStatuses ?? []).not.toContain("En cours");
   });
 
+  it("statut déjà dans legacyStatuses d'une colonne → ignoré, pas de warning unresolvable", () => {
+    const board = makeBoard(["Todo", "En cours", "Done"], [["1"], ["2"], ["4"]]);
+    const cols = inferBoardColumns(board, defaultStatuses);
+    // "À réaliser" déjà géré dans legacyStatuses de la config existante (catégorie indeterminate → serait unresolvable sinon)
+    cols[1].legacyStatuses = ["À réaliser"];
+    const allStatuses = [...defaultStatuses, makeStatus("10", "À réaliser", "indeterminate")];
+    seedTransition("PROJ-1", "À réaliser", "2026-01-01T09:00:00Z");
+    const result = enrichWithLegacyStatuses(cols, board, allStatuses, db);
+    expect(result.unresolvable).not.toContain("À réaliser");
+  });
+
   it("scan full history : statut antérieur à toute date détecté", () => {
     const board = makeBoard(["Todo", "En cours", "Done"], [["1"], ["2"], ["4"]]);
     const cols = inferBoardColumns(board, defaultStatuses);
@@ -208,5 +239,113 @@ describe("enrichWithLegacyStatuses", () => {
     const result = enrichWithLegacyStatuses(cols, board, allStatuses, db);
     expect(cols[0].legacyStatuses).toContain("Ancien");
     expect(result.unresolvable).not.toContain("Ancien");
+  });
+});
+
+describe("mergeColumns — règle 1 : préservation des personnalisations", () => {
+  it("type personnalisé préservé après merge", () => {
+    const existing: BoardColumn[] = [{ name: "STANDBY", type: "queue", statuses: ["Anciens statuts"] }];
+    const inferred: InferredColumn[] = [{ name: "STANDBY", type: "active", statuses: ["En attente"] }];
+    const { columns } = mergeColumns(existing, inferred);
+    expect(columns[0].type).toBe("queue");
+    expect(columns[0].statuses).toEqual(["En attente"]);
+  });
+
+  it("devStart préservé après merge", () => {
+    const existing: BoardColumn[] = [{ name: "IN PROGRESS", type: "active", devStart: true, statuses: [] }];
+    const inferred: InferredColumn[] = [{ name: "IN PROGRESS", type: "active", devStart: false, statuses: ["En cours"] }];
+    const { columns } = mergeColumns(existing, inferred);
+    expect(columns[0].devStart).toBe(true);
+  });
+
+  it("legacyStatuses préservés après merge, statuses mis à jour depuis l'API", () => {
+    const existing: BoardColumn[] = [
+      { name: "TODO", type: "todo", statuses: ["Old status"], legacyStatuses: ["Ready to do", "To Do"] },
+    ];
+    const inferred: InferredColumn[] = [{ name: "TODO", type: "todo", statuses: ["Prêt à faire"] }];
+    const { columns } = mergeColumns(existing, inferred);
+    expect(columns[0].legacyStatuses).toEqual(["Ready to do", "To Do"]);
+    expect(columns[0].statuses).toEqual(["Prêt à faire"]);
+  });
+});
+
+describe("mergeColumns — règle 2 : nouvelle colonne dans l'API absente du config", () => {
+  it("nouvelle colonne inférée et ajoutée au résultat", () => {
+    const existing: BoardColumn[] = [
+      { name: "TODO", type: "todo", statuses: [] },
+      { name: "IN PROGRESS", type: "active", statuses: [] },
+      { name: "DONE", type: "done", statuses: [] },
+    ];
+    const inferred: InferredColumn[] = [
+      { name: "TODO", type: "todo", statuses: [] },
+      { name: "IN PROGRESS", type: "active", statuses: [] },
+      { name: "TEST QA", type: "active", statuses: ["Test"] },
+      { name: "DONE", type: "done", statuses: [] },
+    ];
+    const { columns } = mergeColumns(existing, inferred);
+    expect(columns.some((c) => c.name === "TEST QA")).toBe(true);
+    expect(columns.find((c) => c.name === "TEST QA")?.type).toBe("active");
+  });
+
+  it("warning retourné pour nouvelle colonne absente du config existant", () => {
+    const existing: BoardColumn[] = [
+      { name: "TODO", type: "todo", statuses: [] },
+      { name: "DONE", type: "done", statuses: [] },
+    ];
+    const inferred: InferredColumn[] = [
+      { name: "TODO", type: "todo", statuses: [] },
+      { name: "IN PROGRESS", type: "active", statuses: [] },
+      { name: "DONE", type: "done", statuses: [] },
+    ];
+    const { warnings } = mergeColumns(existing, inferred);
+    expect(warnings.some((w) => w.includes("Nouvelle colonne détectée") && w.includes("IN PROGRESS"))).toBe(true);
+  });
+});
+
+describe("mergeColumns — règle 4 : aucune config existante (existing vide)", () => {
+  it("existing vide → toutes colonnes inférées passent telles quelles, aucun warning absent", () => {
+    const inferred: InferredColumn[] = [
+      { name: "TODO", type: "todo", statuses: ["À faire"] },
+      { name: "IN PROGRESS", type: "active", devStart: true, statuses: ["En cours"] },
+      { name: "DONE", type: "done", statuses: ["Terminé"] },
+    ];
+    const { columns, warnings } = mergeColumns([], inferred);
+    expect(columns).toHaveLength(3);
+    expect(columns[0].type).toBe("todo");
+    expect(columns[1].devStart).toBe(true);
+    expect(warnings.some((w) => w.includes("absente du board Jira"))).toBe(false);
+  });
+});
+
+describe("mergeColumns — règle 3 : colonne config absente de l'API", () => {
+  it("colonne config orpheline conservée, warning retourné", () => {
+    const existing: BoardColumn[] = [
+      { name: "TODO", type: "todo", statuses: [] },
+      { name: "DESIGN", type: "active", statuses: ["Design"] },
+      { name: "DONE", type: "done", statuses: [] },
+    ];
+    const inferred: InferredColumn[] = [
+      { name: "TODO", type: "todo", statuses: [] },
+      { name: "DONE", type: "done", statuses: [] },
+    ];
+    const { columns, warnings } = mergeColumns(existing, inferred);
+    expect(columns.some((c) => c.name === "DESIGN")).toBe(true);
+    expect(warnings.some((w) => w.includes("absente du board Jira") && w.includes("DESIGN"))).toBe(true);
+  });
+
+  it("colonnes API et config complètement disjointes : 3 warnings new + 3 warnings absentes", () => {
+    const existing: BoardColumn[] = [
+      { name: "TODO", type: "todo", statuses: [] },
+      { name: "IN PROGRESS", type: "active", statuses: [] },
+      { name: "DONE", type: "done", statuses: [] },
+    ];
+    const inferred: InferredColumn[] = [
+      { name: "BACKLOG", type: "todo", statuses: [] },
+      { name: "EN COURS", type: "active", statuses: [] },
+      { name: "TERMINÉ", type: "done", statuses: [] },
+    ];
+    const { warnings } = mergeColumns(existing, inferred);
+    expect(warnings.filter((w) => w.includes("Nouvelle colonne détectée"))).toHaveLength(3);
+    expect(warnings.filter((w) => w.includes("absente du board Jira"))).toHaveLength(3);
   });
 });

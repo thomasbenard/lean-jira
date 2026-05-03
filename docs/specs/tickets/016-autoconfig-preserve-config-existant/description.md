@@ -16,4 +16,4 @@ Nouvelle fonction `mergeColumns(existing, inferred)` dans `src/main.ts` : quand 
 
 ## Statut
 
-**à faire**
+**livré**

@@ -70,7 +70,7 @@ Jira REST API v2 → SQLite (WAL) → metric computations → stdout / HTML repo
 ```
 
 **Layers** (`src/`):
-- `main.ts` — Commander.js CLI; routes `sync` / `metrics` / `snapshots` / `report` / `autoconfig` / `list-metrics`; exports `inferBoardColumns()`, `renderBoardColumnsYaml()`, `InferredColumn`
+- `main.ts` — Commander.js CLI; routes `sync` / `metrics` / `snapshots` / `report` / `autoconfig` / `list-metrics`; exports `inferBoardColumns()`, `renderBoardColumnsYaml()`, `enrichWithLegacyStatuses()`, `mergeColumns()`, `buildUnresolvableComment()`, `InferredColumn`, `BoardColumn`
 - `sync.ts` — fetches sprints + issues (with changelog), upserts to DB; `replaceTransitions` per issue; incremental mode via `getLastSyncDate()` (JQL `updated >= "<date>"` filter when prior sync exists)
 - `jira/client.ts` — Axios + 200ms sleep between pages
 - `db/store.ts` — better-sqlite3; WAL; atomic transactions

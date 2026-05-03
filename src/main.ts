@@ -238,6 +238,18 @@ export function renderBoardColumnsYaml(columns: InferredColumn[]): string {
   return lines.join("\n");
 }
 
+export function buildUnresolvableComment(names: string[]): string {
+  if (names.length === 0) return "";
+  return [
+    "# ─── Statuts legacy non classés ───────────────────────────────────────────",
+    "# Ces statuts apparaissent dans l'historique mais n'ont pas pu être affectés",
+    "# automatiquement. Copiez-les dans legacyStatuses de la bonne colonne :",
+    "#",
+    ...names.map((s) => `#   - "${s}"`),
+    "#",
+  ].join("\n");
+}
+
 export interface EnrichmentResult {
   unresolvable: string[];
 }
@@ -249,7 +261,7 @@ export function enrichWithLegacyStatuses(
   db: Database.Database,
 ): EnrichmentResult {
   const dbNames = getDistinctTransitionStatuses(db);
-  const currentNames = new Set(columns.flatMap((c) => c.statuses));
+  const currentNames = new Set(columns.flatMap((c) => [...c.statuses, ...(c.legacyStatuses ?? [])]));
   const legacyCandidates = dbNames.filter((n) => !currentNames.has(n));
 
   const statusByName = new Map(allStatuses.map((s) => [s.name, s]));
@@ -280,6 +292,38 @@ export function enrichWithLegacyStatuses(
   }
 
   return { unresolvable };
+}
+
+export function mergeColumns(
+  existing: BoardColumn[],
+  inferred: InferredColumn[],
+): { columns: InferredColumn[]; warnings: string[] } {
+  const existingByName = new Map(existing.map((c) => [c.name, c]));
+  const inferredNames = new Set(inferred.map((c) => c.name));
+  const warnings: string[] = [];
+
+  const columns: InferredColumn[] = inferred.map((col) => {
+    const prev = existingByName.get(col.name);
+    if (!prev) {
+      warnings.push(`⚠ Nouvelle colonne détectée : "${col.name}" — vérifier type et devStart`);
+      return col;
+    }
+    return {
+      ...col,
+      type: prev.type,
+      devStart: prev.devStart,
+      legacyStatuses: prev.legacyStatuses,
+    };
+  });
+
+  for (const col of existing) {
+    if (!inferredNames.has(col.name)) {
+      warnings.push(`⚠ Colonne absente du board Jira : "${col.name}" — supprimée du board ou renommée ?`);
+      columns.push({ ...col });
+    }
+  }
+
+  return { columns, warnings };
 }
 
 const program = new Command();
@@ -421,20 +465,33 @@ program
       console.warn("⚠ Board à une seule colonne — configuration probablement incomplète.");
     }
 
-    const columns = inferBoardColumns(boardConfig, allStatuses);
-    const hasDevStart = columns.some((c) => c.devStart);
-    if (!hasDevStart) {
-      console.warn("⚠ Aucune colonne intermédiaire — positionner devStart: true manuellement.");
+    const warnings: string[] = [];
+
+    const hasExistingColumns = (config.board?.columns?.length ?? 0) > 0;
+    let columns: InferredColumn[];
+    if (hasExistingColumns) {
+      const merged = mergeColumns(config.board.columns, inferBoardColumns(boardConfig, allStatuses));
+      columns = merged.columns;
+      warnings.push(...merged.warnings);
+    } else {
+      columns = inferBoardColumns(boardConfig, allStatuses);
     }
 
+    if (!columns.some((c) => c.devStart)) {
+      warnings.push("⚠ Aucune colonne intermédiaire — positionner devStart: true manuellement.");
+    }
+
+    let unresolvable: string[] = [];
     const dbPath = path.resolve(config.db.path);
     if (fs.existsSync(dbPath)) {
       const db = openDb(dbPath);
-      const result = enrichWithLegacyStatuses(columns, boardConfig, allStatuses, db);
-      for (const name of result.unresolvable) {
-        console.warn(`⚠ Statut legacy non assignable automatiquement : "${name}" — ajouter manuellement comme legacyStatus dans la bonne colonne`);
+      unresolvable = enrichWithLegacyStatuses(columns, boardConfig, allStatuses, db).unresolvable;
+      for (const name of unresolvable) {
+        warnings.push(`⚠ Statut legacy non assignable automatiquement : "${name}" — ajouter manuellement comme legacyStatus dans la bonne colonne`);
       }
     }
+
+    const unresolvableComment = buildUnresolvableComment(unresolvable);
 
     if (opts.apply) {
       const configPath = path.resolve(opts.config);
@@ -442,19 +499,23 @@ program
       await new Promise((r) => setTimeout(r, 3000));
       const raw = fs.readFileSync(configPath, "utf-8");
       const parsed = yaml.parse(raw) as AppConfig;
+      const existingLegacyDone = parsed.board.legacyDoneStatuses ?? [];
       parsed.board = {
         ...parsed.board,
         columns: columns.map(({ warning: _w, ...c }) => c),
+        ...(existingLegacyDone.length > 0 && { legacyDoneStatuses: existingLegacyDone }),
       };
       const bakPath = configPath + ".bak";
       fs.copyFileSync(configPath, bakPath);
-      fs.writeFileSync(configPath, yaml.stringify(parsed), "utf-8");
+      const yamlContent = yaml.stringify(parsed);
+      fs.writeFileSync(configPath, unresolvableComment ? `${yamlContent}\n${unresolvableComment}\n` : yamlContent, "utf-8");
       console.log("✓ board.columns mis à jour dans", opts.config);
     } else {
       console.log(`# Board "${boardConfig.name}" — généré automatiquement depuis l'API Jira`);
       console.log("# Vérifier devStart: true — positionné sur la première colonne intermédiaire par défaut");
       console.log('# Les colonnes intermédiaires sont en type: active — changer en "queue" pour les colonnes d\'attente\n');
       console.log(renderBoardColumnsYaml(columns));
+      if (unresolvableComment) console.log(unresolvableComment);
     }
 
     console.log("");
@@ -466,6 +527,11 @@ program
     console.log("║           ↳ flow efficiency = active / (active + queue)               ║");
     console.log("║  done   — livraison équipe (fin lead time et cycle time)              ║");
     console.log("╚═══════════════════════════════════════════════════════════════════════╝");
+
+    if (warnings.length > 0) {
+      console.log("");
+      for (const w of warnings) console.warn(w);
+    }
   });
 
 program
