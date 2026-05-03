@@ -3,7 +3,7 @@
 export function workingDaysBetween(from: string, to: string): number {
   const startMs = new Date(from).getTime();
   const endMs = new Date(to).getTime();
-  if (endMs <= startMs) return 0;
+  if (endMs <= startMs) {return 0;}
 
   const calDays = (endMs - startMs) / 86_400_000;
   const wholeDays = Math.floor(calDays);
@@ -16,7 +16,7 @@ export function workingDaysBetween(from: string, to: string): number {
   let extraWorking = 0;
   for (let i = 0; i < rem; i++) {
     const d = (startDow + i) % 7;
-    if (d !== 0 && d !== 6) extraWorking++;
+    if (d !== 0 && d !== 6) {extraWorking++;}
   }
 
   const partialDow = (startDow + wholeDays) % 7;
@@ -27,7 +27,7 @@ export function workingDaysBetween(from: string, to: string): number {
 
 // Tableau doit être trié en ordre croissant
 export function percentile(sortedValues: number[], p: number): number {
-  if (sortedValues.length === 0) return 0;
+  if (sortedValues.length === 0) {return 0;}
   const index = Math.ceil((p / 100) * sortedValues.length) - 1;
   return sortedValues[Math.max(0, index)];
 }
@@ -75,7 +75,7 @@ export function buildWindowFragment(
 }
 
 export function buildBugExclusionFragment(bugIssueTypes: string[]): { bugSql: string; bugArgs: string[] } {
-  if (bugIssueTypes.length === 0) return { bugSql: "", bugArgs: [] };
+  if (bugIssueTypes.length === 0) {return { bugSql: "", bugArgs: [] };}
   return {
     bugSql: `AND i.issue_type NOT IN (${placeholders(bugIssueTypes)})`,
     bugArgs: [...bugIssueTypes],
@@ -97,18 +97,18 @@ export const BUCKET_LABELS: Record<SizeBucket, string> = {
 };
 
 export function bucketize(estimateSeconds: number | null | undefined, isBug = false): SizeBucket {
-  if (isBug) return "BUG";
-  if (estimateSeconds == null || estimateSeconds <= 0) return "UNESTIMATED";
+  if (isBug) {return "BUG";}
+  if (estimateSeconds == null || estimateSeconds <= 0) {return "UNESTIMATED";}
   const days = estimateSeconds / SECONDS_PER_DAY;
-  if (days < 0.5) return "XS";
-  if (days < 1) return "S";
-  if (days < 3) return "M";
-  if (days < 5) return "L";
+  if (days < 0.5) {return "XS";}
+  if (days < 1) {return "S";}
+  if (days < 3) {return "M";}
+  if (days < 5) {return "L";}
   return "XL";
 }
 
 export function avg(values: number[]): number {
-  if (values.length === 0) return 0;
+  if (values.length === 0) {return 0;}
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
@@ -124,7 +124,7 @@ export interface DurationStats {
 // Tukey upper fence: Q3 + 1.5 * IQR, queue droite seulement (cycle-time >= 0).
 // Conserve la médiane et P85 stables, retire les valeurs extrêmes qui tirent la moyenne.
 export function removeUpperOutliers(values: number[]): { kept: number[]; excluded: number } {
-  if (values.length < 4) return { kept: values, excluded: 0 };
+  if (values.length < 4) {return { kept: values, excluded: 0 };}
   const sorted = [...values].sort((a, b) => a - b);
   const q1 = percentile(sorted, 25);
   const q3 = percentile(sorted, 75);

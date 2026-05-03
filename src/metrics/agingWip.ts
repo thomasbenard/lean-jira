@@ -1,5 +1,5 @@
-import Database from "better-sqlite3";
-import { Metric, MetricConfig } from "./types";
+import type Database from "better-sqlite3";
+import { type Metric, type MetricConfig } from "./types";
 import { buildDeliveredCte, percentile, placeholders, removeUpperOutliers, workingDaysBetween } from "./utils";
 
 export type AgingRisk = "ok" | "watch" | "at-risk" | "critical";
@@ -71,7 +71,7 @@ export const agingWipMetric: Metric<AgingWipSummary> = {
       ...config.inProgressStatuses,
       nowIso,
       nowIso,
-    ) as Array<{ key: string; summary: string; status: string; started_at: string }>;
+    ) as { key: string; summary: string; status: string; started_at: string }[];
 
     // Percentiles historiques : population identique à cycle-time, mais bornée
     // au passé (livraison team-done avant asOf). Pas de fenêtre glissante : on
@@ -95,11 +95,11 @@ export const agingWipMetric: Metric<AgingWipSummary> = {
       nowIso,
       ...cutoffArgs,
       ...config.todoStatuses,
-    ) as Array<{ started_at: string; done_at: string }>;
+    ) as { started_at: string; done_at: string }[];
 
     const histDays: number[] = [];
     for (const r of histRows) {
-      if (r.done_at < r.started_at) continue;
+      if (r.done_at < r.started_at) {continue;}
       histDays.push(workingDaysBetween(r.started_at, r.done_at));
     }
     const { kept: cleaned } =

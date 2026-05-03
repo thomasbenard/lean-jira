@@ -1,6 +1,6 @@
-import Database from "better-sqlite3";
-import { Metric, MetricConfig } from "./types";
-import { buildDeliveredCte, buildWindowFragment, DurationStats, placeholders, statsFromDays, workingDaysBetween } from "./utils";
+import type Database from "better-sqlite3";
+import { type Metric, type MetricConfig } from "./types";
+import { buildDeliveredCte, buildWindowFragment, type DurationStats, placeholders, statsFromDays, workingDaysBetween } from "./utils";
 
 export interface CycleTimeResult {
   issueKey: string;
@@ -42,11 +42,11 @@ export const cycleTimeMetric: Metric<CycleTimeSummary> = {
       ...cutoffArgs,
       ...endArgs,
       ...config.todoStatuses,
-    ) as Array<{ issue_key: string; started_at: string; done_at: string }>;
+    ) as { issue_key: string; started_at: string; done_at: string }[];
 
     const issues: CycleTimeResult[] = [];
     for (const r of rows) {
-      if (r.done_at < r.started_at) continue;
+      if (r.done_at < r.started_at) {continue;}
       issues.push({
         issueKey: r.issue_key,
         startedAt: r.started_at,

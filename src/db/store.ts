@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
-import { StoredIssue, StoredSprint, StoredStatus, Transition } from "../jira/types";
+import { type StoredIssue, type StoredSprint, type StoredStatus, type Transition } from "../jira/types";
 
 export function openDb(dbPath: string): Database.Database {
   const db = new Database(dbPath);
@@ -16,7 +16,7 @@ export function openDb(dbPath: string): Database.Database {
 }
 
 function migrate(db: Database.Database): void {
-  const cols = db.prepare("PRAGMA table_info(issues)").all() as Array<{ name: string }>;
+  const cols = db.prepare("PRAGMA table_info(issues)").all() as { name: string }[];
   if (!cols.some((c) => c.name === "current_sprint_id")) {
     db.exec("ALTER TABLE issues ADD COLUMN current_sprint_id INTEGER");
   }
@@ -41,7 +41,7 @@ export function upsertIssues(db: Database.Database, issues: StoredIssue[]): void
   `);
 
   const insertMany = db.transaction((rows: StoredIssue[]) => {
-    for (const row of rows) stmt.run(row);
+    for (const row of rows) {stmt.run(row);}
   });
 
   insertMany(issues);
@@ -59,7 +59,7 @@ export function upsertSprints(db: Database.Database, sprints: StoredSprint[]): v
       board_id   = excluded.board_id
   `);
   const insertMany = db.transaction((rows: StoredSprint[]) => {
-    for (const row of rows) stmt.run(row);
+    for (const row of rows) {stmt.run(row);}
   });
   insertMany(sprints);
 }
@@ -70,7 +70,7 @@ export function replaceTransitions(db: Database.Database, issueKey: string, tran
 
 export function replaceAllTransitions(
   db: Database.Database,
-  allTransitions: Array<{ key: string; transitions: Transition[] }>,
+  allTransitions: { key: string; transitions: Transition[] }[],
 ): void {
   const del = db.prepare("DELETE FROM transitions WHERE issue_key = ?");
   const ins = db.prepare(`
@@ -81,7 +81,7 @@ export function replaceAllTransitions(
   db.transaction(() => {
     for (const { key, transitions } of allTransitions) {
       del.run(key);
-      for (const t of transitions) ins.run(t);
+      for (const t of transitions) {ins.run(t);}
     }
   })();
 }
@@ -95,7 +95,7 @@ export function upsertStatuses(db: Database.Database, statuses: StoredStatus[]):
       category_name = excluded.category_name
   `);
   const insertMany = db.transaction((rows: StoredStatus[]) => {
-    for (const row of rows) stmt.run(row);
+    for (const row of rows) {stmt.run(row);}
   });
   insertMany(statuses);
 }
@@ -103,26 +103,26 @@ export function upsertStatuses(db: Database.Database, statuses: StoredStatus[]):
 // Renvoie l'ensemble des noms de statuts dont statusCategory.key = 'done'.
 // Source de vérité préférée à doneStatuses du config (immune aux renommages).
 export function getDoneStatusNames(db: Database.Database): Set<string> {
-  const rows = db.prepare(`SELECT name FROM statuses WHERE category_key = 'done'`).all() as Array<{ name: string }>;
+  const rows = db.prepare(`SELECT name FROM statuses WHERE category_key = 'done'`).all() as { name: string }[];
   return new Set(rows.map((r) => r.name));
 }
 
-export function getAllStatuses(db: Database.Database): Array<{ name: string; categoryKey: string }> {
-  return db.prepare("SELECT name, category_key AS categoryKey FROM statuses ORDER BY name").all() as Array<{ name: string; categoryKey: string }>;
+export function getAllStatuses(db: Database.Database): { name: string; categoryKey: string }[] {
+  return db.prepare("SELECT name, category_key AS categoryKey FROM statuses ORDER BY name").all() as { name: string; categoryKey: string }[];
 }
 
 export function getLastSyncDate(db: Database.Database, projectKey: string): string | null {
   const row = db.prepare(
     "SELECT MAX(synced_at) as last FROM sync_log WHERE project_key = ?"
   ).get(projectKey) as { last: string | null };
-  return row?.last ?? null;
+  return row.last;
 }
 
 export function getDistinctTransitionStatuses(db: Database.Database, since?: string): string[] {
   const rows = since
     ? db.prepare("SELECT DISTINCT to_status FROM transitions WHERE transitioned_at >= ?").all(since)
     : db.prepare("SELECT DISTINCT to_status FROM transitions").all();
-  return (rows as Array<{ to_status: string }>).map((r) => r.to_status);
+  return (rows as { to_status: string }[]).map((r) => r.to_status);
 }
 
 export function logSync(db: Database.Database, projectKey: string, issuesCount: number): void {

@@ -1,5 +1,5 @@
-import Database from "better-sqlite3";
-import { Metric, MetricConfig } from "./types";
+import type Database from "better-sqlite3";
+import { type Metric, type MetricConfig } from "./types";
 import { buildDeliveredCte, percentile } from "./utils";
 
 export interface ForecastHorizon {
@@ -46,7 +46,7 @@ export const forecastMetric: Metric<ForecastSummary> = {
       GROUP BY week
       ORDER BY week DESC
       LIMIT ?
-    `).all(...delivered.args, ...endArgs, HISTORY_WEEKS) as Array<{ week: string; c: number }>;
+    `).all(...delivered.args, ...endArgs, HISTORY_WEEKS) as { week: string; c: number }[];
 
     const samples = rows.map((r) => r.c).reverse();
     if (samples.length === 0) {

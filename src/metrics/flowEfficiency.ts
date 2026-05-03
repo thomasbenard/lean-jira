@@ -1,5 +1,5 @@
-import Database from "better-sqlite3";
-import { Metric, MetricConfig } from "./types";
+import type Database from "better-sqlite3";
+import { type Metric, type MetricConfig } from "./types";
 import { buildDeliveredCte, buildWindowFragment, percentile, placeholders, removeUpperOutliers, workingDaysBetween } from "./utils";
 
 export interface FlowEfficiencyIssue {
@@ -35,7 +35,7 @@ export const flowEfficiencyMetric: Metric<FlowEfficiencySummary> = {
   compute(db: Database.Database, config: MetricConfig): FlowEfficiencySummary {
     const active = config.activeStatuses ?? [];
     const queue = config.queueStatuses ?? [];
-    if (active.length === 0) return emptyResult();
+    if (active.length === 0) {return emptyResult();}
 
     const todoPh = placeholders(config.todoStatuses);
     const devStartPh = placeholders(config.devStartStatuses);
@@ -68,10 +68,10 @@ export const flowEfficiencyMetric: Metric<FlowEfficiencySummary> = {
       ...cutoffArgs,
       ...endArgs,
       ...config.todoStatuses,
-    ) as Array<{ key: string; resolved_at: string; started_at: string; to_status: string; transitioned_at: string }>;
+    ) as { key: string; resolved_at: string; started_at: string; to_status: string; transitioned_at: string }[];
 
     // Grouper les transitions par issue en mémoire
-    type IssueEntry = { key: string; resolved_at: string; started_at: string; trans: Array<{ to_status: string; transitioned_at: string }> };
+    interface IssueEntry { key: string; resolved_at: string; started_at: string; trans: { to_status: string; transitioned_at: string }[] }
     const issueMap = new Map<string, IssueEntry>();
     for (const r of rows) {
       let entry = issueMap.get(r.key);
@@ -84,23 +84,23 @@ export const flowEfficiencyMetric: Metric<FlowEfficiencySummary> = {
 
     const out: FlowEfficiencyIssue[] = [];
     for (const issue of issueMap.values()) {
-      if (issue.trans.length === 0) continue;
+      if (issue.trans.length === 0) {continue;}
 
       let activeDays = 0;
       let queueDays = 0;
       for (let i = 0; i < issue.trans.length; i++) {
         const start = issue.trans[i].transitioned_at;
         const end = i + 1 < issue.trans.length ? issue.trans[i + 1].transitioned_at : issue.resolved_at;
-        if (new Date(end).getTime() <= new Date(start).getTime()) continue;
+        if (new Date(end).getTime() <= new Date(start).getTime()) {continue;}
         const days = workingDaysBetween(start, end);
         const status = issue.trans[i].to_status;
-        if (active.includes(status)) activeDays += days;
-        else if (queue.includes(status)) queueDays += days;
+        if (active.includes(status)) {activeDays += days;}
+        else if (queue.includes(status)) {queueDays += days;}
         // sinon : statut hors flux mesuré (TODO retour, done) -> ignoré.
       }
 
       const total = activeDays + queueDays;
-      if (total <= 0) continue;
+      if (total <= 0) {continue;}
       out.push({
         issueKey: issue.key,
         startedAt: issue.started_at,

@@ -1,5 +1,5 @@
-import Database from "better-sqlite3";
-import { Metric, MetricConfig } from "./types";
+import type Database from "better-sqlite3";
+import { type Metric, type MetricConfig } from "./types";
 import { buildDeliveredCte, buildWindowFragment } from "./utils";
 
 export interface ThroughputByWeek {

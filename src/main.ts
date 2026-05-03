@@ -2,16 +2,16 @@ import { Command } from "commander";
 import fs from "fs";
 import yaml from "yaml";
 import path from "path";
-import Database from "better-sqlite3";
+import type Database from "better-sqlite3";
 import { sync } from "./sync";
 import { openDb, getDoneStatusNames, getAllStatuses, getDistinctTransitionStatuses } from "./db/store";
 import { runAllMetrics, runMetric, ALL_METRICS } from "./metrics/index";
-import { BUCKET_LABELS, BUCKET_ORDER, SizeBucket } from "./metrics/utils";
+import { BUCKET_LABELS, BUCKET_ORDER } from "./metrics/utils";
 import { backfillSnapshots } from "./snapshots/compute";
 import { generateReport } from "./report/generate";
-import { MetricConfig } from "./metrics/types";
+import { type MetricConfig } from "./metrics/types";
 import { JiraClient } from "./jira/client";
-import { JiraBoardConfig, JiraStatus } from "./jira/types";
+import { type JiraBoardConfig, type JiraStatus } from "./jira/types";
 
 type ColumnType = "todo" | "active" | "queue" | "done";
 
@@ -75,8 +75,8 @@ export interface ValidationResult {
 const LEGACY_SECTION_LABEL = "doneStatuses";
 
 export function validateStatusConfig(
-  sections: Array<{ label: string; statuses: string[] }>,
-  dbStatuses: Array<{ name: string; categoryKey: string }>,
+  sections: { label: string; statuses: string[] }[],
+  dbStatuses: { name: string; categoryKey: string }[],
   legacyNames?: Set<string>,
 ): ValidationResult {
   const dbNames = new Set(dbStatuses.map((s) => s.name));
@@ -84,11 +84,11 @@ export function validateStatusConfig(
   const resultSections: ValidationSection[] = [];
 
   for (const { label, statuses } of sections) {
-    if (statuses.length === 0) continue;
+    if (statuses.length === 0) {continue;}
     const entries: ValidationEntry[] = statuses.map((name) => {
       const found = dbNames.has(name);
       const isLegacy = !found && (label === LEGACY_SECTION_LABEL || (legacyNames?.has(name) ?? false));
-      if (!found && !isLegacy) missingCount++;
+      if (!found && !isLegacy) {missingCount++;}
       return { name, found, isLegacy };
     });
     resultSections.push({ label, entries });
@@ -228,8 +228,8 @@ export function inferBoardColumns(
     }
 
     const column: InferredColumn = { name: col.name, type, statuses: names };
-    if (warning) column.warning = warning;
-    if (queueKeyword) column.queueKeyword = queueKeyword;
+    if (warning) {column.warning = warning;}
+    if (queueKeyword) {column.queueKeyword = queueKeyword;}
 
     if (type === "active" && !devStartAssigned) {
       column.devStart = true;
@@ -276,7 +276,7 @@ export function renderBoardColumnsYaml(columns: InferredColumn[]): string {
 }
 
 export function buildUnresolvableComment(names: string[]): string {
-  if (names.length === 0) return "";
+  if (names.length === 0) {return "";}
   return [
     "# ─── Statuts legacy non classés ───────────────────────────────────────────",
     "# Ces statuts apparaissent dans l'historique mais n'ont pas pu être affectés",
@@ -364,6 +364,13 @@ export function mergeColumns(
   return { columns, warnings };
 }
 
+interface SyncOpts { config: string }
+interface MetricsOpts { config: string; boardConfig: string; metric?: string; json?: boolean; includeOutliers?: boolean }
+interface SnapshotsOpts { config: string; boardConfig: string }
+interface ReportOpts { config: string; boardConfig: string; output: string }
+interface ValidateConfigOpts { config: string; boardConfig: string }
+interface AutoconfigOpts { config: string; boardConfig: string; apply?: boolean }
+
 const program = new Command();
 
 program
@@ -375,7 +382,7 @@ program
   .command("sync")
   .description("Récupère les données Jira et les stocke en base")
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
-  .action(async (opts) => {
+  .action(async (opts: SyncOpts) => {
     const config = loadJiraConfig(path.resolve(opts.config));
     await sync(config);
   });
@@ -388,7 +395,7 @@ program
   .option("-m, --metric <name>", "Métrique spécifique (optionnel)")
   .option("--json", "Sortie JSON brute")
   .option("--include-outliers", "Inclure les outliers extrêmes (Tukey upper fence) dans les calculs")
-  .action((opts) => {
+  .action((opts: MetricsOpts) => {
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config, { excludeOutliers: !opts.includeOutliers });
@@ -409,7 +416,7 @@ program
   .description("Recalcule l'historique des snapshots hebdomadaires (table metric_snapshots)")
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
   .option("-b, --board-config <path>", "Chemin vers board.yaml", "./board.yaml")
-  .action((opts) => {
+  .action((opts: SnapshotsOpts) => {
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config);
@@ -423,7 +430,7 @@ program
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
   .option("-b, --board-config <path>", "Chemin vers board.yaml", "./board.yaml")
   .option("-o, --output <path>", "Chemin du fichier HTML de sortie", "./report.html")
-  .action((opts) => {
+  .action((opts: ReportOpts) => {
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config);
@@ -436,7 +443,7 @@ program
   .description("Vérifie que les statuts du config existent dans la base (après un sync)")
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
   .option("-b, --board-config <path>", "Chemin vers board.yaml", "./board.yaml")
-  .action((opts) => {
+  .action((opts: ValidateConfigOpts) => {
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     const db = openDb(config.db.path);
 
@@ -490,7 +497,7 @@ program
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
   .option("-b, --board-config <path>", "Chemin vers board.yaml", "./board.yaml")
   .option("--apply", "Crée/écrase board.yaml (destructif)")
-  .action(async (opts) => {
+  .action(async (opts: AutoconfigOpts) => {
     const jiraConfig = loadJiraConfig(path.resolve(opts.config));
     const client = new JiraClient(jiraConfig.jira);
 
@@ -549,7 +556,7 @@ program
       if (existingBoard !== null) {
         fs.copyFileSync(boardPath, boardPath + ".bak");
       }
-      const existingLegacyDone = existingBoard?.board?.legacyDoneStatuses ?? [];
+      const existingLegacyDone = existingBoard?.board.legacyDoneStatuses ?? [];
       const newBoard: BoardFileConfig = {
         board: {
           columns: columns.map(({ warning: _w, ...c }) => c),
@@ -565,7 +572,7 @@ program
       console.log("# Vérifier devStart: true — positionné sur la première colonne intermédiaire par défaut");
       console.log('# Colonnes intermédiaires : type "queue" inféré par mot-clé (review, qa, validation…) — sinon type: active\n');
       console.log(renderBoardColumnsYaml(columns));
-      if (unresolvableComment) console.log(unresolvableComment);
+      if (unresolvableComment) {console.log(unresolvableComment);}
     }
 
     console.log("");
@@ -580,7 +587,7 @@ program
 
     if (warnings.length > 0) {
       console.log("");
-      for (const w of warnings) console.warn(w);
+      for (const w of warnings) {console.warn(w);}
     }
   });
 
@@ -602,11 +609,11 @@ function printResults(results: Record<string, unknown>): void {
   for (const [name, data] of Object.entries(results)) {
     const description = ALL_METRICS.find((m) => m.name === name)?.description;
     console.log(`\n=== ${name.toUpperCase()} ===`);
-    if (description) console.log(`  ${description}`);
+    if (description) {console.log(`  ${description}`);}
     const d = data as Record<string, unknown>;
 
     if ("buckets" in d) {
-      printBuckets(d.buckets as Record<string, { count: number; excludedOutliers: number; avgDays: number; medianDays: number; p85Days: number; p95Days: number }>);
+      printBuckets(d.buckets as Partial<Record<string, { count: number; excludedOutliers: number; avgDays: number; medianDays: number; p85Days: number; p95Days: number }>>);
     } else if ("avgDays" in d) {
       const unit = (d.unit as string | undefined) ?? "j";
       const totalIssues = "issues" in d ? (d.issues as unknown[]).length : ((d.count as number) + ((d.excludedOutliers as number | undefined) ?? 0));
@@ -617,13 +624,13 @@ function printResults(results: Record<string, unknown>): void {
       console.log(`  P95       : ${(d.p95Days as number).toFixed(2)} ${unit}`);
       console.log(`  Issues    : ${totalIssues}${excluded > 0 ? ` (${excluded} outliers exclus)` : ""}`);
     } else if ("byWeek" in d) {
-      const byWeek = d.byWeek as Array<Record<string, unknown>>;
+      const byWeek = d.byWeek as { week: string; estimatedDays: number; estimatedCount: number; unestimatedCount: number; count: number }[];
       const isWeighted = byWeek.length > 0 && "estimatedDays" in byWeek[0];
       const unit = isWeighted ? "j-h" : "issues";
       console.log(`  Moy/semaine : ${(d.avgPerWeek as number).toFixed(1)} ${unit}`);
       byWeek.slice(-8).forEach((w) => {
         if (isWeighted) {
-          console.log(`  ${w.week} : ${(w.estimatedDays as number).toFixed(1)} j-h (${w.estimatedCount} estimées, ${w.unestimatedCount} non estimées)`);
+          console.log(`  ${w.week} : ${w.estimatedDays.toFixed(1)} j-h (${w.estimatedCount} estimées, ${w.unestimatedCount} non estimées)`);
         } else {
           console.log(`  ${w.week} : ${w.count}`);
         }
@@ -643,9 +650,9 @@ function printResults(results: Record<string, unknown>): void {
       console.log(`  Issues                 : ${cnt}${exc > 0 ? ` (${exc} outliers exclus)` : ""}`);
     } else if ("byHorizon" in d && "recentWeeks" in d) {
       const samples = d.recentWeeks as number[];
-      const horizons = d.byHorizon as Array<{ weeks: number; p15: number; p50: number; p85: number; p95: number }>;
+      const horizons = d.byHorizon as { weeks: number; p15: number; p50: number; p85: number; p95: number }[];
       console.log(`  Pool : ${samples.length} semaines (${samples.join(", ")})`);
-      console.log(`  Sims : ${d.simulations}`);
+      console.log(`  Sims : ${d.simulations as number}`);
       console.log(`  Horizon  P15 (85% conf)  P50 (médiane)  P85  P95`);
       for (const h of horizons) {
         console.log(`  ${String(h.weeks).padStart(2)} sem.   ${h.p15.toFixed(0).padStart(8)}        ${h.p50.toFixed(0).padStart(7)}      ${h.p85.toFixed(0).padStart(4)}  ${h.p95.toFixed(0).padStart(4)}`);
@@ -653,11 +660,11 @@ function printResults(results: Record<string, unknown>): void {
     } else if ("riskCounts" in d) {
       const p = d.percentiles as { p50: number; p85: number; p95: number };
       const rc = d.riskCounts as { ok: number; watch: number; atRisk: number; critical: number };
-      console.log(`  Date         : ${d.asOf}`);
-      console.log(`  WIP total    : ${d.count}`);
+      console.log(`  Date         : ${d.asOf as string}`);
+      console.log(`  WIP total    : ${d.count as number}`);
       console.log(`  Seuils (j)   : P50=${p.p50.toFixed(1)}  P85=${p.p85.toFixed(1)}  P95=${p.p95.toFixed(1)}`);
       console.log(`  Risque       : OK=${rc.ok}  watch=${rc.watch}  at-risk=${rc.atRisk}  critical=${rc.critical}`);
-      const top = (d.issues as Array<{ issueKey: string; ageDays: number; riskLevel: string; status: string }>).slice(0, 10);
+      const top = (d.issues as { issueKey: string; ageDays: number; riskLevel: string; status: string }[]).slice(0, 10);
       if (top.length > 0) {
         console.log("  Top âge :");
         for (const i of top) {
@@ -665,27 +672,27 @@ function printResults(results: Record<string, unknown>): void {
         }
       }
     } else if ("currentWip" in d) {
-      console.log(`  Sprint     : ${d.sprintName ?? "(aucun sprint actif)"}`);
-      console.log(`  WIP actuel : ${d.currentWip}`);
+      console.log(`  Sprint     : ${(d.sprintName as string | null | undefined) ?? "(aucun sprint actif)"}`);
+      console.log(`  WIP actuel : ${d.currentWip as number}`);
       console.log(`  Issues     : ${(d.issueKeys as string[]).join(", ")}`);
     }
   }
 }
 
-function printBuckets(buckets: Record<string, { count: number; excludedOutliers: number; avgDays: number; medianDays: number; p85Days: number; p95Days: number }>): void {
+function printBuckets(buckets: Partial<Record<string, { count: number; excludedOutliers: number; avgDays: number; medianDays: number; p85Days: number; p95Days: number }>>): void {
   const header = "  Bucket             Count    Médiane    P85      P95      Moyenne   Exclus";
   console.log(header);
   for (const b of BUCKET_ORDER) {
     const s = buckets[b];
-    if (!s) continue;
+    if (!s) {continue;}
     const line = [
-      `  ${BUCKET_LABELS[b as SizeBucket].padEnd(19)}`,
-      `${String(s.count).padStart(5)}`,
+      `  ${BUCKET_LABELS[b].padEnd(19)}`,
+      String(s.count).padStart(5),
       `${s.medianDays.toFixed(1).padStart(7)}j`,
       `${s.p85Days.toFixed(1).padStart(6)}j`,
       `${s.p95Days.toFixed(1).padStart(6)}j`,
       `${s.avgDays.toFixed(1).padStart(7)}j`,
-      `${String(s.excludedOutliers).padStart(5)}`,
+      String(s.excludedOutliers).padStart(5),
     ].join("  ");
     console.log(line);
   }

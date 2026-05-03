@@ -1,5 +1,15 @@
-import axios, { AxiosInstance } from "axios";
-import { JiraIssue, JiraSprint, JiraStatus, JiraBoardConfig } from "./types";
+import axios, { type AxiosInstance } from "axios";
+import { type JiraIssue, type JiraSprint, type JiraStatus, type JiraBoardConfig } from "./types";
+
+interface IssuePageResponse {
+  total: number;
+  issues: JiraIssue[];
+}
+
+interface SprintPageResponse {
+  values: JiraSprint[];
+  isLast: boolean;
+}
 
 interface JiraConfig {
   baseUrl: string;
@@ -44,11 +54,10 @@ export class JiraClient {
         params.jql = `updated >= "${jqlDate}"`;
       }
 
-      const response = await this.http.get(`/rest/agile/1.0/board/${this.boardId}/issue`, { params });
+      const response = await this.http.get<IssuePageResponse>(`/rest/agile/1.0/board/${this.boardId}/issue`, { params });
 
-      const data = response.data;
-      total = data.total;
-      issues.push(...data.issues);
+      total = response.data.total;
+      issues.push(...response.data.issues);
       onProgress?.(issues.length, total);
 
       startAt += pageSize;
@@ -81,14 +90,13 @@ export class JiraClient {
     let isLast = false;
 
     do {
-      const response = await this.http.get(`/rest/agile/1.0/board/${this.boardId}/sprint`, {
+      const response = await this.http.get<SprintPageResponse>(`/rest/agile/1.0/board/${this.boardId}/sprint`, {
         params: { startAt, maxResults: pageSize },
       });
-      const data = response.data;
-      sprints.push(...data.values);
-      isLast = data.isLast;
+      sprints.push(...response.data.values);
+      isLast = response.data.isLast;
       startAt += pageSize;
-      if (!isLast) await sleep(200);
+      if (!isLast) {await sleep(200);}
     } while (!isLast);
 
     return sprints;

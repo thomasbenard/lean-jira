@@ -1,5 +1,5 @@
-import Database from "better-sqlite3";
-import { MetricConfig } from "./types";
+import type Database from "better-sqlite3";
+import { type MetricConfig } from "./types";
 import { leadTimeMetric } from "./leadTime";
 import { leadTimeBySizeMetric } from "./leadTimeBySize";
 import { leadTimeNormalizedMetric } from "./leadTimeNormalized";
@@ -45,7 +45,7 @@ export function runAllMetrics(db: Database.Database, config: MetricConfig): Reco
 
 export function runMetric(name: string, db: Database.Database, config: MetricConfig): unknown {
   const metric = ALL_METRICS.find((m) => m.name === name);
-  if (!metric) throw new Error(`Métrique inconnue: ${name}. Disponibles: ${ALL_METRICS.map((m) => m.name).join(", ")}`);
+  if (!metric) {throw new Error(`Métrique inconnue: ${name}. Disponibles: ${ALL_METRICS.map((m) => m.name).join(", ")}`);}
   return metric.compute(db, config);
 }
 

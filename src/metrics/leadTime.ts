@@ -1,6 +1,6 @@
-import Database from "better-sqlite3";
-import { Metric, MetricConfig } from "./types";
-import { buildDeliveredCte, buildWindowFragment, DurationStats, placeholders, statsFromDays, workingDaysBetween } from "./utils";
+import type Database from "better-sqlite3";
+import { type Metric, type MetricConfig } from "./types";
+import { buildDeliveredCte, buildWindowFragment, type DurationStats, placeholders, statsFromDays, workingDaysBetween } from "./utils";
 
 export interface LeadTimeResult {
   issueKey: string;
@@ -41,11 +41,11 @@ export const leadTimeMetric: Metric<LeadTimeSummary> = {
       ...cutoffArgs,
       ...endArgs,
       ...config.devStartStatuses,
-    ) as Array<{ issue_key: string; todo_at: string; done_at: string }>;
+    ) as { issue_key: string; todo_at: string; done_at: string }[];
 
     const issues: LeadTimeResult[] = [];
     for (const r of rows) {
-      if (r.done_at < r.todo_at) continue;
+      if (r.done_at < r.todo_at) {continue;}
       issues.push({
         issueKey: r.issue_key,
         todoAt: r.todo_at,

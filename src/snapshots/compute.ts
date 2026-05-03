@@ -1,8 +1,8 @@
-import Database from "better-sqlite3";
-import { MetricConfig } from "../metrics/types";
+import type Database from "better-sqlite3";
+import { type MetricConfig } from "../metrics/types";
 import { ALL_METRICS } from "../metrics";
-import { BUCKET_ORDER, DurationStats } from "../metrics/utils";
-import { DevTimeAllocationSummary } from "../metrics/devTimeAllocation";
+import { BUCKET_ORDER, type DurationStats } from "../metrics/utils";
+import { type DevTimeAllocationSummary } from "../metrics/devTimeAllocation";
 
 const ROLLING_WINDOW_DAYS = 30;
 const WEEK_DAYS = 7;
@@ -73,7 +73,7 @@ function computeSnapshot(db: Database.Database, date: string, baseConfig: Metric
       continue;
     }
     // forecast = Monte Carlo non déterministe, pas de stat utile à snapshotter.
-    if (metric.name === "forecast") continue;
+    if (metric.name === "forecast") {continue;}
 
     const isWeekly = WEEKLY_METRICS.has(metric.name);
     const isCumulative = CUMULATIVE_METRICS.has(metric.name);
@@ -95,10 +95,10 @@ export function extractStats(date: string, metricName: string, result: Record<st
   const out: SnapshotRow[] = [];
 
   if ("buckets" in result) {
-    const buckets = result.buckets as Record<string, DurationStats>;
+    const buckets = result.buckets as Partial<Record<string, DurationStats>>;
     for (const b of BUCKET_ORDER) {
       const s = buckets[b];
-      if (!s || s.count === 0) continue;
+      if (!s || s.count === 0) {continue;}
       out.push({ snapshot_date: date, metric_name: metricName, bucket: b, stat: "count", value: s.count });
       out.push({ snapshot_date: date, metric_name: metricName, bucket: b, stat: "median", value: s.medianDays });
       out.push({ snapshot_date: date, metric_name: metricName, bucket: b, stat: "p85", value: s.p85Days });
@@ -145,18 +145,18 @@ export function extractStats(date: string, metricName: string, result: Record<st
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "bugDays", value: totalBug });
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "bugRatio", value: r.avgBugRatio });
   } else if ("byWeek" in result) {
-    const byWeek = result.byWeek as Array<{
+    const byWeek = result.byWeek as {
       count?: number;
       estimatedDays?: number;
       estimatedCount?: number;
       unestimatedCount?: number;
-    }>;
+    }[];
     let totalCount = 0;
     let totalDays = 0;
     let isWeighted = false;
     for (const w of byWeek) {
-      if (typeof w.count === "number") totalCount += w.count;
-      else totalCount += (w.estimatedCount ?? 0) + (w.unestimatedCount ?? 0);
+      if (typeof w.count === "number") {totalCount += w.count;}
+      else {totalCount += (w.estimatedCount ?? 0) + (w.unestimatedCount ?? 0);}
       if (typeof w.estimatedDays === "number") {
         totalDays += w.estimatedDays;
         isWeighted = true;

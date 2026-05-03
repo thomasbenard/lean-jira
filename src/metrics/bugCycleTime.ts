@@ -1,6 +1,6 @@
-import Database from "better-sqlite3";
-import { Metric, MetricConfig } from "./types";
-import { buildDeliveredCte, buildWindowFragment, DurationStats, placeholders, statsFromDays, workingDaysBetween } from "./utils";
+import type Database from "better-sqlite3";
+import { type Metric, type MetricConfig } from "./types";
+import { buildDeliveredCte, buildWindowFragment, type DurationStats, placeholders, statsFromDays, workingDaysBetween } from "./utils";
 
 export interface BugCycleTimeResult extends DurationStats {
   unit: string;
@@ -38,12 +38,12 @@ export const bugCycleTimeMetric: Metric<BugCycleTimeResult> = {
       ...config.bugIssueTypes,
       ...cutoffArgs,
       ...endArgs,
-    ) as Array<{ started_at: string; done_at: string }>;
+    ) as { started_at: string; done_at: string }[];
 
     const days: number[] = [];
     for (const r of rows) {
       const d = workingDaysBetween(r.started_at, r.done_at);
-      if (d >= 0) days.push(d);
+      if (d >= 0) {days.push(d);}
     }
 
     return { ...statsFromDays(days, config.excludeOutliers !== false), unit: "j" };

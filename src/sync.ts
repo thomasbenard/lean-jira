@@ -1,5 +1,5 @@
 import { JiraClient } from "./jira/client";
-import { JiraIssue, StoredIssue, StoredSprint, StoredStatus, Transition } from "./jira/types";
+import { type JiraIssue, type StoredIssue, type StoredSprint, type StoredStatus, type Transition } from "./jira/types";
 import { openDb, upsertIssues, upsertSprints, upsertStatuses, replaceAllTransitions, logSync, getLastSyncDate } from "./db/store";
 
 interface SyncConfig {
@@ -55,7 +55,7 @@ export async function sync(config: SyncConfig): Promise<void> {
   console.log(`\n  ${rawIssues.length} issues récupérées depuis Jira`);
 
   const issues: StoredIssue[] = rawIssues.map((i) => mapIssue(i, activeSprintIds));
-  const allTransitions: Array<{ key: string; transitions: Transition[] }> = rawIssues.map((issue) => ({
+  const allTransitions: { key: string; transitions: Transition[] }[] = rawIssues.map((issue) => ({
     key: issue.key,
     transitions: extractTransitions(issue),
   }));
@@ -88,7 +88,7 @@ function mapIssue(issue: JiraIssue, activeSprintIds: Set<number>): StoredIssue {
 }
 
 function extractTransitions(issue: JiraIssue): Transition[] {
-  if (!issue.changelog?.histories) return [];
+  if (!issue.changelog?.histories) {return [];}
 
   const transitions: Transition[] = [];
 

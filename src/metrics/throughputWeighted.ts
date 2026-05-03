@@ -1,5 +1,5 @@
-import Database from "better-sqlite3";
-import { Metric, MetricConfig } from "./types";
+import type Database from "better-sqlite3";
+import { type Metric, type MetricConfig } from "./types";
 import { buildBugExclusionFragment, buildDeliveredCte, buildWindowFragment, SECONDS_PER_DAY } from "./utils";
 
 export interface ThroughputWeightedByWeek {
@@ -36,12 +36,12 @@ export const throughputWeightedMetric: Metric<ThroughputWeightedSummary> = {
       WHERE 1=1 ${bugSql} ${cutoffSql} ${endSql}
       GROUP BY week
       ORDER BY week ASC
-    `).all(...delivered.args, ...bugArgs, ...cutoffArgs, ...endArgs) as Array<{
+    `).all(...delivered.args, ...bugArgs, ...cutoffArgs, ...endArgs) as {
       week: string;
       total_seconds: number;
       estimated_count: number;
       unestimated_count: number;
-    }>;
+    }[];
 
     const byWeek: ThroughputWeightedByWeek[] = rows.map((r) => ({
       week: r.week,

@@ -40,7 +40,7 @@ export interface JiraSprint {
 
 export interface JiraBoardColumnRaw {
   name: string;
-  statuses: Array<{ id: string; self: string }>;
+  statuses: { id: string; self: string }[];
 }
 
 export interface JiraBoardConfig {

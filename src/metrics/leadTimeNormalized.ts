@@ -1,6 +1,6 @@
-import Database from "better-sqlite3";
-import { Metric, MetricConfig } from "./types";
-import { buildBugExclusionFragment, buildDeliveredCte, buildWindowFragment, DurationStats, placeholders, SECONDS_PER_DAY, statsFromDays, workingDaysBetween } from "./utils";
+import type Database from "better-sqlite3";
+import { type Metric, type MetricConfig } from "./types";
+import { buildBugExclusionFragment, buildDeliveredCte, buildWindowFragment, type DurationStats, placeholders, SECONDS_PER_DAY, statsFromDays, workingDaysBetween } from "./utils";
 
 export interface LeadTimeNormalizedResult extends DurationStats {
   unit: string;
@@ -37,12 +37,12 @@ export const leadTimeNormalizedMetric: Metric<LeadTimeNormalizedResult> = {
       ...cutoffArgs,
       ...endArgs,
       ...config.devStartStatuses,
-    ) as Array<{ todo_at: string; done_at: string; original_estimate_seconds: number }>;
+    ) as { todo_at: string; done_at: string; original_estimate_seconds: number }[];
 
     const ratios: number[] = [];
     for (const r of rows) {
       const leadDays = workingDaysBetween(r.todo_at, r.done_at);
-      if (leadDays < 0) continue;
+      if (leadDays < 0) {continue;}
       const estimateDays = r.original_estimate_seconds / SECONDS_PER_DAY;
       ratios.push(leadDays / estimateDays);
     }

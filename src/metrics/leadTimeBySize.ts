@@ -1,13 +1,13 @@
-import Database from "better-sqlite3";
-import { Metric, MetricConfig } from "./types";
+import type Database from "better-sqlite3";
+import { type Metric, type MetricConfig } from "./types";
 import {
   buildDeliveredCte,
   buildWindowFragment,
   bucketize,
   BUCKET_ORDER,
-  DurationStats,
+  type DurationStats,
   placeholders,
-  SizeBucket,
+  type SizeBucket,
   statsFromDays,
   workingDaysBetween,
 } from "./utils";
@@ -44,19 +44,19 @@ export const leadTimeBySizeMetric: Metric<LeadTimeBySizeResult> = {
       ...cutoffArgs,
       ...endArgs,
       ...config.devStartStatuses,
-    ) as Array<{
+    ) as {
       issue_key: string;
       todo_at: string;
       done_at: string;
       original_estimate_seconds: number | null;
       issue_type: string;
-    }>;
+    }[];
 
     const bugTypes = new Set(config.bugIssueTypes);
     const daysByBucket = new Map<SizeBucket, number[]>();
     for (const r of rows) {
       const days = workingDaysBetween(r.todo_at, r.done_at);
-      if (days < 0) continue;
+      if (days < 0) {continue;}
       const bucket = bucketize(r.original_estimate_seconds, bugTypes.has(r.issue_type));
       const list = daysByBucket.get(bucket) ?? [];
       list.push(days);
@@ -67,7 +67,7 @@ export const leadTimeBySizeMetric: Metric<LeadTimeBySizeResult> = {
     const excludeOutliers = config.excludeOutliers !== false;
     for (const b of BUCKET_ORDER) {
       const days = daysByBucket.get(b);
-      if (days && days.length > 0) buckets[b] = statsFromDays(days, excludeOutliers);
+      if (days && days.length > 0) {buckets[b] = statsFromDays(days, excludeOutliers);}
     }
 
     return { buckets };

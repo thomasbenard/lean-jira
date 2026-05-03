@@ -1,5 +1,5 @@
-import Database from "better-sqlite3";
-import { Metric, MetricConfig } from "./types";
+import type Database from "better-sqlite3";
+import { type Metric, type MetricConfig } from "./types";
 import { avg, buildDeliveredCte, buildWindowFragment, placeholders, workingDaysBetween } from "./utils";
 
 export interface DevTimeAllocationByWeek {
@@ -57,19 +57,22 @@ export const devTimeAllocationMetric: Metric<DevTimeAllocationSummary> = {
       ...cutoffArgs,
       ...endArgs,
       ...config.todoStatuses,
-    ) as Array<{ issue_key: string; started_at: string; done_at: string; issue_type: string }>;
+    ) as { issue_key: string; started_at: string; done_at: string; issue_type: string }[];
 
     const bugTypes = new Set(config.bugIssueTypes);
     const byWeekMap = new Map<string, { featureDays: number; bugDays: number }>();
 
     for (const r of rows) {
-      if (r.done_at < r.started_at) continue;
+      if (r.done_at < r.started_at) {continue;}
       const days = workingDaysBetween(r.started_at, r.done_at);
       const week = isoWeek(r.done_at);
-      if (!byWeekMap.has(week)) byWeekMap.set(week, { featureDays: 0, bugDays: 0 });
-      const entry = byWeekMap.get(week)!;
-      if (bugTypes.has(r.issue_type)) entry.bugDays += days;
-      else entry.featureDays += days;
+      let entry = byWeekMap.get(week);
+      if (!entry) {
+        entry = { featureDays: 0, bugDays: 0 };
+        byWeekMap.set(week, entry);
+      }
+      if (bugTypes.has(r.issue_type)) {entry.bugDays += days;}
+      else {entry.featureDays += days;}
     }
 
     const byWeek: DevTimeAllocationByWeek[] = Array.from(byWeekMap.entries())

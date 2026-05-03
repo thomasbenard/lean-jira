@@ -1,5 +1,5 @@
-import Database from "better-sqlite3";
-import { Metric, MetricConfig } from "./types";
+import type Database from "better-sqlite3";
+import { type Metric, type MetricConfig } from "./types";
 
 export interface WipResult {
   currentWip: number;
@@ -24,7 +24,7 @@ export const wipMetric: Metric<WipResult> = {
     const rows = db.prepare(`
       SELECT key FROM issues
       WHERE current_sprint_id = ? AND current_status IN (${placeholders})
-    `).all(sprint.id, ...config.inProgressStatuses) as Array<{ key: string }>;
+    `).all(sprint.id, ...config.inProgressStatuses) as { key: string }[];
 
     return {
       currentWip: rows.length,

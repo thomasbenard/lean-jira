@@ -1,9 +1,9 @@
-import Database from "better-sqlite3";
+import type Database from "better-sqlite3";
 import fs from "fs";
-import { BUCKET_LABELS, BUCKET_ORDER, SizeBucket } from "../metrics/utils";
-import { MetricConfig } from "../metrics/types";
-import { agingWipMetric, AgingWipSummary, AgingRisk } from "../metrics/agingWip";
-import { forecastMetric, ForecastSummary } from "../metrics/forecast";
+import { BUCKET_LABELS, BUCKET_ORDER } from "../metrics/utils";
+import { type MetricConfig } from "../metrics/types";
+import { agingWipMetric, type AgingWipSummary, type AgingRisk } from "../metrics/agingWip";
+import { forecastMetric, type ForecastSummary } from "../metrics/forecast";
 import { cycleTimeMetric } from "../metrics/cycleTime";
 import { getLastSyncDate } from "../db/store";
 
@@ -29,7 +29,7 @@ interface ChartSeries {
   series: Record<string, number[]>;
 }
 
-const HELP_TEXTS: Record<string, { title: string; body: string }> = {
+const HELP_TEXTS: Record<string, { title: string; body: string } | undefined> = {
   leadTime: {
     title: "Lead time",
     body:
@@ -132,10 +132,10 @@ export function generateReport(
   const byMetric = new Map<string, SnapshotRow[]>();
   for (const s of snapshots) {
     const arr = byMetric.get(s.metric_name);
-    if (arr) arr.push(s);
-    else byMetric.set(s.metric_name, [s]);
+    if (arr) {arr.push(s);}
+    else {byMetric.set(s.metric_name, [s]);}
   }
-  const metricRows = (name: string) => byMetric.get(name) ?? [];
+  const metricRows = (name: string): SnapshotRow[] => byMetric.get(name) ?? [];
 
   const charts = {
     leadTime: buildSeries(metricRows("lead-time"), "", ["median", "p85"]),
@@ -175,9 +175,9 @@ export function generateReport(
   const cycleTimeBySizeCharts: Record<string, ChartSeries> = {};
   for (const b of BUCKET_ORDER) {
     const lead = buildBucketSeries(leadBySizeRows, b, ["median", "p85", "p95", "count"]);
-    if (lead.dates.length > 0) leadTimeBySizeCharts[b] = lead;
+    if (lead.dates.length > 0) {leadTimeBySizeCharts[b] = lead;}
     const cycle = buildBucketSeries(cycleBySizeRows, b, ["median", "p85", "p95", "count"]);
-    if (cycle.dates.length > 0) cycleTimeBySizeCharts[b] = cycle;
+    if (cycle.dates.length > 0) {cycleTimeBySizeCharts[b] = cycle;}
   }
   const lastSyncAt = getLastSyncDate(db, projectKey);
   const isSyncStale = lastSyncAt === null
@@ -223,20 +223,20 @@ export function buildBucketSeries(snapshots: SnapshotRow[], bucket: string, stat
 function buildSeries(snapshots: SnapshotRow[], bucket: string, stats: string[]): ChartSeries {
   const dateSet = new Set<string>();
   const byKey = new Map<string, Map<string, number>>();
-  for (const stat of stats) byKey.set(stat, new Map());
+  for (const stat of stats) {byKey.set(stat, new Map());}
 
   for (const s of snapshots) {
-    if (s.bucket !== bucket) continue;
-    if (!stats.includes(s.stat)) continue;
+    if (s.bucket !== bucket) {continue;}
+    if (!stats.includes(s.stat)) {continue;}
     dateSet.add(s.snapshot_date);
-    byKey.get(s.stat)!.set(s.snapshot_date, s.value);
+    byKey.get(s.stat)?.set(s.snapshot_date, s.value);
   }
 
   const dates = [...dateSet].sort();
   const series: Record<string, number[]> = {};
   for (const stat of stats) {
-    const m = byKey.get(stat)!;
-    series[stat] = dates.map((d) => m.get(d) ?? 0);
+    const m = byKey.get(stat);
+    series[stat] = dates.map((d) => m?.get(d) ?? 0);
   }
   return { dates, series };
 }
@@ -246,13 +246,14 @@ function pickValue(rows: SnapshotRow[], metric: string, bucket: string, stat: st
   return r ? r.value : null;
 }
 
-function latestBySize(rows: SnapshotRow[]): Record<string, BucketStats> {
-  const out: Record<string, BucketStats> = {};
+function latestBySize(rows: SnapshotRow[]): Partial<Record<string, BucketStats>> {
+  const out: Partial<Record<string, BucketStats>> = {};
   for (const r of rows) {
-    if (!out[r.bucket]) out[r.bucket] = { count: 0, median: 0, p85: 0 };
-    if (r.stat === "count") out[r.bucket].count = r.value;
-    else if (r.stat === "median") out[r.bucket].median = r.value;
-    else if (r.stat === "p85") out[r.bucket].p85 = r.value;
+    const entry: BucketStats = out[r.bucket] ?? { count: 0, median: 0, p85: 0 };
+    out[r.bucket] = entry;
+    if (r.stat === "count") {entry.count = r.value;}
+    else if (r.stat === "median") {entry.median = r.value;}
+    else if (r.stat === "p85") {entry.p85 = r.value;}
   }
   return out;
 }
@@ -272,8 +273,8 @@ interface RenderInput {
   isSyncStale: boolean;
   kpis: Record<string, number | null>;
   charts: Record<string, ChartSeries>;
-  leadBySize: Record<string, BucketStats>;
-  cycleBySize: Record<string, BucketStats>;
+  leadBySize: Partial<Record<string, BucketStats>>;
+  cycleBySize: Partial<Record<string, BucketStats>>;
   leadTimeBySizeCharts: Record<string, ChartSeries>;
   cycleTimeBySizeCharts: Record<string, ChartSeries>;
   agingWip: AgingWipSummary;
@@ -283,7 +284,7 @@ interface RenderInput {
 }
 
 function buildHistogram(values: number[]): HistogramBin[] {
-  if (values.length === 0) return [];
+  if (values.length === 0) {return [];}
   const sorted = [...values].sort((a, b) => a - b);
   const max = sorted[sorted.length - 1];
   // Largeur de bin entière au-dessus de 1, sinon 0.5. Pour distributions courtes
@@ -302,20 +303,20 @@ function buildHistogram(values: number[]): HistogramBin[] {
 }
 
 function renderHtml(input: RenderInput): string {
-  const fmt = (v: number | null, unit = "j") =>
+  const fmt = (v: number | null, unit = "j"): string =>
     v === null ? "—" : `${v.toFixed(1)}<span class="unit">${unit}</span>`;
-  const fmtInt = (v: number | null) => (v === null ? "—" : String(Math.round(v)));
-  const fmtPct = (v: number | null) =>
+  const fmtInt = (v: number | null): string => (v === null ? "—" : String(Math.round(v)));
+  const fmtPct = (v: number | null): string =>
     v === null ? "—" : `${(v * 100).toFixed(1)}<span class="unit">%</span>`;
 
-  const bySizeRows = (data: Record<string, BucketStats>) =>
+  const bySizeRows = (data: Partial<Record<string, BucketStats>>): string =>
     BUCKET_ORDER.map((b) => {
       const s = data[b];
-      if (!s || s.count === 0) return "";
-      return `<tr><td>${escapeHtml(BUCKET_LABELS[b as SizeBucket])}</td><td>${s.count}</td><td>${s.median.toFixed(1)}j</td><td>${s.p85.toFixed(1)}j</td></tr>`;
+      if (!s || s.count === 0) {return "";}
+      return `<tr><td>${escapeHtml(BUCKET_LABELS[b])}</td><td>${s.count}</td><td>${s.median.toFixed(1)}j</td><td>${s.p85.toFixed(1)}j</td></tr>`;
     }).join("");
 
-  const forecastTableRows = (data: ForecastSummary) => {
+  const forecastTableRows = (data: ForecastSummary): string => {
     if (data.byHorizon.length === 0) {
       return `<tr><td colspan="5">Pas de throughput récent.</td></tr>`;
     }
@@ -327,9 +328,9 @@ function renderHtml(input: RenderInput): string {
       .join("");
   };
 
-  const helpBtn = (key: string) => {
+  const helpBtn = (key: string): string => {
     const h = HELP_TEXTS[key];
-    if (!h) return "";
+    if (!h) {return "";}
     return `<span class="help-wrap"><button class="help-btn" aria-label="Aide">?</button><span class="help-popover" role="tooltip"><strong>${escapeHtml(h.title)}</strong>${escapeHtml(h.body)}</span></span>`;
   };
 
@@ -810,32 +811,33 @@ initBucketSelector(CYCLE_BY_SIZE, 'cycleBySizeChart', 'cycleBySizeBuckets');
 // directement par Vitest — cette version TypeScript est la seule surface testable unitairement.
 export function computeMovingAvg(values: number[], windowSize = 4): (number | null)[] {
   return values.map((_, i) => {
-    if (i < windowSize - 1) return null;
+    if (i < windowSize - 1) {return null;}
     const slice = values.slice(i - windowSize + 1, i + 1);
     return Math.round((slice.reduce((a, b) => a + b, 0) / windowSize) * 100) / 100;
   });
 }
 
 function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+  const map: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  return s.replace(/[&<>"']/g, (c) => map[c] ?? c);
 }
 
 // exporté pour tests unitaires — évite de parser le HTML complet dans les tests
 export function syncMetaLabel(lastSyncAt: string | null): string {
-  if (!lastSyncAt) return "Données Jira : jamais synchronisé";
+  if (!lastSyncAt) {return "Données Jira : jamais synchronisé";}
   return `Données Jira du ${lastSyncAt.slice(0, 16).replace("T", " ")}`;
 }
 
 // exporté pour tests unitaires — évite de parser le HTML complet dans les tests
 export function staleBannerHtml(isSyncStale: boolean, lastSyncAt: string | null): string {
-  if (!isSyncStale) return "";
+  if (!isSyncStale) {return "";}
   const syncRef = lastSyncAt ? `le ${lastSyncAt.slice(0, 10)}` : "jamais effectué";
   return `<div class="stale-warning">⚠ Données potentiellement périmées — dernier sync ${syncRef}. Lancer npm run sync.</div>`;
 }
 
 // exporté pour test unitaire (cas trim slash + échappement HTML).
 export function issueLink(key: string, jiraBaseUrl: string): string {
-  if (!key) return "";
+  if (!key) {return "";}
   const base = jiraBaseUrl.replace(/\/$/, "");
   return `<a href="${escapeHtml(base)}/browse/${escapeHtml(key)}" target="_blank" rel="noopener">${escapeHtml(key)}</a>`;
 }
