@@ -9,6 +9,7 @@ board.yaml.bak
 node_modules/
 dist/
 .claude/*.json
+!.claude/settings.json
 .claude/todo.json
 .idea/
 report.html
