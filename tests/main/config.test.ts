@@ -39,6 +39,22 @@ describe("loadJiraConfig", () => {
     expect(config.jira.boardId).toBe(42);
     expect(config.db.path).toBe("./test.db");
   });
+
+  it("frontendUrl optionnel : absent → undefined", () => {
+    const file = writeTmpYaml(jiraPayload);
+    const config = loadJiraConfig(file);
+    expect(config.jira.frontendUrl).toBeUndefined();
+  });
+
+  it("frontendUrl optionnel : présent → propagé tel quel", () => {
+    const payload = {
+      ...jiraPayload,
+      jira: { ...jiraPayload.jira, frontendUrl: "https://jira.cloud.example.com" },
+    };
+    const file = writeTmpYaml(payload);
+    const config = loadJiraConfig(file);
+    expect(config.jira.frontendUrl).toBe("https://jira.cloud.example.com");
+  });
 });
 
 describe("loadBoardConfig", () => {

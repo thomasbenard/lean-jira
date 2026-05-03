@@ -100,6 +100,7 @@ export function validateStatusConfig(
 export interface JiraFileConfig {
   jira: {
     baseUrl: string;
+    frontendUrl?: string;
     email: string;
     apiToken: string;
     projectKey: string;
@@ -434,7 +435,7 @@ program
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config);
-    generateReport(db, config.jira.projectKey, config.jira.baseUrl, path.resolve(opts.output), metricConfig);
+    generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig);
     console.log(`Rapport généré : ${path.resolve(opts.output)}`);
   });
 

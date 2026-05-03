@@ -3,6 +3,9 @@ jira:
   # le gateway: https://api.atlassian.com/ex/jira/<cloudId>/
   # cloudId récupérable via GET https://<your-domain>/_edge/tenant_info
   baseUrl: "https://jira.your-company.com"
+  # frontendUrl : URL de l'interface Jira (pour les liens du rapport).
+  # Obligatoire si baseUrl pointe vers le gateway Atlassian (api.atlassian.com).
+  # frontendUrl: "https://jira.your-company.com"
   email: "your.email@company.com"
   apiToken: "YOUR_API_TOKEN"
   projectKey: "YOUR_PROJECT_KEY"
