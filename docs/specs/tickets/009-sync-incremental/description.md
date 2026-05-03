@@ -16,4 +16,4 @@ Lire la date du dernier sync depuis `sync_log` au démarrage du sync. Si une ent
 
 ## Statut
 
-**à faire**
+**livré**

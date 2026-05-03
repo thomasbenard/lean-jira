@@ -70,7 +70,7 @@ Jira REST API v2 → SQLite (WAL) → metric computations → stdout / HTML repo
 
 **Layers** (`src/`):
 - `main.ts` — Commander.js CLI; routes `sync` / `metrics` / `snapshots` / `report` / `list-metrics`
-- `sync.ts` — fetches sprints + issues (with changelog), upserts to DB; `replaceTransitions` per issue
+- `sync.ts` — fetches sprints + issues (with changelog), upserts to DB; `replaceTransitions` per issue; incremental mode via `getLastSyncDate()` (JQL `updated >= "<date>"` filter when prior sync exists)
 - `jira/client.ts` — Axios + 200ms sleep between pages
 - `db/store.ts` — better-sqlite3; WAL; atomic transactions
 - `metrics/` — plugin registry: implement `Metric<T>`, register in `ALL_METRICS` (`index.ts`)

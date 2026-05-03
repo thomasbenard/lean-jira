@@ -1,6 +1,6 @@
 import { JiraClient } from "./jira/client";
 import { JiraIssue, StoredIssue, StoredSprint, StoredStatus, Transition } from "./jira/types";
-import { openDb, upsertIssues, upsertSprints, upsertStatuses, replaceAllTransitions, logSync } from "./db/store";
+import { openDb, upsertIssues, upsertSprints, upsertStatuses, replaceAllTransitions, logSync, getLastSyncDate } from "./db/store";
 
 interface SyncConfig {
   jira: {
@@ -42,9 +42,16 @@ export async function sync(config: SyncConfig): Promise<void> {
   const activeSprintIds = new Set(rawSprints.filter((s) => s.state === "active").map((s) => s.id));
   console.log(`  ${sprints.length} sprints récupérés (${activeSprintIds.size} actif(s))`);
 
+  const lastSyncDate = getLastSyncDate(db, config.jira.projectKey);
+  if (lastSyncDate) {
+    console.log(`  Sync incrémental depuis ${lastSyncDate}`);
+  } else {
+    console.log(`  Premier sync — récupération complète`);
+  }
+
   const rawIssues = await client.fetchAllIssues((fetched, total) => {
     process.stdout.write(`\r  ${fetched}/${total} issues récupérées`);
-  });
+  }, lastSyncDate ?? undefined);
   console.log(`\n  ${rawIssues.length} issues récupérées depuis Jira`);
 
   const issues: StoredIssue[] = rawIssues.map((i) => mapIssue(i, activeSprintIds));

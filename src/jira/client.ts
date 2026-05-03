@@ -22,21 +22,29 @@ export class JiraClient {
     });
   }
 
-  async fetchAllIssues(onProgress?: (fetched: number, total: number) => void): Promise<JiraIssue[]> {
+  async fetchAllIssues(
+    onProgress?: (fetched: number, total: number) => void,
+    updatedSince?: string,
+  ): Promise<JiraIssue[]> {
     const issues: JiraIssue[] = [];
     const pageSize = 100;
     let startAt = 0;
     let total = 0;
 
+    const jqlDate = updatedSince ? updatedSince.slice(0, 16).replace("T", " ") : null;
+
     do {
-      const response = await this.http.get(`/rest/agile/1.0/board/${this.boardId}/issue`, {
-        params: {
-          startAt,
-          maxResults: pageSize,
-          expand: "changelog",
-          fields: "summary,issuetype,status,created,resolutiondate,assignee,priority,customfield_10020,timeoriginalestimate",
-        },
-      });
+      const params: Record<string, string | number> = {
+        startAt,
+        maxResults: pageSize,
+        expand: "changelog",
+        fields: "summary,issuetype,status,created,resolutiondate,assignee,priority,customfield_10020,timeoriginalestimate",
+      };
+      if (jqlDate) {
+        params.jql = `updated >= "${jqlDate}"`;
+      }
+
+      const response = await this.http.get(`/rest/agile/1.0/board/${this.boardId}/issue`, { params });
 
       const data = response.data;
       total = data.total;
