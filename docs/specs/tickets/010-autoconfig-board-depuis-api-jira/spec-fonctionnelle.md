@@ -66,6 +66,7 @@ L'inférence repose sur la **position** dans le board, qui est une convention un
 
 - Avertissement explicite avant modification : `⚠ --apply va écraser board.columns dans ./config.yaml. Attente 3s…`
 - Attend 3 secondes puis procède (non-interactif, pour usage en script)
+- Copie le fichier existant vers `config.yaml.bak` avant toute modification
 - Recharge le fichier YAML existant, remplace uniquement la clé `board.columns`, réécrit le fichier
 - Les autres sections (`jira`, `metrics`, `db`) sont préservées
 
