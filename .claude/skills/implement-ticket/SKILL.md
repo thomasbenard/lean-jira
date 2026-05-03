@@ -102,7 +102,7 @@ Pour chaque finding sévérité `bug` ou `spec-deviation` :
 
 Re-lancer `npx vitest run` après chaque correction.
 
-### Phase 7 — Mise à jour specs système (conditionnelle)
+### Phase 7 — Mise à jour specs système + CLAUDE.md (conditionnelle)
 
 Les fichiers sous `docs/specs/system/` (`spec-fonctionnelle.md`, `spec-technique.md`, `metrics-formulas.md`) décrivent l'**état actuel** du produit (cf. CLAUDE.md). Si le ticket livré modifie un invariant ou un comportement décrit dans une de ces spécs, mettre à jour le fichier concerné.
 
@@ -132,6 +132,29 @@ Les fichiers sous `docs/specs/system/` (`spec-fonctionnelle.md`, `spec-technique
 
 Si doute sur la nécessité : demander à l'utilisateur. Mieux vaut une question qu'une spec qui dérive.
 
+#### CLAUDE.md — mise à jour conditionnelle
+
+`CLAUDE.md` est le guide de Claude sur le code ; il contient des sections qui peuvent devenir caduques après un ticket. Évaluer après chaque ticket :
+
+| Section `CLAUDE.md` | Màj requise si… |
+|---|---|
+| **Key invariants** | Un invariant change (définition de "delivered", unités, calcul WIP, filtrage population…) |
+| **Database schema** | Nouvelle table, colonne, index ou suppression |
+| **Metric catalog** | Nouvelle métrique ajoutée ou renommée |
+| **Commands** | Nouveau sous-commande CLI ou nouvelle option |
+| **Architecture / Layers** | Nouveau module dans `src/`, nouvelle couche, nouveau pattern |
+| **Configuration (`config.yaml`)** | Nouveau champ ou clé dans la config |
+
+**Exemptions CLAUDE.md** (ne pas modifier) :
+- Refactor interne sans changement de surface
+- Bug fix qui restaure un comportement déjà documenté
+- Changement purement cosmétique (CSS, HTML, ordre de logs)
+- Ajout de tests sans toucher prod
+
+**Règle de tranchage** : « un Claude qui lirait `CLAUDE.md` à froid et regarderait ensuite le code dirait-il "c'est faux" ? » Si oui → màj. Sinon → exemption.
+
+**Procédure** : grep les sections concernées dans `CLAUDE.md`, éditer en préservant le ton descriptif (état présent, pas changelog). Pas d'historique « avant/après ».
+
 ### Phase 8 — Clôture
 
 1. Mettre à jour `description.md` du ticket : `Statut: livré`
@@ -159,7 +182,7 @@ Si doute sur la nécessité : demander à l'utilisateur. Mieux vaut une question
 | 4. /simplify | 3-8k | inline |
 | 5. Review sous-agent | 1-2k retournés (raisonnement isolé) | sous-agent |
 | 6. Fixes | 2-5k | inline |
-| 7. Màj specs système (si applicable) | 1-3k | inline |
+| 7. Màj specs système + CLAUDE.md (si applicable) | 1-4k | inline |
 | 8. Clôture | <1k | inline |
 | **Total ticket M** | **20-55k** | |
 
