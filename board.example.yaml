@@ -9,15 +9,19 @@ board:
 
     # type: active + devStart: true → début du cycle time
     # devStart peut être sur plusieurs colonnes ; leurs statuts sont unionés
+    # role: dev|qa|po → optionnel, indique quel rôle travaille dans la colonne
+    #   (fondation métriques role-aware ; ignoré si absent)
     - name: "Développement"
       type: active
       devStart: true
+      # role: dev
       statuses:
         - "In Progress"
 
     # type: queue → temps d'attente (flow-efficiency)
     - name: "Review"
       type: queue
+      # role: qa
       statuses:
         - "In Review"
 

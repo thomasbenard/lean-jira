@@ -148,3 +148,77 @@ describe("deriveStatusConfig", () => {
     expect(result.inProgressStatuses).toEqual(["Dev en cours"]);
   });
 });
+
+describe("deriveStatusConfig — groupes role-based", () => {
+  it("colonnes avec role distinct → groupes devStatuses/qaStatuses/poStatuses corrects", () => {
+    const board: BoardConfig = {
+      columns: [
+        { name: "Dev", type: "active", devStart: true, role: "dev", statuses: ["En dev"] },
+        { name: "File QA", type: "queue", role: "qa", statuses: ["En attente QA"] },
+        { name: "QA", type: "active", role: "qa", statuses: ["En test"] },
+        { name: "Validation PO", type: "queue", role: "po", statuses: ["À valider"] },
+      ],
+    };
+
+    const result = deriveStatusConfig(board);
+
+    expect(result.devStatuses).toEqual(["En dev"]);
+    expect(result.qaStatuses).toEqual(["En attente QA", "En test"]);
+    expect(result.poStatuses).toEqual(["À valider"]);
+  });
+
+  it("aucune colonne avec role → trois groupes vides", () => {
+    const board: BoardConfig = {
+      columns: [
+        { name: "Todo", type: "todo", statuses: ["À faire"] },
+        { name: "Dev", type: "active", statuses: ["En dev"] },
+      ],
+    };
+
+    const result = deriveStatusConfig(board);
+
+    expect(result.devStatuses).toEqual([]);
+    expect(result.qaStatuses).toEqual([]);
+    expect(result.poStatuses).toEqual([]);
+  });
+
+  it("colonne type done avec role po → incluse dans poStatuses", () => {
+    const board: BoardConfig = {
+      columns: [
+        { name: "À valider", type: "done", role: "po", statuses: ["À valider"] },
+      ],
+    };
+
+    const result = deriveStatusConfig(board);
+
+    expect(result.poStatuses).toContain("À valider");
+  });
+
+  it("plusieurs colonnes role qa → statuts unionnés sans doublon", () => {
+    const board: BoardConfig = {
+      columns: [
+        { name: "File QA", type: "queue", role: "qa", statuses: ["En attente QA", "Partagé"] },
+        { name: "QA", type: "active", role: "qa", statuses: ["En test", "Partagé"] },
+      ],
+    };
+
+    const result = deriveStatusConfig(board);
+
+    expect(result.qaStatuses).toContain("En attente QA");
+    expect(result.qaStatuses).toContain("En test");
+    expect(result.qaStatuses.filter((s) => s === "Partagé")).toHaveLength(1);
+  });
+
+  it("legacyStatuses d'une colonne avec role → inclus dans le groupe role", () => {
+    const board: BoardConfig = {
+      columns: [
+        { name: "Dev", type: "active", role: "dev", statuses: ["En dev"], legacyStatuses: ["In Progress"] },
+      ],
+    };
+
+    const result = deriveStatusConfig(board);
+
+    expect(result.devStatuses).toContain("En dev");
+    expect(result.devStatuses).toContain("In Progress");
+  });
+});

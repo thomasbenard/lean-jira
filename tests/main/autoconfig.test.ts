@@ -436,3 +436,19 @@ describe("mergeColumns — règle 3 : colonne config absente de l'API", () => {
     expect(warnings.filter((w) => w.includes("absente du board Jira"))).toHaveLength(3);
   });
 });
+
+describe("mergeColumns — préservation du champ role", () => {
+  it("role préservé depuis la config existante après merge", () => {
+    const existing: BoardColumn[] = [{ name: "Dev", type: "active", role: "dev", statuses: [] }];
+    const inferred: InferredColumn[] = [{ name: "Dev", type: "active", statuses: ["En dev"] }];
+    const { columns } = mergeColumns(existing, inferred);
+    expect(columns[0].role).toBe("dev");
+  });
+
+  it("nouvelle colonne sans role → role absent après merge", () => {
+    const existing: BoardColumn[] = [];
+    const inferred: InferredColumn[] = [{ name: "QA", type: "active", statuses: ["En test"] }];
+    const { columns } = mergeColumns(existing, inferred);
+    expect(columns[0].role).toBeUndefined();
+  });
+});

@@ -168,7 +168,7 @@ Génère `board.columns` depuis l'API Jira Agile par inférence de position. Usa
 | `inferBoardColumns` | `(boardConfig: JiraBoardConfig, statuses: JiraStatus[]) → InferredColumn[]` | Inférence position : première=todo, dernière=done. Colonnes intermédiaires : `queue` si le nom contient un mot-clé de `QUEUE_KEYWORDS` (review, validation, valider, attente, wait, waiting, approval, approuver, staging, qa), sinon `active`. Premier `active` → `devStart: true`. Mot-clé déclencheur stocké dans `queueKeyword` (affiché en commentaire YAML). |
 | `renderBoardColumnsYaml` | `(columns: InferredColumn[]) → string` | Génère YAML avec commentaires inline, `legacyStatuses` par colonne. |
 | `enrichWithLegacyStatuses` | `(columns, boardConfig, allStatuses, db) → EnrichmentResult` | Croise `transitions` DB avec l'API Jira pour détecter les statuts legacy : mute `columns[todoIdx/doneIdx].legacyStatuses` en place, retourne `{ unresolvable }`. |
-| `mergeColumns` | `(existing: BoardColumn[], inferred: InferredColumn[]) → { columns: InferredColumn[]; warnings: string[] }` | Fusionne colonnes inférées avec config existante : préserve `type`, `devStart`, `legacyStatuses` par nom. Retourne warnings (nouvelles colonnes, colonnes absentes) sans side-effect. |
+| `mergeColumns` | `(existing: BoardColumn[], inferred: InferredColumn[]) → { columns: InferredColumn[]; warnings: string[] }` | Fusionne colonnes inférées avec config existante : préserve `type`, `devStart`, `role`, `legacyStatuses` par nom. Retourne warnings (nouvelles colonnes, colonnes absentes) sans side-effect. |
 | `buildUnresolvableComment` | `(names: string[]) → string` | Génère un bloc de commentaires YAML listant les statuts non classifiés, prêt à copier-coller. Retourne `""` si liste vide. |
 
 `InferredColumn extends BoardColumn { warning?: string; queueKeyword?: string }` — champs internes utilisés pour les commentaires inline YAML, non écrits dans le fichier de config.
@@ -177,7 +177,7 @@ Génère `board.columns` depuis l'API Jira Agile par inférence de position. Usa
 
 ### Mode fusion (`autoconfig` avec config existante)
 
-Si `config.board.columns` non vide : `mergeColumns(existingColumns, inferBoardColumns(...))`. Chaque colonne API est réconciliée par nom exact avec la config existante — `type`/`devStart`/`legacyStatuses` préservés, `statuses` mis à jour depuis l'API. Colonnes nouvelles (API seulement) → ajout avec warning. Colonnes orphelines (config seulement) → conservées avec warning. `board.legacyDoneStatuses` préservé tel quel dans `--apply`.
+Si `config.board.columns` non vide : `mergeColumns(existingColumns, inferBoardColumns(...))`. Chaque colonne API est réconciliée par nom exact avec la config existante — `type`/`devStart`/`role`/`legacyStatuses` préservés, `statuses` mis à jour depuis l'API. Colonnes nouvelles (API seulement) → ajout avec warning. Colonnes orphelines (config seulement) → conservées avec warning. `board.legacyDoneStatuses` préservé tel quel dans `--apply`.
 
 Si `config.board.columns` absent ou vide → inférence complète (comportement premier lancement).
 

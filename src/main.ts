@@ -14,11 +14,13 @@ import { JiraClient } from "./jira/client";
 import { type JiraBoardConfig, type JiraStatus } from "./jira/types";
 
 type ColumnType = "todo" | "active" | "queue" | "done";
+export type RoleType = "dev" | "qa" | "po";
 
 export interface BoardColumn {
   name: string;
   type: ColumnType;
   devStart?: boolean;
+  role?: RoleType;
   statuses: string[];
   legacyStatuses?: string[];
 }
@@ -35,12 +37,17 @@ interface DerivedStatusConfig {
   activeStatuses: string[];
   queueStatuses: string[];
   doneStatuses: string[];
+  devStatuses: string[];
+  qaStatuses: string[];
+  poStatuses: string[];
 }
 
 export function deriveStatusConfig(board: BoardConfig): DerivedStatusConfig {
   const effectiveStatuses = (c: BoardColumn): string[] => [...c.statuses, ...(c.legacyStatuses ?? [])];
   const byType = (type: ColumnType): string[] =>
     board.columns.filter((c) => c.type === type).flatMap(effectiveStatuses);
+  const byRole = (role: RoleType): string[] =>
+    board.columns.filter((c) => c.role === role).flatMap(effectiveStatuses);
   const unique = (arr: string[]): string[] => [...new Set(arr)];
 
   const active = byType("active");
@@ -53,6 +60,9 @@ export function deriveStatusConfig(board: BoardConfig): DerivedStatusConfig {
     activeStatuses: unique(active),
     queueStatuses: unique(queue),
     doneStatuses: unique([...byType("done"), ...(board.legacyDoneStatuses ?? [])]),
+    devStatuses: unique(byRole("dev")),
+    qaStatuses: unique(byRole("qa")),
+    poStatuses: unique(byRole("po")),
   };
 }
 
@@ -353,6 +363,7 @@ export function mergeColumns(
       ...col,
       type: prev.type,
       devStart: prev.devStart,
+      role: prev.role,
       legacyStatuses: prev.legacyStatuses,
       queueKeyword: undefined,
     };

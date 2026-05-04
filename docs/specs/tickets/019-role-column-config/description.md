@@ -25,4 +25,4 @@ test pour `deriveStatusConfig` + `mergeColumns`.
 
 ## Statut
 
-**à faire**
+**livré**

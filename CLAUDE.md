@@ -71,7 +71,7 @@ Jira REST API v2 → SQLite (WAL) → metric computations → stdout / HTML repo
 ```
 
 **Layers** (`src/`):
-- `main.ts` — Commander.js CLI; routes `sync` / `metrics` / `snapshots` / `report` / `autoconfig` / `list-metrics`; exports `inferBoardColumns()`, `renderBoardColumnsYaml()`, `enrichWithLegacyStatuses()`, `mergeColumns()`, `buildUnresolvableComment()`, `loadJiraConfig()`, `loadBoardConfig()`, `loadConfigs()`, `InferredColumn`, `BoardColumn`, `JiraFileConfig`, `BoardFileConfig`
+- `main.ts` — Commander.js CLI; routes `sync` / `metrics` / `snapshots` / `report` / `autoconfig` / `list-metrics`; exports `inferBoardColumns()`, `renderBoardColumnsYaml()`, `enrichWithLegacyStatuses()`, `mergeColumns()`, `buildUnresolvableComment()`, `loadJiraConfig()`, `loadBoardConfig()`, `loadConfigs()`, `InferredColumn`, `BoardColumn`, `RoleType`, `JiraFileConfig`, `BoardFileConfig`
 - `sync.ts` — fetches sprints + issues (with changelog), upserts to DB; `replaceTransitions` per issue; incremental mode via `getLastSyncDate()` (JQL `updated >= "<date>"` filter when prior sync exists)
 - `jira/client.ts` — Axios + 200ms sleep between pages
 - `db/store.ts` — better-sqlite3; WAL; atomic transactions
@@ -109,7 +109,7 @@ Jira REST API v2 → SQLite (WAL) → metric computations → stdout / HTML repo
 
 Config is split into two files: `config.yaml` (gitignored, secrets: `jira.*` + `db.*`) and `board.yaml` (commitable: `board.*` + `metrics.*`). Use `config.example.yaml` and `board.example.yaml` as templates. `autoconfig --apply` generates `board.yaml`.
 
-Board is defined as an ordered list of columns under `board.columns`. Each column has a `type` (`todo` | `active` | `queue` | `done`), an optional `devStart: true` flag, and a list of `statuses`. Status lists for metrics are derived automatically by `deriveStatusConfig()` in `main.ts`:
+Board is defined as an ordered list of columns under `board.columns`. Each column has a `type` (`todo` | `active` | `queue` | `done`), an optional `devStart: true` flag, an optional `role` (`"dev" | "qa" | "po"`) flag, and a list of `statuses`. Status lists for metrics are derived automatically by `deriveStatusConfig()` in `main.ts`:
 
 - columns `type: todo` → `todoStatuses` → start of lead time
 - columns `devStart: true` → `devStartStatuses` → start of cycle time
@@ -117,6 +117,7 @@ Board is defined as an ordered list of columns under `board.columns`. Each colum
 - columns `type: active` → `activeStatuses` → "touch time" for `flow-efficiency`
 - columns `type: queue` → `queueStatuses` → "queue time" for `flow-efficiency`
 - columns `type: done` ∪ `board.legacyDoneStatuses` → `doneStatuses` → fallback for legacy renamed statuses absent from `/rest/api/2/status`; unioned with DB-derived done set
+- columns `role: dev` → `devStatuses`; `role: qa` → `qaStatuses`; `role: po` → `poStatuses` → fondation métriques role-aware (tickets 021–025); colonnes sans `role` ignorées silencieusement
 - `metrics.cutoffDate` → global lower bound (issues delivered before are ignored)
 - `metrics.bugIssueTypes` → routed to BUG bucket; excluded from normalized/weighted metrics
 - `metrics.healthThresholds` → optional KPI health signals in the report; each key maps to `{ warn, crit }` pair; absent = no signal; keys: `leadTimeMedianDays`, `cycleTimeMedianDays`, `throughputWeekly` (higher=better), `wipCount`, `bugCycleTimeMedianDays`, `bugRatio`
