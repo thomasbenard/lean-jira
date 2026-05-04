@@ -142,6 +142,7 @@ Board is defined as an ordered list of columns under `board.columns`. Each colum
 
 1. Create `src/metrics/<name>.ts` implementing `Metric<T>`
 2. If the metric measures duration to delivery, build SQL with `buildDeliveredCte(config.doneStatuses)` from `utils.ts` — never use `issues.resolved_at` as the endpoint (`config.doneStatuses` is passed from `MetricConfig`, itself derived from `board.columns` + `board.legacyDoneStatuses`)
+2b. If the metric needs per-issue transitions for the cycle-time population, use `fetchDeliveredTransitions(db, config)` + `groupByIssue()` from `utils.ts` instead of duplicating the query. For role-based time breakdown, use `computeRoleDays(transitions, done_at, toRoleStatuses(config))` — `toRoleStatuses` coalesces the optional `devStatuses/qaStatuses/poStatuses` from `MetricConfig` to non-optional arrays.
 3. Import and push into `ALL_METRICS` in `src/metrics/index.ts`
 4. Result shape determines how `snapshots/compute.ts` extracts stats. Recognized shapes: `buckets` (Record<SizeBucket, DurationStats>), `aggregateFlowEfficiency` (flow-efficiency-like), `riskCounts` (aging-wip-like), `avgDays` (DurationStats), `openCount` (bug-backlog-like), `avgBugRatio` (dev-time-allocation-like), `byWeek` (debit). Other shapes are silently skipped — add an explicit `extractStats` branch if the metric needs persistent history.
 5. If the metric is non-deterministic (e.g. Monte Carlo) or shouldn't be back-filled, add an explicit skip in `snapshots/compute.ts` (see `forecast`).

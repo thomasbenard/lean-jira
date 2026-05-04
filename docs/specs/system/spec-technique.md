@@ -24,7 +24,7 @@ Jira REST API v2 + Agile API
         │
         ├── src/metrics/          ← Registre de métriques (plugin pattern)
         │       ├── index.ts      ← ALL_METRICS, runAllMetrics, runMetric
-        │       └── utils.ts      ← buildDeliveredCte, percentiles, outliers, working-days
+        │       └── utils.ts      ← buildDeliveredCte, percentiles, outliers, working-days, fetchDeliveredTransitions, groupByIssue, computeRoleDays, toRoleStatuses
         │
         ├── src/snapshots/        ← Backfill historique hebdo
         │       └── compute.ts    ← backfillSnapshots, computeHistoricWip
@@ -147,6 +147,9 @@ Construit par `buildMetricConfig(db, app)` dans `src/main.ts`. Les listes de sta
 | `inProgressStatuses` | WIP (filtrés contre doneSet) |
 | `activeStatuses` | Touch time pour flow-efficiency (filtrés) |
 | `queueStatuses` | Queue time pour flow-efficiency (filtrés) |
+| `devStatuses` | Statuts colonnes `role: dev` ; `[]` si aucun rôle configuré |
+| `qaStatuses` | Statuts colonnes `role: qa` ; `[]` si aucun rôle configuré |
+| `poStatuses` | Statuts colonnes `role: po` ; `[]` si aucun rôle configuré |
 | `doneStatuses` | Union DB-derived + config legacy → définit `done_at` |
 | `cutoffDate` | Borne basse (issues livrées avant ignorées) |
 | `windowEndDate` | Borne haute (injecté par le système de snapshots) |

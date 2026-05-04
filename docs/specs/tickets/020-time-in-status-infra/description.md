@@ -39,4 +39,4 @@ Extension de `MetricConfig` + propagation dans `buildMetricConfig`. 5–7 scéna
 
 ## Statut
 
-**à faire**
+**livré**

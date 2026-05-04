@@ -12,6 +12,10 @@ export interface MetricConfig {
   // ready-for-X). Tout statut in-progress non listé ici ni dans activeStatuses
   // est ignoré du calcul de flow-efficiency.
   queueStatuses?: string[];
+  // Vides si board.yaml ne définit aucun role sur ses colonnes.
+  devStatuses?: string[];
+  qaStatuses?: string[];
+  poStatuses?: string[];
   // Date ISO (YYYY-MM-DD). Issues résolues avant sont ignorées. Utile pour
   // exclure les bulk closes liés aux migrations de workflow.
   cutoffDate?: string;
