@@ -327,6 +327,29 @@ Les issues non estimées sont comptées séparément (`unestimatedCount`) mais *
 
 ---
 
+### `stage-time-breakdown`
+
+**Population** : identique à `cycle-time` — issues livrées ayant une transition `todoStatuses` ET une transition `devStartStatuses`. Filtres `cutoffDate`, `windowEndDate`, `excludeIssueTypes` appliqués.
+
+**Calcul par issue** : `computeRoleDays(transitions, done_at, roles)` — jours ouvrés passés dans les statuts `role: dev` / `role: qa` / `role: po`. Passes multiples (rework) cumulées. Statuts hors rôle ignorés.
+
+**Agrégation** : `statsFromDays(arr, false)` par rôle (pas de second filtrage outliers — déjà filtré sur `cycleDays` au niveau issue via Tukey upper fence).
+
+**avgShareByRole** :
+```
+avgShareByRole[r] = mean( issue.roleDays[r] / (devDays + qaDays + poDays) )
+                   sur les issues où devDays + qaDays + poDays > 0
+```
+Issues où la somme role-days = 0 exclues du calcul (évite division par zéro).
+
+**Cas aucun rôle configuré** : retourne `{ count: 0, byRole: {...zeros}, avgShareByRole: {0,0,0} }` + warning console.
+
+**Snapshot** : fenêtre 30 jours rolling (`ROLLING_WINDOW_DAYS`). Stocke `count` (bucket `""`), et pour chaque rôle avec `s.count > 0` : `median`, `p85`, `avgShare` (bucket `"dev"` / `"qa"` / `"po"`).
+
+**Sortie** : `{ count, excludedOutliers, byRole: {dev, qa, po}: DurationStats, avgShareByRole: {dev, qa, po}: number }`.
+
+---
+
 ## WIP (Work In Progress)
 
 ### `wip` — snapshot courant

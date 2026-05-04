@@ -12,6 +12,7 @@ import { generateReport, type HealthThresholds } from "./report/generate";
 import { type MetricConfig } from "./metrics/types";
 import { JiraClient } from "./jira/client";
 import { type JiraBoardConfig, type JiraStatus } from "./jira/types";
+import { type StageTimeSummary } from "./metrics/stageTimeBreakdown";
 
 type ColumnType = "todo" | "active" | "queue" | "done";
 export type RoleType = "dev" | "qa" | "po";
@@ -666,6 +667,20 @@ function printResults(results: Record<string, unknown>): void {
       console.log(`  P15 (pire 15%)         : ${(p15 * 100).toFixed(1)} %`);
       console.log(`  Total actif / queue    : ${totalA.toFixed(1)} j / ${totalQ.toFixed(1)} j`);
       console.log(`  Issues                 : ${cnt}${exc > 0 ? ` (${exc} outliers exclus)` : ""}`);
+    } else if ("byRole" in d) {
+      const r = d as unknown as StageTimeSummary;
+      const exc = r.excludedOutliers > 0 ? ` (${r.excludedOutliers} outliers exclus)` : "";
+      console.log(`  Issues : ${r.count}${exc}`);
+      if (r.count > 0) {
+        console.log(`  ${"Rôle".padEnd(6)}  ${"Médiane".padStart(8)}  ${"P85".padStart(6)}  ${"Moy".padStart(6)}  ${"Part moy".padStart(8)}`);
+        for (const role of ["dev", "qa", "po"] as const) {
+          const s = r.byRole[role];
+          const share = (r.avgShareByRole[role] * 100).toFixed(0);
+          console.log(
+            `  ${role.padEnd(6)}  ${s.medianDays.toFixed(1).padStart(7)} j  ${s.p85Days.toFixed(1).padStart(5)} j  ${s.avgDays.toFixed(1).padStart(5)} j  ${share.padStart(7)} %`,
+          );
+        }
+      }
     } else if ("byHorizon" in d && "recentWeeks" in d) {
       const samples = d.recentWeeks as number[];
       const horizons = d.byHorizon as { weeks: number; p15: number; p50: number; p85: number; p95: number }[];

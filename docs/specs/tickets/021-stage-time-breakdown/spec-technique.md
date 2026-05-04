@@ -186,7 +186,8 @@ Fenêtre snapshot : 30-day rolling (défaut pour métriques duration — cf. `RO
 3. Implémenter jusqu'à tests verts
 4. Ajouter dans `ALL_METRICS` (`index.ts`)
 5. Ajouter branch `extractStats` + import dans `compute.ts`
-6. Vérifier `npm run metrics -m stage-time-breakdown` et `npm run snapshots`
+6. Ajouter rendu console (`main.ts` → branche `byRole` dans `printResults`)
+7. Vérifier `npm run metrics -m stage-time-breakdown` et `npm run snapshots`
 
 ## Notes
 
