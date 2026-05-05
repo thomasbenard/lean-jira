@@ -6,7 +6,7 @@ const mockFetchAllSprints = vi.fn().mockResolvedValue([]);
 const mockFetchAllIssues = vi.fn().mockResolvedValue([]);
 
 vi.mock("../../src/jira/client", () => ({
-  JiraClient: vi.fn().mockImplementation(function () {
+  JiraClient: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
     this.fetchAllStatuses = mockFetchAllStatuses;
     this.fetchAllSprints = mockFetchAllSprints;
     this.fetchAllIssues = mockFetchAllIssues;
