@@ -542,6 +542,36 @@ export function renderHtml(input: RenderInput): string {
   details.advanced-section > :not(summary) { padding: 0 1rem 1rem; }
   .theme-btn { background: var(--btn-bg); border: 1px solid var(--border); color: var(--text); cursor: pointer; padding: 0.3rem 0.75rem; border-radius: 4px; font-size: 0.85rem; white-space: nowrap; }
   .theme-btn:hover { opacity: 0.8; }
+  .chart-card { position: relative; }
+  .zoom-btn {
+    position: absolute; top: 0.55rem; right: 0.55rem;
+    background: var(--btn-bg); border: 1px solid var(--border); color: var(--btn-color);
+    cursor: pointer; border-radius: 4px; padding: 0.15rem 0.4rem; font-size: 0.85rem;
+    line-height: 1.4; opacity: 0.5; z-index: 1;
+  }
+  .zoom-btn:hover { opacity: 1; background: #2563eb; color: white; border-color: #2563eb; }
+  .chart-modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.72);
+    z-index: 2000; align-items: center; justify-content: center;
+  }
+  .chart-modal-overlay.open { display: flex; }
+  .chart-modal {
+    background: var(--bg-card); border-radius: 8px; padding: 1.25rem 1.5rem 1.5rem;
+    width: 92vw; max-width: 1300px; max-height: 92vh;
+    display: flex; flex-direction: column; gap: 0.75rem;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  }
+  .chart-modal-header { display: flex; justify-content: space-between; align-items: center; min-height: 1.8rem; }
+  .chart-modal-title { font-weight: 600; font-size: 1rem; color: var(--text); }
+  .chart-modal-close {
+    background: var(--btn-bg); border: 1px solid var(--border); color: var(--btn-color);
+    cursor: pointer; border-radius: 4px; padding: 0.25rem 0.6rem; font-size: 1rem; line-height: 1.2;
+    flex-shrink: 0;
+  }
+  .chart-modal-close:hover { background: #ef4444; color: white; border-color: #ef4444; }
+  .chart-modal-canvas-wrap { flex: 1; min-height: 0; height: 75vh; position: relative; }
+  .chart-modal-canvas-wrap canvas { max-height: none !important; width: 100% !important; height: 100% !important; }
+  .chart-modal-desc { font-size: 0.82rem; color: var(--text-muted); line-height: 1.45; margin: 0; padding-bottom: 0.25rem; border-bottom: 1px solid var(--border); }
 </style>
 </head>
 <body>
@@ -1152,6 +1182,91 @@ lineChart("reworkRatioChart", CHARTS.handoffReworkRatio, [
       ],
     },
     options: baseOpts,
+  });
+})();
+
+// Modal zoom
+(function initZoom() {
+  const HELP_BODIES = ${JSON.stringify(
+    Object.fromEntries(
+      Object.entries(HELP_TEXTS).map(([k, v]) => [k, v?.body ?? ""])
+    )
+  )};
+  const CANVAS_KEY = {
+    leadTimeChart: "leadTime", cycleTimeChart: "cycleTime",
+    throughputChart: "throughput", throughputWeightedChart: "throughputWeighted",
+    wipChart: "wip", bugThroughputChart: "bugThroughput",
+    bugCycleTimeChart: "bugCycleTime", cycleHistogramChart: "cycleHistogram",
+    leadNormalizedChart: "leadTimeNormalized", cycleNormalizedChart: "cycleTimeNormalized",
+    flowEfficiencyChart: "flowEfficiency", leadBySizeChart: "leadTimeBySize",
+    cycleBySizeChart: "cycleTimeBySize", agingScatter: "agingWip",
+    devTimeAllocationChart: "devTimeAllocation", bugBacklogChart: "bugBacklog",
+    stageTimeByRoleChart: "stageTimeBreakdown", stageTimeShareChart: "stageTimeBreakdown",
+    wipPerRoleChart: "wipPerRole", stageThroughputGapChart: "stageThroughputGap",
+    reworkRatioChart: "handoffRework", reworkByTypeChart: "handoffRework",
+    ftrByRoleChart: "firstTimeRight",
+  };
+
+  document.body.insertAdjacentHTML('beforeend', [
+    '<div class="chart-modal-overlay" id="chartModal" role="dialog" aria-modal="true">',
+    '<div class="chart-modal">',
+    '<div class="chart-modal-header">',
+    '<span class="chart-modal-title" id="chartModalTitle"></span>',
+    '<button class="chart-modal-close" id="chartModalClose" aria-label="Fermer">✕</button>',
+    '</div>',
+    '<p class="chart-modal-desc" id="chartModalDesc"></p>',
+    '<div class="chart-modal-canvas-wrap"><canvas id="chartModalCanvas"></canvas></div>',
+    '</div></div>',
+  ].join(''));
+
+  let modalChart = null;
+  const overlay = document.getElementById('chartModal');
+  const modalTitle = document.getElementById('chartModalTitle');
+  const modalDesc = document.getElementById('chartModalDesc');
+  const modalClose = document.getElementById('chartModalClose');
+  const modalCanvas = document.getElementById('chartModalCanvas');
+
+  function openModal(sourceCanvasId, title) {
+    const src = Chart.getChart(sourceCanvasId);
+    if (!src) return;
+    modalTitle.textContent = title;
+    const desc = HELP_BODIES[CANVAS_KEY[sourceCanvasId] ?? ''] ?? '';
+    modalDesc.textContent = desc;
+    modalDesc.style.display = desc ? '' : 'none';
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    if (modalChart) { modalChart.destroy(); modalChart = null; }
+    const cfg = src.config._config;
+    modalChart = new Chart(modalCanvas, {
+      type: cfg.type,
+      data: JSON.parse(JSON.stringify(cfg.data)),
+      options: Object.assign(JSON.parse(JSON.stringify(cfg.options ?? {})), { responsive: true, maintainAspectRatio: false }),
+      plugins: cfg.plugins,
+    });
+  }
+
+  function closeModal() {
+    overlay.classList.remove('open');
+    document.body.style.overflow = '';
+    if (modalChart) { modalChart.destroy(); modalChart = null; }
+  }
+
+  modalClose.addEventListener('click', closeModal);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && overlay.classList.contains('open')) closeModal(); });
+
+  document.querySelectorAll('.chart-card').forEach(function(card) {
+    const canvas = card.querySelector('canvas');
+    if (!canvas || !canvas.id) return;
+    const h3 = card.querySelector('h3');
+    const title = h3 ? Array.from(h3.childNodes).filter(n => n.nodeType === Node.TEXT_NODE).map(n => n.textContent).join('').trim() : '';
+    const btn = document.createElement('button');
+    btn.className = 'zoom-btn';
+    btn.title = 'Agrandir';
+    btn.textContent = '⤢';
+    btn.setAttribute('aria-label', 'Agrandir ce graphe');
+    btn.addEventListener('click', function() { openModal(canvas.id, title); });
+    card.appendChild(btn);
   });
 })();
 </script>
