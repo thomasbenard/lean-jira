@@ -26,4 +26,4 @@ scénarios test (entrée simple, sortie, rework, semaine vide, rôle non configu
 
 ## Statut
 
-**à faire**
+**livré**

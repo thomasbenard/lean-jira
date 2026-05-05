@@ -24,4 +24,4 @@ comptage de segments de rôle déjà conçu pour 023/024), 2 fichiers modifiés 
 
 ## Statut
 
-**à faire**
+**livré**

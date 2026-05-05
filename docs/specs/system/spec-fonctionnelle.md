@@ -158,6 +158,10 @@ Basés sur l'estimation initiale (`originalEstimate`) de l'issue (1 jour = 8 h) 
 | `dev-time-allocation` | Somme des cycle times livrés **+ WIP en cours** par semaine, split features vs bugs. `avgBugRatio = totalBugDays / totalDays` (pondéré par volume). Détecte la dérive vers le mode pompier sans lag de livraison. | Issues avec transition todo ET devStart (livrées ou en cours) |
 | `bug-backlog` | Nombre de bugs ouverts à la fin de chaque semaine (`openCount`) et flux net hebdomadaire `closed − created` (`netFlow`). `netFlow > 0` = backlog se réduit, `< 0` = grossit. Pas de scoping sprint. | Tous les bugs (issues de type `bugIssueTypes`) |
 | `stage-time-breakdown` | Temps médian passé dans chaque rôle (dev/qa/po) sur la population cycle-time. `avgShareByRole` = part moyenne de chaque rôle dans le temps role-observable. Révèle où le lead time est consommé. Requiert `role: dev\|qa\|po` sur les colonnes du board. | Population cycle-time (todo + devStart + livrée) |
+| `wip-per-role` | Nombre de tickets en cours dans chaque rôle (dev/qa/po) à l'instant T. Sans scoping sprint. Permet de détecter le rôle saturé en daily standup. | WIP global (issues.current_status) |
+| `stage-throughput-gap` | Entrées et sorties par rôle par semaine ISO. `devNet = devIn − devOut`. Net positif = accumulation d'inventaire dans ce rôle. Fenêtre 30j en snapshot, complète en CLI. | Toutes transitions sur la période |
+| `handoff-rework` | % de tickets retournant en arrière entre rôles (`reworkRatio`), nombre moyen de reworks par ticket (`avgReworks`), et décompte par type (qaToDev, poToQa, poDev). | Population cycle-time, rolling 30j |
+| `first-time-right` | % de tickets traversant chaque rôle en un seul passage continu (`ftrRate`). Complément de `handoff-rework` : KPI lisible par rôle. | Population cycle-time, rolling 30j |
 
 **Invariant lead/cycle** : les métriques `lead-time` et `cycle-time` (et leurs variantes) filtrent sur les issues ayant **à la fois** une transition `todoStatuses` et une transition `devStartStatuses`, ce qui garantit `lead_time ≥ cycle_time` par issue et rend les percentiles comparables.
 

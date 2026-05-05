@@ -138,6 +138,10 @@ Board is defined as an ordered list of columns under `board.columns`. Each colum
 | `dev-time-allocation` | byWeek (featureDays/bugDays/bugRatio) + avgBugRatio | weekly cycle-time split features vs bugs; includes WIP (done_at fictif = today); avgBugRatio weighted by volume |
 | `bug-backlog` | openCount / netFlow / created / closed | point-in-time open bugs + weekly net flow (closed − created) |
 | `stage-time-breakdown` | count + byRole {dev,qa,po}: DurationStats + avgShareByRole {dev,qa,po} | temps médian par rôle sur population cycle-time; requiert `role:` sur colonnes board.yaml |
+| `wip-per-role` | byRole {dev,qa,po}: {count, issueKeys} | WIP global par rôle (sans scoping sprint); snapshot point-in-time via `computeHistoricWipPerRole` |
+| `stage-throughput-gap` | byWeek [{devIn,devOut,devNet,qaIn,...}] + avgNetByRole {dev,qa,po} | entrées/sorties par rôle par semaine ISO; fenêtre 30j (snapshot) ou complète (CLI) |
+| `handoff-rework` | count + reworkRatio + avgReworks + byReworkType {qaToDev,poToQa,poDev} | % tickets avec retour arrière entre rôles; population cycle-time; rolling 30j |
+| `first-time-right` | count + ftrByRole {dev,qa,po}: {eligible,firstTimeRight,ftrRate,avgPasses} | % tickets traversant chaque rôle en 1 seul passage; population cycle-time; rolling 30j |
 
 ## Adding a metric
 
@@ -145,5 +149,5 @@ Board is defined as an ordered list of columns under `board.columns`. Each colum
 2. If the metric measures duration to delivery, build SQL with `buildDeliveredCte(config.doneStatuses)` from `utils.ts` — never use `issues.resolved_at` as the endpoint (`config.doneStatuses` is passed from `MetricConfig`, itself derived from `board.columns` + `board.legacyDoneStatuses`)
 2b. If the metric needs per-issue transitions for the cycle-time population, use `fetchDeliveredTransitions(db, config)` + `groupByIssue()` from `utils.ts` instead of duplicating the query. For role-based time breakdown, use `computeRoleDays(transitions, done_at, toRoleStatuses(config))` — `toRoleStatuses` coalesces the optional `devStatuses/qaStatuses/poStatuses` from `MetricConfig` to non-optional arrays.
 3. Import and push into `ALL_METRICS` in `src/metrics/index.ts`
-4. Result shape determines how `snapshots/compute.ts` extracts stats. Recognized shapes: `buckets` (Record<SizeBucket, DurationStats>), `aggregateFlowEfficiency` (flow-efficiency-like), `riskCounts` (aging-wip-like), `avgDays` (DurationStats), `openCount` (bug-backlog-like), `avgBugRatio` (dev-time-allocation-like), `byRole` (stage-time-breakdown-like), `byWeek` (debit). Other shapes are silently skipped — add an explicit `extractStats` branch if the metric needs persistent history.
+4. Result shape determines how `snapshots/compute.ts` extracts stats. Recognized shapes: `buckets` (Record<SizeBucket, DurationStats>), `aggregateFlowEfficiency` (flow-efficiency-like), `riskCounts` (aging-wip-like), `avgDays` (DurationStats), `openCount` (bug-backlog-like), `avgBugRatio` (dev-time-allocation-like), `byRole` (stage-time-breakdown-like), `byWeek` (debit), `reworkRatio` (handoff-rework-like), `ftrByRole` (first-time-right-like), `avgNetByRole` (stage-throughput-gap-like). WIP par rôle est géré séparément via `computeHistoricWipPerRole` (hors `extractStats`). Other shapes are silently skipped — add an explicit `extractStats` branch if the metric needs persistent history.
 5. If the metric is non-deterministic (e.g. Monte Carlo) or shouldn't be back-filled, add an explicit skip in `snapshots/compute.ts` (see `forecast`).

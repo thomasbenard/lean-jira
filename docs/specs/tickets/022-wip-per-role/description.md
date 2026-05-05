@@ -23,4 +23,4 @@ board. Snapshot point-in-time (comme `wip`), géré via `computeHistoricWip` ana
 
 ## Statut
 
-**à faire**
+**livré**

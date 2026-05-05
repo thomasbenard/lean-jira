@@ -350,6 +350,78 @@ Issues où la somme role-days = 0 exclues du calcul (évite division par zéro).
 
 ---
 
+### `stage-throughput-gap`
+
+**Définition** : entrées et sorties de chaque rôle par semaine ISO. Détecte l'accumulation d'inventaire inter-rôles avant que le lead time ne dérive.
+
+**Population** : toutes les issues ayant des transitions sur la période (pas limitées à la population cycle-time).
+
+**Algorithme** :
+```
+Pour chaque issue, reconstructing la séquence de rôles ordonnée par transitioned_at :
+  currentRole = rôle du to_status (ou "none" si hors rôle configuré)
+  Pour chaque transition t :
+    Si rôle(t.to_status) ≠ rôle(t.from_status) :
+      Si rôle(t.to_status) = R → entrée[R][week(t.transitioned_at)] += 1
+      Si rôle(t.from_status) = R → sortie[R][week(t.transitioned_at)] += 1
+
+devNet = devIn − devOut  (idem qa, po)
+avgNetByRole[R] = mean(devNet sur toutes les semaines non vides)
+```
+
+**Snapshot** : fenêtre 30 jours rolling. Stocke par rôle `avgNet` (bucket `"dev"` / `"qa"` / `"po"`).
+
+**Sortie** : `{ byWeek: StageWeekRow[], avgNetByRole: {dev, qa, po} }`.
+
+---
+
+### `handoff-rework`
+
+**Définition** : proportion de tickets retournant en arrière entre rôles (qa→dev, po→qa, po→dev). Mesure le coût du rework et la qualité d'entrée par étape.
+
+**Population** : identique à `cycle-time` — `fetchDeliveredTransitions` + `groupByIssue`.
+
+**Algorithme** :
+```
+Pour chaque issue, séquence de rôles ordonnée par transitioned_at :
+  Un "rework" = transition de rôle vers un rôle antérieur dans l'ordre naturel dev < qa < po
+  (passage par "none" transparent : qa → none → dev = 1 rework qaToDev)
+
+reworkRatio = count(issues avec ≥ 1 rework) / count(total issues)
+avgReworks   = sum(reworks par issue) / count(total issues)
+byReworkType = { qaToDev, poToQa, poDev } — décompte occurrences
+```
+
+**Snapshot** : fenêtre 30 jours rolling. Stocke `reworkRatio`, `avgReworks`, et les 3 types de rework.
+
+**Sortie** : `{ count, reworkRatio, avgReworks, byReworkType: {qaToDev, poToQa, poDev}, issues: ReworkIssue[] }`.
+
+---
+
+### `first-time-right`
+
+**Définition** : % de tickets traversant chaque rôle en un seul passage continu (sans retour). KPI lisible complément de `handoff-rework`.
+
+**Population** : identique à `cycle-time`.
+
+**Algorithme** :
+```
+Pour chaque issue et chaque rôle R :
+  passages[R] = nombre de segments contigus dans R
+                (chaque interruption — sortie puis retour — = passage supplémentaire)
+
+  eligible[R] = issues ayant ≥ 1 passage dans R
+  firstTimeRight[R] = eligible[R] où passages[R] = 1
+  ftrRate[R] = firstTimeRight[R] / eligible[R]  (0 si eligible=0)
+  avgPasses[R] = mean(passages[R]) sur eligible[R]
+```
+
+**Snapshot** : fenêtre 30 jours rolling. Stocke par rôle : `eligible`, `firstTimeRight`, `ftrRate`, `avgPasses` (bucket `"dev"` / `"qa"` / `"po"`).
+
+**Sortie** : `{ count, ftrByRole: {dev, qa, po}: {eligible, firstTimeRight, ftrRate, avgPasses} }`.
+
+---
+
 ## WIP (Work In Progress)
 
 ### `wip` — snapshot courant
@@ -391,6 +463,24 @@ wip_at_D = COUNT(issues) WHERE
 ```
 
 SQL : voir `computeHistoricWip` dans `src/snapshots/compute.ts`. `inProgressStatuses` reçu est déjà strippé du done-set par `buildMetricConfig`.
+
+---
+
+### `wip-per-role`
+
+**Définition** : nombre d'issues dont `current_status` appartient aux statuts du rôle (dev/qa/po), à l'instant T. Sans scoping sprint.
+
+**Algorithme** :
+```
+Pour chaque rôle R ∈ {dev, qa, po} configuré :
+  wipRole[R] = SELECT key FROM issues WHERE current_status IN roleStatuses[R]
+```
+
+**Cas aucun rôle configuré** : retourne `{ byRole: {dev: {count:0,issueKeys:[]}, ...} }`.
+
+**Snapshot** : `computeHistoricWipPerRole` reconstruit le statut à la date D via `last_status_before_D` (même logique que WIP historique). Stocke `count` par bucket rôle (`"dev"` / `"qa"` / `"po"`).
+
+**Sortie** : `{ byRole: {dev: WipRoleSlice, qa: WipRoleSlice, po: WipRoleSlice} }` où `WipRoleSlice = {count, issueKeys[]}`.
 
 ---
 
@@ -524,7 +614,9 @@ Pour chaque date D :
 | Durée (lead, cycle, normalized, bug-cycle, flow-efficiency) | `cutoffDate = D − 30j`, `windowEndDate = D` |
 | **By-size (lead-time-by-size, cycle-time-by-size) + aging-wip** | `cutoffDate = config.cutoffDate` (global), `windowEndDate = D` — cumulative depuis l'origine |
 | Débit (throughput, bug-throughput, throughput-weighted, bug-backlog) | `cutoffDate = D − 7j`, `windowEndDate = D` |
-| WIP | Algorithme historique ci-dessus, pas de fenêtre glissante |
+| WIP (`wip`, `wip-per-role`) | Algorithme historique ci-dessus, pas de fenêtre glissante |
+| Rework / qualité (`handoff-rework`, `first-time-right`) | `cutoffDate = D − 30j`, `windowEndDate = D` |
+| Flux rôles (`stage-throughput-gap`) | `cutoffDate = D − 30j`, `windowEndDate = D` |
 | `forecast` | **Skip** — Monte Carlo non déterministe, computé live en report |
 
 **Stats extraites et stockées** par snapshot (résolution dans `extractStats`, `src/snapshots/compute.ts`) :
@@ -538,7 +630,11 @@ Pour chaque date D :
 | `byWeek` sans estimation | `count` (total semaine) |
 | `byWeek` avec estimation | `count`, `estimatedDays` |
 | `openCount` (bug-backlog) | `openCount`, `netFlow`, `created`, `closed` |
-| WIP | `count` |
+| WIP global | `count` (bucket `""`) |
+| WIP par rôle (`computeHistoricWipPerRole`) | `count` par bucket rôle (`"dev"` / `"qa"` / `"po"`) |
+| `avgNetByRole` (stage-throughput-gap) | `avgNet` par bucket rôle |
+| `reworkRatio` (handoff-rework) | `reworkRatio`, `avgReworks`, `qaToDev`, `poToQa`, `poDev` |
+| `ftrByRole` (first-time-right) | `eligible`, `firstTimeRight`, `ftrRate`, `avgPasses` par bucket rôle |
 
 Tout résultat ne correspondant à aucune de ces formes est silencieusement ignoré. Pour ajouter une métrique snapshottable avec une nouvelle forme, ajouter une branche dans `extractStats`.
 

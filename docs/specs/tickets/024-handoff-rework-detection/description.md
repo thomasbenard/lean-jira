@@ -25,4 +25,4 @@ similaire à 023), 2 fichiers modifiés (`index.ts`, `compute.ts`). 5–7 scéna
 
 ## Statut
 
-**à faire**
+**livré**
