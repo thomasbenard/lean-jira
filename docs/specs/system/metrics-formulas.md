@@ -632,9 +632,11 @@ Pour chaque date D :
 | `openCount` (bug-backlog) | `openCount`, `netFlow`, `created`, `closed` |
 | WIP global | `count` (bucket `""`) |
 | WIP par rôle (`computeHistoricWipPerRole`) | `count` par bucket rôle (`"dev"` / `"qa"` / `"po"`) |
-| `avgNetByRole` (stage-throughput-gap) | `avgNet` par bucket rôle |
-| `reworkRatio` (handoff-rework) | `reworkRatio`, `avgReworks`, `qaToDev`, `poToQa`, `poDev` |
-| `ftrByRole` (first-time-right) | `eligible`, `firstTimeRight`, `ftrRate`, `avgPasses` par bucket rôle |
+| `avgShareByRole` (stage-time-breakdown) | `median`, `p85`, `avgShare` par bucket rôle non-vide ; discriminateur prioritaire sur `byRole` |
+| `byRole` (wip-per-role-like) | `count` par bucket rôle ; ne déclenche que si `avgShareByRole` absent |
+| `avgNetByRole` (stage-throughput-gap) | `in`, `out`, `avgNet` par bucket rôle |
+| `reworkRatio` (handoff-rework) | `reworkRatio`, `avgReworks`, `count` par bucket rework type (`qaToDev`/`poToQa`/`poDev`) |
+| `ftrByRole` (first-time-right) | `eligible`, `ftrRate`, `avgPasses` par bucket rôle éligible |
 
 Tout résultat ne correspondant à aucune de ces formes est silencieusement ignoré. Pour ajouter une métrique snapshottable avec une nouvelle forme, ajouter une branche dans `extractStats`.
 

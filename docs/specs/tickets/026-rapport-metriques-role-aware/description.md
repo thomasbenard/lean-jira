@@ -29,4 +29,4 @@ Une fonction helper `buildRoleSeries(rows, buckets, stat)` est ajoutée dans `ge
 
 ## Statut
 
-**à faire**
+**livré**

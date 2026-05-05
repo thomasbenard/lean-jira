@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { issueLink, agingRowsHtml, buildBucketSeries, syncMetaLabel, staleBannerHtml, computeMovingAvg, renderHtml } from "../../src/report/generate";
+import { issueLink, agingRowsHtml, buildBucketSeries, buildRoleSeries, syncMetaLabel, staleBannerHtml, computeMovingAvg, renderHtml } from "../../src/report/generate";
 import type { AgingWipSummary } from "../../src/metrics/agingWip";
 import type { SnapshotRow } from "../../src/snapshots/compute";
 
@@ -23,6 +23,17 @@ function makeRenderInput(): RenderInput {
       bugCycleTimeMedian: null,
       flowEfficiencyAggregate: null,
       devTimeAvgBugRatio: null,
+      stageTimeDevMedian: null,
+      stageTimeQaMedian: null,
+      stageTimePoMedian: null,
+      wipDev: null,
+      wipQa: null,
+      wipPo: null,
+      reworkRatio: null,
+      avgReworks: null,
+      ftrDev: null,
+      ftrQa: null,
+      ftrPo: null,
     },
     charts: {
       leadTime: empty,
@@ -38,6 +49,14 @@ function makeRenderInput(): RenderInput {
       agingWipRisk: empty,
       devTimeAllocation: empty,
       bugBacklog: empty,
+      stageTimeByRole: empty,
+      stageTimeByRoleP85: empty,
+      stageTimeShare: empty,
+      wipPerRole: empty,
+      stageThroughputNet: empty,
+      handoffReworkRatio: empty,
+      handoffReworkByType: empty,
+      ftrByRole: empty,
     },
     leadBySize: {},
     cycleBySize: {},
@@ -291,5 +310,61 @@ describe("renderHtml — groupement thématique", () => {
     expect(bugsSection).toContain("Bugs livrés (7j)");
     expect(bugsSection).toContain("Bug cycle médian");
     expect(bugsSection).toContain("Bug ratio moyen");
+  });
+
+  it("4e section H2 Flux par rôle présente après Capacité", () => {
+    const html = renderHtml(makeRenderInput());
+    const capacitePos = html.indexOf("<h2>Capacité");
+    const fluxPos = html.indexOf("<h2>Flux par rôle</h2>");
+    expect(fluxPos).toBeGreaterThan(capacitePos);
+  });
+
+  it("canvas ids des 5 métriques role-aware présents dans le HTML", () => {
+    const html = renderHtml(makeRenderInput());
+    expect(html).toContain('id="stageTimeByRoleChart"');
+    expect(html).toContain('id="stageTimeShareChart"');
+    expect(html).toContain('id="wipPerRoleChart"');
+    expect(html).toContain('id="stageThroughputGapChart"');
+    expect(html).toContain('id="reworkRatioChart"');
+    expect(html).toContain('id="reworkByTypeChart"');
+    expect(html).toContain('id="ftrByRoleChart"');
+  });
+});
+
+describe("buildRoleSeries", () => {
+  const rows: SnapshotRow[] = [
+    { snapshot_date: "2025-01-05", metric_name: "stage-time-breakdown", bucket: "dev", stat: "median", value: 2 },
+    { snapshot_date: "2025-01-05", metric_name: "stage-time-breakdown", bucket: "qa",  stat: "median", value: 1 },
+    { snapshot_date: "2025-01-05", metric_name: "stage-time-breakdown", bucket: "po",  stat: "median", value: 0.5 },
+    { snapshot_date: "2025-01-12", metric_name: "stage-time-breakdown", bucket: "dev", stat: "median", value: 3 },
+    { snapshot_date: "2025-01-12", metric_name: "stage-time-breakdown", bucket: "qa",  stat: "median", value: 1.5 },
+    // po absent à 2025-01-12
+  ];
+
+  it("dates triées, series pour chaque bucket", () => {
+    const result = buildRoleSeries(rows, ["dev", "qa", "po"], "median");
+    expect(result.dates).toEqual(["2025-01-05", "2025-01-12"]);
+    expect(result.series["dev"]).toEqual([2, 3]);
+    expect(result.series["qa"]).toEqual([1, 1.5]);
+  });
+
+  it("rôle absent pour une date → 0 (pas d'erreur)", () => {
+    const result = buildRoleSeries(rows, ["dev", "qa", "po"], "median");
+    const poIdx = result.dates.indexOf("2025-01-12");
+    expect(result.series["po"][poIdx]).toBe(0);
+  });
+
+  it("aucune donnée → dates et séries vides", () => {
+    const result = buildRoleSeries([], ["dev", "qa", "po"], "median");
+    expect(result.dates).toHaveLength(0);
+  });
+
+  it("filtre par stat uniquement", () => {
+    const rowsWithP85: SnapshotRow[] = [
+      ...rows,
+      { snapshot_date: "2025-01-05", metric_name: "stage-time-breakdown", bucket: "dev", stat: "p85", value: 5 },
+    ];
+    const result = buildRoleSeries(rowsWithP85, ["dev"], "median");
+    expect(result.series["dev"]).toEqual([2, 3]);
   });
 });

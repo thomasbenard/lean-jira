@@ -5,6 +5,7 @@ import { BUCKET_ORDER, placeholders, type DurationStats } from "../metrics/utils
 import { type DevTimeAllocationSummary } from "../metrics/devTimeAllocation";
 import { type BugBacklogResult } from "../metrics/bugBacklog";
 import { type StageTimeSummary } from "../metrics/stageTimeBreakdown";
+import { type WipPerRoleResult } from "../metrics/wipPerRole";
 import { type StageThroughputGapResult } from "../metrics/stageThroughputGap";
 import { type HandoffReworkResult } from "../metrics/handoffRework";
 import { type FirstTimeRightResult } from "../metrics/firstTimeRight";
@@ -170,7 +171,7 @@ export function extractStats(date: string, metricName: string, result: Record<st
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "qaToDev", stat: "count", value: r.byReworkType.qaToDev });
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "poToQa", stat: "count", value: r.byReworkType.poToQa });
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "poDev", stat: "count", value: r.byReworkType.poDev });
-  } else if ("byRole" in result) {
+  } else if ("avgShareByRole" in result) {
     const r = result as unknown as StageTimeSummary;
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "count", value: r.count });
     for (const role of ["dev", "qa", "po"] as const) {
@@ -179,6 +180,13 @@ export function extractStats(date: string, metricName: string, result: Record<st
       out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "median", value: s.medianDays });
       out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "p85", value: s.p85Days });
       out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "avgShare", value: r.avgShareByRole[role] });
+    }
+  } else if ("byRole" in result) {
+    // wip-per-role bypasse extractStats via computeHistoricWipPerRole — cette branche
+    // est une protection explicite pour tout futur metric avec shape WipPerRoleResult.
+    const r = result as unknown as WipPerRoleResult;
+    for (const role of ["dev", "qa", "po"] as const) {
+      out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "count", value: r.byRole[role].count });
     }
   } else if ("ftrByRole" in result) {
     const r = result as unknown as FirstTimeRightResult;

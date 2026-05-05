@@ -9,6 +9,7 @@ import {
   removeUpperOutliers,
   workingDaysBetween,
   type DurationStats,
+  type RoleStatuses,
 } from "./utils";
 
 export interface StageTimeSummary {

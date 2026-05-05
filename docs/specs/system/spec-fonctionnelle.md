@@ -208,7 +208,7 @@ Généré le {YYYY-MM-DD HH:MM} · Données Jira du {YYYY-MM-DD HH:MM} · Derni�
 
 ### Contenu
 
-Le rapport est organisé en 3 sections thématiques H2, dans cet ordre :
+Le rapport est organisé en 4 sections thématiques H2, dans cet ordre :
 
 #### 1. Livraison
 
@@ -227,6 +227,18 @@ Le rapport est organisé en 3 sections thématiques H2, dans cet ordre :
 
 - **Forecast Monte Carlo** : table P15/P50/P85/P95 par horizon.
 - **Aging WIP** : scatter (statut × âge) avec seuils P50/P85/P95 + table top 15 par âge avec classification de risque. Les clés d'issues dans la table sont des liens cliquables ouvrant la page Jira correspondante (`{baseUrl}/browse/{key}`) dans un nouvel onglet.
+
+#### 4. Flux par rôle
+
+Toujours visible (pas dans un accordéon). Affiche les 5 métriques role-aware issues des tickets 021–025.
+
+- **Stage time breakdown** : 3 KPI cards (médiane dev/qa/po), graphique barres groupées P50+P85 par rôle, donut de répartition moyenne du cycle time (dernière snapshot).
+- **WIP par rôle** : 3 KPI cards (WIP dev/qa/po), courbe WIP par rôle sur le temps.
+- **Stage throughput gap** : graphique barres groupées flux net (entrées − sorties) par rôle ; axe Y peut être négatif.
+- **Handoff rework** : 2 KPI cards (% tickets avec rework, reworks/ticket), courbe taux de rework, graphique barres reworks par type (qaToDev/poToQa/poDev).
+- **First-time-right rate** : 3 KPI cards (FTR dev/qa/po en %), courbe FTR par rôle.
+
+Si aucune colonne `role:` n'est configurée dans `board.yaml`, aucune snapshot role-aware n'existe → graphiques vides sans erreur.
 
 #### Transverse
 

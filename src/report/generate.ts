@@ -147,6 +147,26 @@ const HELP_TEXTS: Record<string, { title: string; body: string } | undefined> = 
     body:
       "Simule 10 000 scénarios de livraison à partir des throughput hebdo des 12 dernières semaines. P15 = engagement à 85% de confiance (« on livrera au moins X »). P50 = livraison médiane attendue. P85/P95 = optimiste. Résultat varie d'un run à l'autre (aléa contrôlé).",
   },
+  stageTimeBreakdown: {
+    title: "Stage time breakdown",
+    body: "Temps médian passé par chaque rôle (dev/qa/po) sur les tickets cycle-time. Révèle où le temps est consommé dans le flux.",
+  },
+  wipPerRole: {
+    title: "WIP par rôle",
+    body: "Nombre de tickets en cours par rôle à chaque fin de semaine. Identifier quel rôle accumule du WIP non limité.",
+  },
+  stageThroughputGap: {
+    title: "Stage throughput gap",
+    body: "Flux net (entrées − sorties) par rôle sur la période. Positif = le rôle reçoit plus qu'il ne livre (backlog grossit). Négatif = le rôle écoule son backlog.",
+  },
+  handoffRework: {
+    title: "Handoff rework",
+    body: "% tickets avec au moins un retour arrière (qa→dev, po→qa, po→dev) et nombre moyen de reworks. Indicateur de qualité au passage de rôle.",
+  },
+  firstTimeRight: {
+    title: "First-time-right rate",
+    body: "% tickets ayant traversé chaque rôle en un seul passage (sans retour). FTR 100% = aucun rework. Complément lisible du handoff-rework.",
+  },
 };
 
 export function generateReport(
@@ -188,6 +208,14 @@ export function generateReport(
     agingWipRisk: buildSeries(metricRows("aging-wip"), "", ["ok", "watch", "atRisk", "critical"]),
     devTimeAllocation: buildSeries(metricRows("dev-time-allocation"), "", ["featureDays", "bugDays", "bugRatio"]),
     bugBacklog: buildSeries(metricRows("bug-backlog"), "", ["openCount", "netFlow"]),
+    stageTimeByRole: buildRoleSeries(metricRows("stage-time-breakdown"), ["dev", "qa", "po"], "median"),
+    stageTimeByRoleP85: buildRoleSeries(metricRows("stage-time-breakdown"), ["dev", "qa", "po"], "p85"),
+    stageTimeShare: buildRoleSeries(metricRows("stage-time-breakdown"), ["dev", "qa", "po"], "avgShare"),
+    wipPerRole: buildRoleSeries(metricRows("wip-per-role"), ["dev", "qa", "po"], "count"),
+    stageThroughputNet: buildRoleSeries(metricRows("stage-throughput-gap"), ["dev", "qa", "po"], "avgNet"),
+    handoffReworkRatio: buildSeries(metricRows("handoff-rework"), "", ["reworkRatio", "avgReworks"]),
+    handoffReworkByType: buildRoleSeries(metricRows("handoff-rework"), ["qaToDev", "poToQa", "poDev"], "count"),
+    ftrByRole: buildRoleSeries(metricRows("first-time-right"), ["dev", "qa", "po"], "ftrRate"),
   };
 
   const lastDate = snapshots[snapshots.length - 1].snapshot_date;
@@ -202,6 +230,17 @@ export function generateReport(
     bugCycleTimeMedian: pickValue(latestRows, "bug-cycle-time", "", "median"),
     flowEfficiencyAggregate: pickValue(latestRows, "flow-efficiency", "", "aggregate"),
     devTimeAvgBugRatio: pickValue(latestRows, "dev-time-allocation", "", "bugRatio"),
+    stageTimeDevMedian: pickValue(latestRows, "stage-time-breakdown", "dev", "median"),
+    stageTimeQaMedian:  pickValue(latestRows, "stage-time-breakdown", "qa",  "median"),
+    stageTimePoMedian:  pickValue(latestRows, "stage-time-breakdown", "po",  "median"),
+    wipDev: pickValue(latestRows, "wip-per-role", "dev", "count"),
+    wipQa:  pickValue(latestRows, "wip-per-role", "qa",  "count"),
+    wipPo:  pickValue(latestRows, "wip-per-role", "po",  "count"),
+    reworkRatio: pickValue(latestRows, "handoff-rework", "", "reworkRatio"),
+    avgReworks:  pickValue(latestRows, "handoff-rework", "", "avgReworks"),
+    ftrDev: pickValue(latestRows, "first-time-right", "dev", "ftrRate"),
+    ftrQa:  pickValue(latestRows, "first-time-right", "qa",  "ftrRate"),
+    ftrPo:  pickValue(latestRows, "first-time-right", "po",  "ftrRate"),
   };
 
   const leadBySize = latestBySize(latestRows.filter((r) => r.metric_name === "lead-time-by-size"));
@@ -257,6 +296,27 @@ export function generateReport(
 
 export function buildBucketSeries(snapshots: SnapshotRow[], bucket: string, stats: string[]): ChartSeries {
   return buildSeries(snapshots, bucket, stats);
+}
+
+export function buildRoleSeries(snapshots: SnapshotRow[], buckets: string[], stat: string): ChartSeries {
+  const bucketSet = new Set(buckets);
+  const dateSet = new Set<string>();
+  const byBucket = new Map<string, Map<string, number>>();
+  for (const b of buckets) { byBucket.set(b, new Map()); }
+
+  for (const s of snapshots) {
+    if (!bucketSet.has(s.bucket) || s.stat !== stat) { continue; }
+    dateSet.add(s.snapshot_date);
+    byBucket.get(s.bucket)?.set(s.snapshot_date, s.value);
+  }
+
+  const dates = [...dateSet].sort();
+  const series: Record<string, number[]> = {};
+  for (const b of buckets) {
+    const m = byBucket.get(b);
+    series[b] = dates.map((d) => m?.get(d) ?? 0);
+  }
+  return { dates, series };
 }
 
 function buildSeries(snapshots: SnapshotRow[], bucket: string, stats: string[]): ChartSeries {
@@ -573,6 +633,43 @@ ${staleBannerHtml(input.isSyncStale, input.lastSyncAt)}
     </table>
   </div>
 </div>
+
+<h2>Flux par rôle</h2>
+<h3>Stage time breakdown${helpBtn("stageTimeBreakdown")}</h3>
+<div class="kpis">
+  <div class="kpi"><span class="label">Médiane dev</span><span class="value">${fmt(input.kpis.stageTimeDevMedian)}</span></div>
+  <div class="kpi"><span class="label">Médiane qa</span><span class="value">${fmt(input.kpis.stageTimeQaMedian)}</span></div>
+  <div class="kpi"><span class="label">Médiane po</span><span class="value">${fmt(input.kpis.stageTimePoMedian)}</span></div>
+</div>
+<div class="charts">
+  <div class="chart-card"><h3>Temps médian par rôle (jours)</h3><canvas id="stageTimeByRoleChart"></canvas></div>
+  <div class="chart-card"><h3>Répartition moyenne du cycle time</h3><canvas id="stageTimeShareChart"></canvas></div>
+</div>
+<h3>WIP par rôle${helpBtn("wipPerRole")}</h3>
+<div class="kpis">
+  <div class="kpi"><span class="label">WIP dev</span><span class="value">${fmtInt(input.kpis.wipDev)}</span></div>
+  <div class="kpi"><span class="label">WIP qa</span><span class="value">${fmtInt(input.kpis.wipQa)}</span></div>
+  <div class="kpi"><span class="label">WIP po</span><span class="value">${fmtInt(input.kpis.wipPo)}</span></div>
+</div>
+<div class="chart-card"><canvas id="wipPerRoleChart"></canvas></div>
+<h3>Stage throughput gap${helpBtn("stageThroughputGap")}</h3>
+<div class="chart-card"><canvas id="stageThroughputGapChart"></canvas></div>
+<h3>Handoff rework${helpBtn("handoffRework")}</h3>
+<div class="kpis">
+  <div class="kpi"><span class="label">% tickets avec rework</span><span class="value">${fmtPct(input.kpis.reworkRatio)}</span></div>
+  <div class="kpi"><span class="label">Reworks / ticket</span><span class="value">${fmt(input.kpis.avgReworks, "")}</span></div>
+</div>
+<div class="charts">
+  <div class="chart-card"><h3>Taux de rework</h3><canvas id="reworkRatioChart"></canvas></div>
+  <div class="chart-card"><h3>Reworks par type</h3><canvas id="reworkByTypeChart"></canvas></div>
+</div>
+<h3>First-time-right rate${helpBtn("firstTimeRight")}</h3>
+<div class="kpis">
+  <div class="kpi"><span class="label">FTR dev</span><span class="value">${fmtPct(input.kpis.ftrDev)}</span></div>
+  <div class="kpi"><span class="label">FTR qa</span><span class="value">${fmtPct(input.kpis.ftrQa)}</span></div>
+  <div class="kpi"><span class="label">FTR po</span><span class="value">${fmtPct(input.kpis.ftrPo)}</span></div>
+</div>
+<div class="chart-card"><canvas id="ftrByRoleChart"></canvas></div>
 
 <script>
 const _isDark = document.documentElement.classList.contains('dark');
@@ -960,6 +1057,101 @@ initBucketSelector(CYCLE_BY_SIZE, 'cycleBySizeChart', 'cycleBySizeBuckets');
         },
       },
     },
+  });
+})();
+
+const COLOR_DEV = "#2563eb";
+const COLOR_QA  = "#10b981";
+const COLOR_PO  = "#f59e0b";
+
+lineChart("wipPerRoleChart", CHARTS.wipPerRole, [
+  { key: "dev", label: "WIP dev", color: COLOR_DEV },
+  { key: "qa",  label: "WIP qa",  color: COLOR_QA  },
+  { key: "po",  label: "WIP po",  color: COLOR_PO  },
+]);
+
+lineChart("ftrByRoleChart", CHARTS.ftrByRole, [
+  { key: "dev", label: "FTR dev", color: COLOR_DEV },
+  { key: "qa",  label: "FTR qa",  color: COLOR_QA  },
+  { key: "po",  label: "FTR po",  color: COLOR_PO  },
+]);
+
+lineChart("reworkRatioChart", CHARTS.handoffReworkRatio, [
+  { key: "reworkRatio", label: "Taux de rework", color: "#ef4444" },
+], true);
+
+(function renderStageTimeByRole() {
+  const ctx = document.getElementById("stageTimeByRoleChart");
+  if (!ctx || !CHARTS.stageTimeByRole || CHARTS.stageTimeByRole.dates.length === 0) return;
+  const dates = CHARTS.stageTimeByRole.dates;
+  new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: dates,
+      datasets: [
+        { label: "Dev P50", data: CHARTS.stageTimeByRole.series["dev"],    backgroundColor: COLOR_DEV + "88", borderColor: COLOR_DEV, borderWidth: 1 },
+        { label: "Dev P85", data: CHARTS.stageTimeByRoleP85.series["dev"], backgroundColor: COLOR_DEV + "44", borderColor: COLOR_DEV, borderWidth: 1 },
+        { label: "QA P50",  data: CHARTS.stageTimeByRole.series["qa"],     backgroundColor: COLOR_QA  + "88", borderColor: COLOR_QA,  borderWidth: 1 },
+        { label: "QA P85",  data: CHARTS.stageTimeByRoleP85.series["qa"],  backgroundColor: COLOR_QA  + "44", borderColor: COLOR_QA,  borderWidth: 1 },
+        { label: "PO P50",  data: CHARTS.stageTimeByRole.series["po"],     backgroundColor: COLOR_PO  + "88", borderColor: COLOR_PO,  borderWidth: 1 },
+        { label: "PO P85",  data: CHARTS.stageTimeByRoleP85.series["po"],  backgroundColor: COLOR_PO  + "44", borderColor: COLOR_PO,  borderWidth: 1 },
+      ],
+    },
+    options: { ...baseOpts, scales: { ...baseOpts.scales, y: { ...baseOpts.scales.y, title: { display: true, text: "Jours ouvrés" } } } },
+  });
+})();
+
+(function renderStageTimeShare() {
+  const ctx = document.getElementById("stageTimeShareChart");
+  const share = CHARTS.stageTimeShare;
+  if (!ctx || !share || share.dates.length === 0) return;
+  const lastIdx = share.dates.length - 1;
+  const devShare = share.series["dev"][lastIdx] ?? 0;
+  const qaShare  = share.series["qa"][lastIdx]  ?? 0;
+  const poShare  = share.series["po"][lastIdx]  ?? 0;
+  if (devShare + qaShare + poShare === 0) return;
+  new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: ["Dev", "QA", "PO"],
+      datasets: [{ data: [devShare, qaShare, poShare], backgroundColor: [COLOR_DEV, COLOR_QA, COLOR_PO] }],
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom" } } },
+  });
+})();
+
+(function renderStageThroughputGap() {
+  const ctx = document.getElementById("stageThroughputGapChart");
+  if (!ctx || !CHARTS.stageThroughputNet || CHARTS.stageThroughputNet.dates.length === 0) return;
+  new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: CHARTS.stageThroughputNet.dates,
+      datasets: [
+        { label: "Dev net", data: CHARTS.stageThroughputNet.series["dev"], backgroundColor: COLOR_DEV + "88", borderColor: COLOR_DEV, borderWidth: 1 },
+        { label: "QA net",  data: CHARTS.stageThroughputNet.series["qa"],  backgroundColor: COLOR_QA  + "88", borderColor: COLOR_QA,  borderWidth: 1 },
+        { label: "PO net",  data: CHARTS.stageThroughputNet.series["po"],  backgroundColor: COLOR_PO  + "88", borderColor: COLOR_PO,  borderWidth: 1 },
+      ],
+    },
+    options: { ...baseOpts, scales: { ...baseOpts.scales, y: { beginAtZero: false, grid: { color: _gridColor }, ticks: { color: _tickColor } } } },
+  });
+})();
+
+(function renderReworkByType() {
+  const ctx = document.getElementById("reworkByTypeChart");
+  const series = CHARTS.handoffReworkByType;
+  if (!ctx || !series || series.dates.length === 0) return;
+  new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: series.dates,
+      datasets: [
+        { label: "QA→Dev", data: series.series["qaToDev"] ?? [], backgroundColor: "#ef444488", borderColor: "#ef4444", borderWidth: 1 },
+        { label: "PO→QA",  data: series.series["poToQa"]  ?? [], backgroundColor: "#f9731688", borderColor: "#f97316", borderWidth: 1 },
+        { label: "PO→Dev", data: series.series["poDev"]   ?? [], backgroundColor: "#a855f788", borderColor: "#a855f7", borderWidth: 1 },
+      ],
+    },
+    options: baseOpts,
   });
 })();
 </script>

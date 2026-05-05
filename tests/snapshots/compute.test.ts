@@ -219,6 +219,128 @@ describe("extractStats (shape aggregateFlowEfficiency — flow-efficiency)", () 
   });
 });
 
+// ─── extractStats shapes 021–025 ─────────────────────────────────────────────
+
+describe("extractStats (shape avgShareByRole — stage-time-breakdown)", () => {
+  const emptyStats: DurationStats = { count: 0, excludedOutliers: 0, avgDays: 0, medianDays: 0, p85Days: 0, p95Days: 0 };
+  const devStats: DurationStats = { count: 3, excludedOutliers: 0, avgDays: 2, medianDays: 2, p85Days: 4, p95Days: 5 };
+  const stageResult = {
+    count: 3, excludedOutliers: 0,
+    byRole: { dev: devStats, qa: emptyStats, po: emptyStats },
+    avgShareByRole: { dev: 0.8, qa: 0.1, po: 0.1 },
+  };
+
+  it("produit median, p85, avgShare par bucket rôle non vide", () => {
+    const rows = extractStats("2025-01-05", "stage-time-breakdown", stageResult as unknown as Record<string, unknown>);
+    const stats = rows.filter((r) => r.bucket === "dev").map((r) => r.stat);
+    expect(stats).toContain("median");
+    expect(stats).toContain("p85");
+    expect(stats).toContain("avgShare");
+  });
+
+  it("ne produit aucune ligne pour les rôles avec count=0", () => {
+    const rows = extractStats("2025-01-05", "stage-time-breakdown", stageResult as unknown as Record<string, unknown>);
+    expect(rows.filter((r) => r.bucket === "qa" && r.stat === "median")).toHaveLength(0);
+  });
+
+  it("avgShare correct", () => {
+    const rows = extractStats("2025-01-05", "stage-time-breakdown", stageResult as unknown as Record<string, unknown>);
+    const row = rows.find((r) => r.bucket === "dev" && r.stat === "avgShare");
+    expect(row?.value).toBeCloseTo(0.8, 5);
+  });
+});
+
+describe("extractStats (shape byRole — wip-per-role)", () => {
+  const wipResult = {
+    byRole: {
+      dev: { count: 5, issueKeys: ["A", "B", "C", "D", "E"] },
+      qa:  { count: 2, issueKeys: ["F", "G"] },
+      po:  { count: 0, issueKeys: [] },
+    },
+  };
+
+  it("produit stat=count par rôle", () => {
+    const rows = extractStats("2025-01-05", "wip-per-role", wipResult as unknown as Record<string, unknown>);
+    expect(rows.find((r) => r.bucket === "dev" && r.stat === "count")?.value).toBe(5);
+    expect(rows.find((r) => r.bucket === "qa"  && r.stat === "count")?.value).toBe(2);
+    expect(rows.find((r) => r.bucket === "po"  && r.stat === "count")?.value).toBe(0);
+  });
+
+  it("ne produit aucune ligne stat=median (n'est pas StageTimeSummary)", () => {
+    const rows = extractStats("2025-01-05", "wip-per-role", wipResult as unknown as Record<string, unknown>);
+    expect(rows.find((r) => r.stat === "median")).toBeUndefined();
+  });
+});
+
+describe("extractStats (shape reworkRatio — handoff-rework)", () => {
+  const reworkResult = {
+    count: 10, reworkRatio: 0.3, avgReworks: 1.5,
+    byReworkType: { qaToDev: 2, poToQa: 1, poDev: 0 },
+    issues: [],
+  };
+
+  it("produit count, reworkRatio, avgReworks", () => {
+    const rows = extractStats("2025-01-05", "handoff-rework", reworkResult as unknown as Record<string, unknown>);
+    const byKey = Object.fromEntries(rows.filter((r) => r.bucket === "").map((r) => [r.stat, r.value]));
+    expect(byKey.count).toBe(10);
+    expect(byKey.reworkRatio).toBeCloseTo(0.3, 5);
+    expect(byKey.avgReworks).toBeCloseTo(1.5, 5);
+  });
+
+  it("produit lignes par type de rework avec bucket correct", () => {
+    const rows = extractStats("2025-01-05", "handoff-rework", reworkResult as unknown as Record<string, unknown>);
+    expect(rows.find((r) => r.bucket === "qaToDev" && r.stat === "count")?.value).toBe(2);
+    expect(rows.find((r) => r.bucket === "poToQa"  && r.stat === "count")?.value).toBe(1);
+    expect(rows.find((r) => r.bucket === "poDev"   && r.stat === "count")?.value).toBe(0);
+  });
+});
+
+describe("extractStats (shape ftrByRole — first-time-right)", () => {
+  const ftrResult = {
+    count: 8,
+    ftrByRole: {
+      dev: { eligible: 8, firstTimeRight: 6, ftrRate: 0.75, avgPasses: 1.25 },
+      qa:  { eligible: 6, firstTimeRight: 5, ftrRate: 0.833, avgPasses: 1.17 },
+      po:  { eligible: 0, firstTimeRight: 0, ftrRate: 0,     avgPasses: 0 },
+    },
+  };
+
+  it("produit ftrRate et avgPasses pour les rôles éligibles", () => {
+    const rows = extractStats("2025-01-05", "first-time-right", ftrResult as unknown as Record<string, unknown>);
+    const devStats = rows.filter((r) => r.bucket === "dev").map((r) => r.stat);
+    expect(devStats).toContain("ftrRate");
+    expect(devStats).toContain("avgPasses");
+    expect(devStats).toContain("eligible");
+  });
+
+  it("rôle avec eligible=0 ne produit aucune ligne", () => {
+    const rows = extractStats("2025-01-05", "first-time-right", ftrResult as unknown as Record<string, unknown>);
+    expect(rows.filter((r) => r.bucket === "po")).toHaveLength(0);
+  });
+
+  it("ftrRate dev correct", () => {
+    const rows = extractStats("2025-01-05", "first-time-right", ftrResult as unknown as Record<string, unknown>);
+    expect(rows.find((r) => r.bucket === "dev" && r.stat === "ftrRate")?.value).toBeCloseTo(0.75, 5);
+  });
+});
+
+describe("extractStats (shape avgNetByRole — stage-throughput-gap)", () => {
+  const gapResult = {
+    byWeek: [
+      { week: "2025-W01", devIn: 3, devOut: 2, qaIn: 2, qaOut: 3, poIn: 1, poOut: 1 },
+      { week: "2025-W02", devIn: 4, devOut: 4, qaIn: 1, qaOut: 0, poIn: 0, poOut: 1 },
+    ],
+    avgNetByRole: { dev: 0.5, qa: -0.5, po: -0.5 },
+  };
+
+  it("produit in/out/avgNet par rôle", () => {
+    const rows = extractStats("2025-01-05", "stage-throughput-gap", gapResult as unknown as Record<string, unknown>);
+    expect(rows.find((r) => r.bucket === "dev" && r.stat === "in")?.value).toBe(7);
+    expect(rows.find((r) => r.bucket === "dev" && r.stat === "out")?.value).toBe(6);
+    expect(rows.find((r) => r.bucket === "qa"  && r.stat === "avgNet")?.value).toBeCloseTo(-0.5, 5);
+  });
+});
+
 // ─── backfillSnapshots wip-per-role ───────────────────────────────────────────
 
 describe("backfillSnapshots — wip-per-role snapshot", () => {
