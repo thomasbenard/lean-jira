@@ -154,8 +154,12 @@ describe("bucketize", () => {
 });
 
 describe("removeUpperOutliers", () => {
-  it("< 4 valeurs → retour intact, excluded=0", () => {
+  it("< 4 valeurs → retour trié, excluded=0", () => {
     expect(removeUpperOutliers([1, 2, 3])).toEqual({ kept: [1, 2, 3], excluded: 0 });
+  });
+
+  it("< 4 valeurs non triées → trié en sortie", () => {
+    expect(removeUpperOutliers([48.4, 8.8])).toEqual({ kept: [8.8, 48.4], excluded: 0 });
   });
 
   it("tableau vide → intact", () => {
@@ -209,6 +213,14 @@ describe("statsFromDays", () => {
     const s = statsFromDays([1, 2, 3, 4, 100], true);
     expect(s.excludedOutliers).toBeGreaterThan(0);
     expect(s.count).toBeLessThan(5);
+  });
+
+  it("n=2 non trié → p85 >= medianDays (régression bug XL bucket)", () => {
+    // Ordre d'insertion SQL aléatoire : la plus grande valeur en premier
+    const s = statsFromDays([48.4, 8.8]);
+    expect(s.p85Days).toBeGreaterThanOrEqual(s.medianDays);
+    expect(s.medianDays).toBeCloseTo(8.8, 5);
+    expect(s.p85Days).toBeCloseTo(48.4, 5);
   });
 });
 

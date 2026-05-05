@@ -153,7 +153,7 @@ export interface DurationStats {
 // Tukey upper fence: Q3 + 1.5 * IQR, queue droite seulement (cycle-time >= 0).
 // Conserve la médiane et P85 stables, retire les valeurs extrêmes qui tirent la moyenne.
 export function removeUpperOutliers(values: number[]): { kept: number[]; excluded: number } {
-  if (values.length < 4) {return { kept: values, excluded: 0 };}
+  if (values.length < 4) {return { kept: [...values].sort((a, b) => a - b), excluded: 0 };}
   const sorted = [...values].sort((a, b) => a - b);
   const q1 = percentile(sorted, 25);
   const q3 = percentile(sorted, 75);

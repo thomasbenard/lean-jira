@@ -541,6 +541,7 @@ export function renderHtml(input: RenderInput): string {
     padding: 1.2rem 1.5rem;
     display: grid; grid-template-columns: auto 1fr auto; gap: 1.5rem; align-items: center;
   }
+  .verdict.alert { border-left-color: var(--red); background: linear-gradient(135deg, rgba(255,77,106,0.08), rgba(255,138,61,0.04)); }
   .verdict.watch { border-left-color: var(--amber); background: linear-gradient(135deg, rgba(255,194,74,0.08), rgba(255,138,61,0.03)); }
   .verdict.ok { border-left-color: var(--green); background: linear-gradient(135deg, rgba(77,214,151,0.08), transparent); }
   .verdict-status {
@@ -713,6 +714,8 @@ export function renderHtml(input: RenderInput): string {
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
     .kpi-cell { border-right: 1px solid var(--line); }
     .kpi-cell:nth-child(2n) { border-right: none; }
+    .kpi-grid > .kpi-cell:nth-last-child(-n+4) { border-bottom: 1px solid var(--line); }
+    .kpi-grid > .kpi-cell:nth-last-child(-n+2) { border-bottom: none; }
     .actions-grid, .role-grid, .panel-grid, .panel-grid.three { grid-template-columns: 1fr; }
     main { padding: 1rem 1rem 4rem; }
   }
@@ -1607,6 +1610,7 @@ export function buildKpiCells(
   const ftrDevRaw = charts.ftrByRole?.series.dev ?? [];
   const ftrDevPct = ftrDevRaw.map((v) => v * 100);
   const criticalCount = agingWip.issues.filter((i) => i.riskLevel === "critical").length;
+  const criticalHistory = charts.agingWipRisk?.series.critical ?? [];
 
   return [
     { key: "lead",      label: "Lead median",     value: lastValue(lead),       unit: "j",   signal: signals.leadTime,   spark: sparkOf(lead),       delta4w: delta4w(lead),       direction: "lower",  helpKey: "leadTime" },
@@ -1617,7 +1621,7 @@ export function buildKpiCells(
     { key: "bugCycle",  label: "Bug cycle",       value: lastValue(bugCycle),   unit: "j",   signal: signals.bugCycle,   spark: sparkOf(bugCycle),   delta4w: delta4w(bugCycle),   direction: "lower",  helpKey: "bugCycleTime" },
     { key: "ftrDev",    label: "FTR dev",         value: lastValue(ftrDevPct),  unit: "%",   signal: "none",             spark: sparkOf(ftrDevPct),  delta4w: delta4w(ftrDevPct),  direction: "higher", helpKey: "firstTimeRight" },
     // pourquoi: criticalAging dérive son signal directement du compteur (pas de healthThresholds dédié) — toute issue critical est par définition au-delà du P95 historique.
-    { key: "criticalAging", label: "Critical aging", value: criticalCount,      unit: "",    signal: criticalCount > 0 ? "red" : "green", spark: [], delta4w: null,                direction: "lower",  helpKey: "agingWip" },
+    { key: "criticalAging", label: "Critical aging", value: criticalCount,      unit: "",    signal: criticalCount > 0 ? "red" : "green", spark: sparkOf(criticalHistory), delta4w: null, direction: "lower",  helpKey: "agingWip" },
   ];
 }
 
