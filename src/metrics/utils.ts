@@ -236,6 +236,18 @@ export function fetchDeliveredTransitions(
   ) as TransitionRow[];
 }
 
+// Retourne la semaine ISO (ex: "2025-W10") d'un timestamp ISO.
+// Le jeudi détermine l'année ISO (règle ISO 8601).
+export function isoWeek(dateISO: string): string {
+  const d = new Date(dateISO.length <= 10 ? dateISO + "T00:00:00Z" : dateISO);
+  const day = d.getUTCDay() || 7; // 1=Mon … 7=Sun
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const year = d.getUTCFullYear();
+  const startOfYear = new Date(Date.UTC(year, 0, 1));
+  const weekNo = Math.ceil(((d.getTime() - startOfYear.getTime()) / 86_400_000 + 1) / 7);
+  return `${year}-W${String(weekNo).padStart(2, "0")}`;
+}
+
 export function groupByIssue(rows: TransitionRow[]): Map<string, TransitionRow[]> {
   const map = new Map<string, TransitionRow[]>();
   for (const row of rows) {

@@ -5,6 +5,7 @@ import { BUCKET_ORDER, placeholders, type DurationStats } from "../metrics/utils
 import { type DevTimeAllocationSummary } from "../metrics/devTimeAllocation";
 import { type BugBacklogResult } from "../metrics/bugBacklog";
 import { type StageTimeSummary } from "../metrics/stageTimeBreakdown";
+import { type StageThroughputGapResult } from "../metrics/stageThroughputGap";
 
 const ROLLING_WINDOW_DAYS = 30;
 const WEEK_DAYS = 7;
@@ -168,6 +169,17 @@ export function extractStats(date: string, metricName: string, result: Record<st
       out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "median", value: s.medianDays });
       out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "p85", value: s.p85Days });
       out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "avgShare", value: r.avgShareByRole[role] });
+    }
+  } else if ("avgNetByRole" in result) {
+    const r = result as unknown as StageThroughputGapResult;
+    for (const role of ["dev", "qa", "po"] as const) {
+      const inKey = `${role}In` as const;
+      const outKey = `${role}Out` as const;
+      const totalIn = r.byWeek.reduce((s, w) => s + w[inKey], 0);
+      const totalOut = r.byWeek.reduce((s, w) => s + w[outKey], 0);
+      out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "in", value: totalIn });
+      out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "out", value: totalOut });
+      out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "avgNet", value: r.avgNetByRole[role] });
     }
   } else if ("byWeek" in result) {
     const byWeek = result.byWeek as {

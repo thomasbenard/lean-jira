@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { type Metric, type MetricConfig } from "./types";
-import { buildDeliveredCte, buildExcludeIssueTypesFragment, buildWindowFragment, placeholders, workingDaysBetween } from "./utils";
+import { buildDeliveredCte, buildExcludeIssueTypesFragment, buildWindowFragment, isoWeek, placeholders, workingDaysBetween } from "./utils";
 
 export interface DevTimeAllocationByWeek {
   week: string;
@@ -12,17 +12,6 @@ export interface DevTimeAllocationByWeek {
 export interface DevTimeAllocationSummary {
   byWeek: DevTimeAllocationByWeek[];
   avgBugRatio: number;
-}
-
-function isoWeek(dateISO: string): string {
-  const d = new Date(dateISO.length <= 10 ? dateISO + "T00:00:00Z" : dateISO);
-  // ISO week: Thu determines the year. Shift to nearest Thu.
-  const day = d.getUTCDay() || 7; // 1=Mon … 7=Sun
-  d.setUTCDate(d.getUTCDate() + 4 - day);
-  const year = d.getUTCFullYear();
-  const startOfYear = new Date(Date.UTC(year, 0, 1));
-  const weekNo = Math.ceil(((d.getTime() - startOfYear.getTime()) / 86_400_000 + 1) / 7);
-  return `${year}-W${String(weekNo).padStart(2, "0")}`;
 }
 
 function accumulateWeeks(

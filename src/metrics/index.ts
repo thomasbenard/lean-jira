@@ -18,6 +18,7 @@ import { devTimeAllocationMetric } from "./devTimeAllocation";
 import { bugBacklogMetric } from "./bugBacklog";
 import { stageTimeBreakdownMetric } from "./stageTimeBreakdown";
 import { wipPerRoleMetric } from "./wipPerRole";
+import { stageThroughputGapMetric } from "./stageThroughputGap";
 
 // Registre central. Ajouter une métrique = importer + pousser ici.
 const ALL_METRICS = [
@@ -39,6 +40,7 @@ const ALL_METRICS = [
   devTimeAllocationMetric,
   bugBacklogMetric,
   stageTimeBreakdownMetric,
+  stageThroughputGapMetric,
 ];
 
 export function runAllMetrics(db: Database.Database, config: MetricConfig): Record<string, unknown> {
