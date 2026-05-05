@@ -7,6 +7,7 @@ import { type BugBacklogResult } from "../metrics/bugBacklog";
 import { type StageTimeSummary } from "../metrics/stageTimeBreakdown";
 import { type StageThroughputGapResult } from "../metrics/stageThroughputGap";
 import { type HandoffReworkResult } from "../metrics/handoffRework";
+import { type FirstTimeRightResult } from "../metrics/firstTimeRight";
 
 const ROLLING_WINDOW_DAYS = 30;
 const WEEK_DAYS = 7;
@@ -178,6 +179,16 @@ export function extractStats(date: string, metricName: string, result: Record<st
       out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "median", value: s.medianDays });
       out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "p85", value: s.p85Days });
       out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "avgShare", value: r.avgShareByRole[role] });
+    }
+  } else if ("ftrByRole" in result) {
+    const r = result as unknown as FirstTimeRightResult;
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "count", value: r.count });
+    for (const role of ["dev", "qa", "po"] as const) {
+      const s = r.ftrByRole[role];
+      if (s.eligible === 0) {continue;}
+      out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "ftrRate", value: s.ftrRate });
+      out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "avgPasses", value: s.avgPasses });
+      out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "eligible", value: s.eligible });
     }
   } else if ("avgNetByRole" in result) {
     const r = result as unknown as StageThroughputGapResult;
