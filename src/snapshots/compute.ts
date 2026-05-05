@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 import { type MetricConfig } from "../metrics/types";
 import { ALL_METRICS } from "../metrics";
-import { BUCKET_ORDER, type DurationStats } from "../metrics/utils";
+import { BUCKET_ORDER, placeholders, type DurationStats } from "../metrics/utils";
 import { type DevTimeAllocationSummary } from "../metrics/devTimeAllocation";
 import { type BugBacklogResult } from "../metrics/bugBacklog";
 import { type StageTimeSummary } from "../metrics/stageTimeBreakdown";
@@ -72,6 +72,13 @@ function computeSnapshot(db: Database.Database, date: string, baseConfig: Metric
     if (metric.name === "wip") {
       const wipValue = computeHistoricWip(db, date, baseConfig);
       rows.push({ snapshot_date: date, metric_name: "wip", bucket: "", stat: "count", value: wipValue });
+      continue;
+    }
+    if (metric.name === "wip-per-role") {
+      const counts = computeHistoricWipPerRole(db, date, baseConfig);
+      for (const role of ["dev", "qa", "po"] as const) {
+        rows.push({ snapshot_date: date, metric_name: "wip-per-role", bucket: role, stat: "count", value: counts[role] });
+      }
       continue;
     }
     // forecast = Monte Carlo non déterministe, pas de stat utile à snapshotter.
@@ -187,6 +194,43 @@ export function extractStats(date: string, metricName: string, result: Record<st
   }
 
   return out;
+}
+
+// WIP par rôle historique : même logique que computeHistoricWip mais filtré par statuts de rôle.
+function computeHistoricWipPerRole(
+  db: Database.Database,
+  date: string,
+  config: MetricConfig,
+): { dev: number; qa: number; po: number } {
+  const roles = {
+    dev: config.devStatuses ?? [],
+    qa: config.qaStatuses ?? [],
+    po: config.poStatuses ?? [],
+  };
+  const result = { dev: 0, qa: 0, po: 0 };
+
+  for (const role of ["dev", "qa", "po"] as const) {
+    const statuses = roles[role];
+    if (statuses.length === 0) {continue;}
+    const ph = placeholders(statuses);
+    const row = db
+      .prepare(
+        `WITH last_status AS (
+          SELECT issue_key, to_status, MAX(transitioned_at) AS last_at
+          FROM transitions
+          WHERE substr(transitioned_at, 1, 10) <= ?
+          GROUP BY issue_key
+        )
+        SELECT COUNT(*) AS c
+        FROM last_status l
+        JOIN issues i ON i.key = l.issue_key
+        WHERE l.to_status IN (${ph})
+          AND (i.resolved_at IS NULL OR substr(i.resolved_at, 1, 10) > ?)`,
+      )
+      .get(date, ...statuses, date) as { c: number };
+    result[role] = row.c;
+  }
+  return result;
 }
 
 // WIP historique : pour chaque issue, dernier statut connu avant la date D.

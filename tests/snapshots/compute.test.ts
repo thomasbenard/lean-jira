@@ -219,6 +219,58 @@ describe("extractStats (shape aggregateFlowEfficiency — flow-efficiency)", () 
   });
 });
 
+// ─── backfillSnapshots wip-per-role ───────────────────────────────────────────
+
+describe("backfillSnapshots — wip-per-role snapshot", () => {
+  it("génère des lignes wip-per-role par rôle dans metric_snapshots", () => {
+    // Issue en statut dev la semaine du 2025-04-20
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1" }), [
+      { to: "In Progress", at: "2025-04-15T09:00:00Z" },
+    ]);
+
+    const configWithRoles = {
+      ...TEST_CONFIG,
+      devStatuses: ["In Progress"],
+      qaStatuses: ["In Review"],
+      poStatuses: [],
+      cutoffDate: "2025-04-14",
+    };
+
+    backfillSnapshots(db, configWithRoles);
+
+    const rows = db
+      .prepare(
+        "SELECT * FROM metric_snapshots WHERE metric_name = 'wip-per-role' AND bucket = 'dev' AND stat = 'count' ORDER BY snapshot_date",
+      )
+      .all() as { value: number; snapshot_date: string }[];
+
+    expect(rows.length).toBeGreaterThan(0);
+    // La première semaine après le 15 avril doit avoir count >= 1
+    const firstPositive = rows.find((r) => r.value > 0);
+    expect(firstPositive).toBeDefined();
+  });
+
+  it("les trois rôles sont toujours présents dans les snapshots même si count=0", () => {
+    const configWithRoles = {
+      ...TEST_CONFIG,
+      devStatuses: ["In Progress"],
+      qaStatuses: ["In Review"],
+      poStatuses: ["To Validate"],
+      cutoffDate: "2025-04-14",
+    };
+    backfillSnapshots(db, configWithRoles);
+
+    for (const role of ["dev", "qa", "po"]) {
+      const rows = db
+        .prepare(
+          "SELECT COUNT(*) AS c FROM metric_snapshots WHERE metric_name = 'wip-per-role' AND bucket = ?",
+        )
+        .get(role) as { c: number };
+      expect(rows.c).toBeGreaterThan(0);
+    }
+  });
+});
+
 // ─── backfillSnapshots (smoke test) ───────────────────────────────────────────
 
 describe("backfillSnapshots", () => {

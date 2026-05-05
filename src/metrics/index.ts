@@ -17,6 +17,7 @@ import { forecastMetric } from "./forecast";
 import { devTimeAllocationMetric } from "./devTimeAllocation";
 import { bugBacklogMetric } from "./bugBacklog";
 import { stageTimeBreakdownMetric } from "./stageTimeBreakdown";
+import { wipPerRoleMetric } from "./wipPerRole";
 
 // Registre central. Ajouter une métrique = importer + pousser ici.
 const ALL_METRICS = [
@@ -31,6 +32,7 @@ const ALL_METRICS = [
   bugCycleTimeMetric,
   bugThroughputMetric,
   wipMetric,
+  wipPerRoleMetric,
   flowEfficiencyMetric,
   agingWipMetric,
   forecastMetric,
