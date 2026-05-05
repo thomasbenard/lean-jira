@@ -6,6 +6,7 @@ import { type DevTimeAllocationSummary } from "../metrics/devTimeAllocation";
 import { type BugBacklogResult } from "../metrics/bugBacklog";
 import { type StageTimeSummary } from "../metrics/stageTimeBreakdown";
 import { type StageThroughputGapResult } from "../metrics/stageThroughputGap";
+import { type HandoffReworkResult } from "../metrics/handoffRework";
 
 const ROLLING_WINDOW_DAYS = 30;
 const WEEK_DAYS = 7;
@@ -160,6 +161,14 @@ export function extractStats(date: string, metricName: string, result: Record<st
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "featureDays", value: totalFeature });
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "bugDays", value: totalBug });
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "bugRatio", value: r.avgBugRatio });
+  } else if ("reworkRatio" in result) {
+    const r = result as unknown as HandoffReworkResult;
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "count", value: r.count });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "reworkRatio", value: r.reworkRatio });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "avgReworks", value: r.avgReworks });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "qaToDev", stat: "count", value: r.byReworkType.qaToDev });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "poToQa", stat: "count", value: r.byReworkType.poToQa });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "poDev", stat: "count", value: r.byReworkType.poDev });
   } else if ("byRole" in result) {
     const r = result as unknown as StageTimeSummary;
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "count", value: r.count });
