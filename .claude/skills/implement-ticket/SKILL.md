@@ -7,6 +7,19 @@ description: Implémente un ticket de dev existant sous `docs/specs/tickets/<NNN
 
 Implémente un ticket spécifié dans `docs/specs/tickets/<NNN>-<slug>/`. Garantit : couverture TDD, conformité spec, conformité coding standards, revue indépendante.
 
+## Definition of Done
+
+**Avant de déclarer le ticket terminé, valider chaque point :**
+
+- `npx vitest run` → 100 % vert
+- `/simplify` appliqué sur les fichiers modifiés
+- Code review sous-agent fait (ou justification d'exemption < 30 lignes)
+- **Si nouvelle métrique** → `docs/specs/system/spec-fonctionnelle.md` + `metrics-formulas.md` + `CLAUDE.md` (section "Metric catalog") mis à jour
+- **Si autre invariant modifié** (DB schema, CLI, config, export API) → sections concernées dans `docs/specs/system/` + `CLAUDE.md` mis à jour
+- `description.md` du ticket → `Statut: **livré**`
+
+Ces 6 points sont non-négociables. Les phases ci-dessous décrivent comment y arriver.
+
 ## Identifier le ticket
 
 Si l'utilisateur fournit un numéro (`/implement-ticket 003`, "ticket 3") :
@@ -104,62 +117,21 @@ Re-lancer `npx vitest run` après chaque correction.
 
 ### Phase 7 — Mise à jour specs système + CLAUDE.md (conditionnelle)
 
-Les fichiers sous `docs/specs/system/` (`spec-fonctionnelle.md`, `spec-technique.md`, `metrics-formulas.md`) décrivent l'**état actuel** du produit (cf. CLAUDE.md). Si le ticket livré modifie un invariant ou un comportement décrit dans une de ces spécs, mettre à jour le fichier concerné.
+Voir la **Definition of Done** en tête de document pour les critères de déclenchement.
 
-**Critères de déclenchement** (si l'un est vrai → màj requise) :
+**Procédure** : grep dans `docs/specs/system/` et `CLAUDE.md` pour trouver les sections à toucher. Éditer en ton descriptif (état présent, pas changelog). Pas d'historique « avant/après ».
 
-- Nouvelle métrique ajoutée → mettre à jour `spec-fonctionnelle.md` (catalogue) + `metrics-formulas.md` (formule)
-- Changement de schéma DB (table, colonne, index) → `spec-technique.md`
-- Nouveau statut, nouvelle catégorie, ou changement de bucketing → `spec-fonctionnelle.md`
-- Changement d'invariant métier (definition de "delivered", working days, etc.) → les 3 fichiers selon impact
-- Nouveau flag de config dans `config.yaml` → `spec-technique.md`
-- Nouvelle commande CLI ou option → `spec-technique.md`
-- **Tout changement observable par l'utilisateur du rapport HTML** (nouvelle colonne, lien cliquable, popover, KPI affiché, format d'unité changé, comportement d'interaction) → `spec-fonctionnelle.md` section « Rapport HTML »
-- Tout changement d'API publique exportée par un module `src/` (nouvelle fonction exportée, signature modifiée d'un export existant) → `spec-technique.md` si le module y est cité
+**Exemptions** (skip màj) : refactor interne sans changement de surface publique, bug fix qui restaure un comportement déjà documenté, cosmétique pure (CSS/HTML/logs), test-only.
 
-**Critères d'exemption** (skip màj) :
+**Règle de tranchage** : « un lecteur de la spec qui n'a pas vu le code remarquerait-il que la description ne reflète plus la réalité ? » Si oui → màj. Si non → exemption.
 
-- **Cosmétique pure invisible côté usage** : couleur, police, espacement, ordre de classes CSS, refactor de template HTML qui produit le même rendu. L'utilisateur final ne voit pas de différence
-- Refactor interne sans changement de surface publique (renommage privé, extraction de helper non exporté)
-- Bug fix qui restaure le comportement déjà documenté (la spec décrit déjà la cible ; le code dévie ; on remet le code en accord avec la spec)
-- Test-only (ajout de tests sans toucher prod)
-
-**Règle de tranchage en cas de doute** : « est-ce qu'un lecteur de la spec qui n'a pas vu le code remarquerait que la description ne reflète plus la réalité ? » Si oui → màj. Si non → exemption.
-
-⚠ Piège récurrent : « c'est juste de l'UI » n'est pas une exemption. Une UI qui change un comportement observable (lien cliquable, nouvelle interaction) est un changement fonctionnel et doit apparaître dans `spec-fonctionnelle.md`.
-
-**Procédure** : grep dans `docs/specs/system/` pour trouver les sections à toucher, éditer en gardant le ton descriptif (état présent, pas changelog). Pas d'historique « avant/après » dans les specs système — c'est un snapshot.
-
-Si doute sur la nécessité : demander à l'utilisateur. Mieux vaut une question qu'une spec qui dérive.
-
-#### CLAUDE.md — mise à jour conditionnelle
-
-`CLAUDE.md` est le guide de Claude sur le code ; il contient des sections qui peuvent devenir caduques après un ticket. Évaluer après chaque ticket :
-
-| Section `CLAUDE.md` | Màj requise si… |
-|---|---|
-| **Key invariants** | Un invariant change (définition de "delivered", unités, calcul WIP, filtrage population…) |
-| **Database schema** | Nouvelle table, colonne, index ou suppression |
-| **Metric catalog** | Nouvelle métrique ajoutée ou renommée |
-| **Commands** | Nouveau sous-commande CLI ou nouvelle option |
-| **Architecture / Layers** | Nouveau module dans `src/`, nouvelle couche, nouveau pattern |
-| **Configuration (`config.yaml`)** | Nouveau champ ou clé dans la config |
-
-**Exemptions CLAUDE.md** (ne pas modifier) :
-- Refactor interne sans changement de surface
-- Bug fix qui restaure un comportement déjà documenté
-- Changement purement cosmétique (CSS, HTML, ordre de logs)
-- Ajout de tests sans toucher prod
-
-**Règle de tranchage** : « un Claude qui lirait `CLAUDE.md` à froid et regarderait ensuite le code dirait-il "c'est faux" ? » Si oui → màj. Sinon → exemption.
-
-**Procédure** : grep les sections concernées dans `CLAUDE.md`, éditer en préservant le ton descriptif (état présent, pas changelog). Pas d'historique « avant/après ».
+⚠ « c'est juste de l'UI » n'est pas une exemption si le comportement observable change.
 
 ### Phase 8 — Clôture
 
-1. Mettre à jour `description.md` du ticket : `Statut: livré`
-2. `git status` + `git diff` → présenter à l'utilisateur le résumé des changements (inclure màj specs système si phase 7 a modifié des fichiers)
-3. **Ne pas commit sans demande explicite** (cf. règle globale repo)
+1. Mettre à jour `description.md` du ticket : `Statut: **livré**`
+2. `git status` + `git diff` → présenter résumé des changements à l'utilisateur
+3. **Ne pas commit sans demande explicite**
 
 ## Anti-patterns à éviter
 
