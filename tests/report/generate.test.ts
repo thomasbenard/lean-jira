@@ -262,72 +262,90 @@ describe("computeMovingAvg", () => {
   });
 });
 
-describe("renderHtml — groupement thématique", () => {
-  it("accordéon métriques avancées est fermé par défaut (attribut open absent)", () => {
+describe("renderHtml — Cockpit structure", () => {
+  it("contient le bandeau verdict, les actions top-3 et la grille KPI", () => {
     const html = renderHtml(makeRenderInput());
-    expect(html).toContain('<details class="advanced-section">');
-    expect(html).not.toMatch(/<details[^>]+open/);
+    expect(html).toContain('class="verdict');
+    expect(html).toContain('class="actions-grid"');
+    expect(html).toContain('class="kpi-grid"');
   });
 
-  it("3 sections H2 dans l'ordre Livraison → Bugs → Capacité", () => {
+  it("contient les 5 onglets dans l'ordre Livraison → Qualité → Rôles → Forecast → Avancé", () => {
     const html = renderHtml(makeRenderInput());
-    const livraisonPos = html.indexOf("<h2>Livraison</h2>");
-    const bugsPos = html.indexOf("<h2>Bugs");
-    const capacitePos = html.indexOf("<h2>Capacité");
-    expect(livraisonPos).toBeGreaterThan(-1);
-    expect(bugsPos).toBeGreaterThan(livraisonPos);
-    expect(capacitePos).toBeGreaterThan(bugsPos);
+    const order = ["delivery", "quality", "roles", "forecast", "advanced"];
+    let prev = -1;
+    for (const id of order) {
+      const pos = html.indexOf(`data-tab="${id}"`);
+      expect(pos, `tab ${id}`).toBeGreaterThan(prev);
+      prev = pos;
+    }
   });
 
-  it("section Livraison contient les 4 KPIs livraison, pas les KPIs bugs", () => {
+  it("onglet Livraison actif par défaut", () => {
     const html = renderHtml(makeRenderInput());
-    const livSection = html.slice(html.indexOf("<h2>Livraison</h2>"), html.indexOf("<h2>Bugs"));
-    expect(livSection).toContain("Lead time médian");
-    expect(livSection).toContain("Cycle time médian");
-    expect(livSection).toContain("Throughput (7j)");
-    expect(livSection).toContain("WIP");
-    expect(livSection).not.toContain("Bugs livrés");
-    expect(livSection).not.toContain("Bug cycle");
+    expect(html).toContain('class="tab active" data-tab="delivery"');
+    expect(html).toContain('class="tab-panel active" id="tab-delivery"');
   });
 
-  it("accordéon contient les graphes avancés dans l'ordre : lead normalisé, cycle normalisé, flow efficiency + by-size trends", () => {
+  it("panel Livraison contient lead/cycle/throughput/throughputWeighted/wip/cycleHistogram et by-size tables", () => {
     const html = renderHtml(makeRenderInput());
-    const detailsStart = html.indexOf('<details class="advanced-section">');
-    const detailsEnd = html.indexOf("</details>", detailsStart);
-    const accordeon = html.slice(detailsStart, detailsEnd);
-    expect(accordeon).toContain("leadNormalizedChart");
-    expect(accordeon).toContain("cycleNormalizedChart");
-    expect(accordeon).toContain("flowEfficiencyChart");
-    expect(accordeon).toContain("leadBySizeChart");
-    expect(accordeon).toContain("cycleBySizeChart");
-    expect(accordeon.indexOf("leadNormalizedChart")).toBeLessThan(accordeon.indexOf("cycleNormalizedChart"));
-    expect(accordeon.indexOf("cycleNormalizedChart")).toBeLessThan(accordeon.indexOf("flowEfficiencyChart"));
+    const start = html.indexOf('id="tab-delivery"');
+    const end = html.indexOf('id="tab-quality"');
+    const panel = html.slice(start, end);
+    for (const id of ["leadTimeChart", "cycleTimeChart", "throughputChart", "throughputWeightedChart", "wipChart", "cycleHistogramChart"]) {
+      expect(panel, `canvas ${id}`).toContain(`id="${id}"`);
+    }
+    expect(panel).toContain("Lead time par taille");
   });
 
-  it("section Bugs contient les KPIs bugs", () => {
+  it("panel Qualité contient les charts bugs", () => {
     const html = renderHtml(makeRenderInput());
-    const bugsSection = html.slice(html.indexOf("<h2>Bugs"), html.indexOf("<h2>Capacité"));
-    expect(bugsSection).toContain("Bugs livrés (7j)");
-    expect(bugsSection).toContain("Bug cycle médian");
-    expect(bugsSection).toContain("Bug ratio moyen");
+    const start = html.indexOf('id="tab-quality"');
+    const end = html.indexOf('id="tab-roles"');
+    const panel = html.slice(start, end);
+    for (const id of ["bugThroughputChart", "bugCycleTimeChart", "devTimeAllocationChart", "bugBacklogChart"]) {
+      expect(panel, `canvas ${id}`).toContain(`id="${id}"`);
+    }
   });
 
-  it("4e section H2 Flux par rôle présente après Capacité", () => {
+  it("panel Avancé contient lead/cycle normalisés + flow efficiency + by-size charts", () => {
     const html = renderHtml(makeRenderInput());
-    const capacitePos = html.indexOf("<h2>Capacité");
-    const fluxPos = html.indexOf("<h2>Flux par rôle</h2>");
-    expect(fluxPos).toBeGreaterThan(capacitePos);
+    const start = html.indexOf('id="tab-advanced"');
+    const panel = html.slice(start);
+    for (const id of ["leadNormalizedChart", "cycleNormalizedChart", "flowEfficiencyChart", "leadBySizeChart", "cycleBySizeChart"]) {
+      expect(panel, `canvas ${id}`).toContain(`id="${id}"`);
+    }
   });
 
-  it("canvas ids des 5 métriques role-aware présents dans le HTML", () => {
+  it("canvas ids des métriques role-aware présents (panel Rôles)", () => {
     const html = renderHtml(makeRenderInput());
-    expect(html).toContain('id="stageTimeByRoleChart"');
-    expect(html).toContain('id="stageTimeShareChart"');
-    expect(html).toContain('id="wipPerRoleChart"');
-    expect(html).toContain('id="stageThroughputGapChart"');
-    expect(html).toContain('id="reworkRatioChart"');
-    expect(html).toContain('id="reworkByTypeChart"');
-    expect(html).toContain('id="ftrByRoleChart"');
+    for (const id of ["stageTimeByRoleChart", "stageTimeShareChart", "wipPerRoleChart", "stageThroughputGapChart", "reworkRatioChart", "reworkByTypeChart", "ftrByRoleChart"]) {
+      expect(html).toContain(`id="${id}"`);
+    }
+  });
+
+  it("conserve les fonctionnalités legacy : help-btn, zoom-btn (via initZoom), modal", () => {
+    const html = renderHtml(makeRenderInput());
+    expect(html).toContain('class="help-btn"');
+    expect(html).toContain('class="help-popover"');
+    expect(html).toContain("chart-modal-overlay");
+    expect(html).toContain("initZoom");
+    expect(html).toContain("zoom-btn");
+  });
+
+  it("ne référence plus le toggle theme ni la classe html.dark", () => {
+    const html = renderHtml(makeRenderInput());
+    expect(html).not.toContain("themeToggle");
+    expect(html).not.toContain("lean-theme");
+    expect(html).not.toContain("html.dark");
+  });
+
+  it("8 cellules KPI rendues avec sparkline canvas", () => {
+    const html = renderHtml(makeRenderInput());
+    const sparkMatches = html.match(/class="spark"/g) ?? [];
+    expect(sparkMatches.length).toBe(8);
+    const cellMatches = html.match(/class="kpi-cell/g) ?? [];
+    expect(cellMatches.length).toBe(8);
   });
 });
 

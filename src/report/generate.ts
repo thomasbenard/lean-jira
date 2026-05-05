@@ -2,7 +2,7 @@ import type Database from "better-sqlite3";
 import fs from "fs";
 import { BUCKET_LABELS, BUCKET_ORDER } from "../metrics/utils";
 import { type MetricConfig } from "../metrics/types";
-import { agingWipMetric, type AgingWipSummary, type AgingRisk } from "../metrics/agingWip";
+import { agingWipMetric, type AgingWipSummary, type AgingWipIssue, type AgingRisk } from "../metrics/agingWip";
 import { forecastMetric, type ForecastSummary } from "../metrics/forecast";
 import { cycleTimeMetric } from "../metrics/cycleTime";
 import { getLastSyncDate } from "../db/store";
@@ -403,11 +403,7 @@ function buildHistogram(values: number[]): HistogramBin[] {
 }
 
 export function renderHtml(input: RenderInput): string {
-  const fmt = (v: number | null, unit = "j"): string =>
-    v === null ? "—" : `${v.toFixed(1)}<span class="unit">${unit}</span>`;
   const fmtInt = (v: number | null): string => (v === null ? "—" : String(Math.round(v)));
-  const fmtPct = (v: number | null): string =>
-    v === null ? "—" : `${(v * 100).toFixed(1)}<span class="unit">%</span>`;
 
   const bySizeRows = (data: Partial<Record<string, BucketStats>>): string =>
     BUCKET_ORDER.map((b) => {
@@ -434,191 +430,411 @@ export function renderHtml(input: RenderInput): string {
     return `<span class="help-wrap"><button class="help-btn" aria-label="Aide">?</button><span class="help-popover" role="tooltip"><strong>${escapeHtml(h.title)}</strong>${escapeHtml(h.body)}</span></span>`;
   };
 
-  const dot = (signal: HealthSignal): string =>
-    signal === "none" ? "" : `<span class="health-dot health-${signal}">●</span>`;
-
   const thresholds = input.healthThresholds;
-  const signals = {
-    leadTime: dot(evalLowerBetter(input.kpis.leadTimeMedian, thresholds?.leadTimeMedianDays)),
-    cycleTime: dot(evalLowerBetter(input.kpis.cycleTimeMedian, thresholds?.cycleTimeMedianDays)),
-    throughput: dot(evalHigherBetter(input.kpis.throughputCount, thresholds?.throughputWeekly)),
-    wip: dot(evalLowerBetter(input.kpis.wipCount, thresholds?.wipCount)),
-    bugCycle: dot(evalLowerBetter(input.kpis.bugCycleTimeMedian, thresholds?.bugCycleTimeMedianDays)),
-    bugRatio: dot(evalLowerBetter(input.kpis.devTimeAvgBugRatio, thresholds?.bugRatio)),
+  const rawSignals: KpiSignals = {
+    leadTime: evalLowerBetter(input.kpis.leadTimeMedian, thresholds?.leadTimeMedianDays),
+    cycleTime: evalLowerBetter(input.kpis.cycleTimeMedian, thresholds?.cycleTimeMedianDays),
+    throughput: evalHigherBetter(input.kpis.throughputCount, thresholds?.throughputWeekly),
+    wip: evalLowerBetter(input.kpis.wipCount, thresholds?.wipCount),
+    bugCycle: evalLowerBetter(input.kpis.bugCycleTimeMedian, thresholds?.bugCycleTimeMedianDays),
+    bugRatio: evalLowerBetter(input.kpis.devTimeAvgBugRatio, thresholds?.bugRatio),
   };
+  const kpiCells = buildKpiCells(input.charts, input.agingWip, rawSignals);
+  const verdict = computeVerdict(kpiCells);
+  const top3Html = buildTop3Actions(input.agingWip, input.jiraBaseUrl);
+
+  const kpiCellHtml = (c: KpiCell, idx: number): string => {
+    const help = c.helpKey ? helpBtn(c.helpKey) : "";
+    const unit = c.value !== null && c.unit ? `<span class="unit">${escapeHtml(c.unit)}</span>` : "";
+    // pourquoi: data-values est lu côté client par renderSparklines() ; JSON est ASCII-safe pour des nombres,
+    // escapeHtml encode les guillemets pour rester valide dans un attribut entre apostrophes.
+    const sparkData = JSON.stringify(c.spark);
+    return `<div class="kpi-cell ${SIGNAL_CLS[c.signal]}">
+      <div class="kpi-label">${escapeHtml(c.label)}${help}</div>
+      <div class="kpi-value">${escapeHtml(formatKpiNumber(c.value))}${unit}</div>
+      ${fmtDelta(c)}
+      <canvas class="spark" id="kpi-spark-${idx}" width="180" height="52" data-values='${escapeHtml(sparkData)}' data-color="${SIGNAL_COLOR[c.signal]}"></canvas>
+    </div>`;
+  };
+
+  const kpiGridHtml = kpiCells.map(kpiCellHtml).join("");
+
+  const roleCardHtml = (r: { cls: string; name: string; wip: number | null; med: number | null; ftr: number | null }): string =>
+    `<div class="role ${r.cls}">
+      <h4>${escapeHtml(r.name)}</h4>
+      <div class="role-stats">
+        <div class="role-stat"><div class="v">${fmtInt(r.wip)}</div><div class="l">WIP</div></div>
+        <div class="role-stat"><div class="v">${r.med === null ? "—" : `${r.med.toFixed(1)}j`}</div><div class="l">médiane</div></div>
+        <div class="role-stat"><div class="v">${r.ftr === null ? "—" : `${(r.ftr * 100).toFixed(0)}%`}</div><div class="l">FTR</div></div>
+      </div>
+    </div>`;
 
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
 <title>Rapport Lean — ${escapeHtml(input.projectKey)}</title>
-<script>
-  (function() { if (localStorage.getItem('lean-theme') === 'dark') document.documentElement.classList.add('dark'); })();
-</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
   :root {
-    --bg: #fafafa; --bg-card: #fff; --border: #e3e3e3; --border-heavy: #ddd;
-    --text: #1a1a1a; --text-muted: #666; --text-unit: #888;
-    --table-th: #f5f5f5; --table-border: #eee;
-    --advanced-bg: #f9fafb; --btn-bg: #e5e7eb; --btn-color: #374151;
-    --stale-bg: #fff3cd; --stale-border: #f59e0b; --stale-text: #92400e;
-  }
-  html.dark {
-    --bg: #0f1117; --bg-card: #1e2030; --border: #2d3148; --border-heavy: #3d4166;
-    --text: #e2e8f0; --text-muted: #94a3b8; --text-unit: #64748b;
-    --table-th: #252840; --table-border: #2d3148;
-    --advanced-bg: #191b2e; --btn-bg: #2d3148; --btn-color: #cbd5e1;
+    --bg: #08090c;
+    --panel: #11131a;
+    --panel-2: #181b25;
+    --line: #1f2330;
+    --line-2: #2a2f40;
+    --text: #d7dbe6;
+    --text-dim: #7a8194;
+    --text-faint: #4a5063;
+    --cyan: #00e0d4;
+    --orange: #ff8a3d;
+    --red: #ff4d6a;
+    --amber: #ffc24a;
+    --green: #4dd697;
+    --violet: #a78bff;
+    --grid: rgba(255,255,255,0.04);
     --stale-bg: #3d2a00; --stale-border: #f59e0b; --stale-text: #fcd34d;
   }
-  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 1100px; margin: 2rem auto; padding: 0 1.5rem; color: var(--text); background: var(--bg); }
-  h1 { margin-bottom: 0.25rem; }
-  .header-row { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
-  .meta { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem; }
-  h2 { border-bottom: 2px solid var(--border-heavy); padding-bottom: 0.4rem; margin-top: 2.5rem; }
-  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
-  .kpi { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; }
-  .kpi .label { display: block; font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
-  .kpi .value { display: block; font-size: 1.8rem; font-weight: 600; margin-top: 0.4rem; }
-  .health-dot { margin-right: 0.3rem; font-size: 0.75rem; }
-  .health-green { color: #10b981; }
-  .health-orange { color: #f59e0b; }
-  .health-red    { color: #ef4444; }
-  .kpi .unit { font-size: 0.9rem; color: var(--text-unit); margin-left: 0.15rem; }
-  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-  .chart-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; }
-  .chart-card h3 { margin: 0 0 0.5rem 0; font-size: 1rem; }
-  canvas { max-height: 280px; }
-  table { width: 100%; border-collapse: collapse; background: var(--bg-card); }
-  table th, table td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--table-border); }
-  table th { background: var(--table-th); font-size: 0.85rem; }
-  .by-size { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-  .aging-wrap { display: grid; grid-template-columns: 1.4fr 1fr; gap: 1.5rem; }
-  .risk-ok { color: #10b981; font-weight: 600; }
-  .risk-watch { color: #f59e0b; font-weight: 600; }
-  .risk-at-risk { color: #f97316; font-weight: 600; }
-  .risk-critical { color: #ef4444; font-weight: 700; }
-  @media (max-width: 800px) { .charts, .by-size, .aging-wrap, .by-size-trends { grid-template-columns: 1fr; } }
-  .by-size-trends { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1.5rem; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 32px 32px;
+    background-position: -1px -1px;
+    min-height: 100vh;
+  }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-feature-settings: "tnum" 1; }
+  header.bar {
+    border-bottom: 1px solid var(--line);
+    padding: 0.85rem 2rem;
+    display: flex; align-items: center; gap: 1.5rem;
+    background: rgba(8,9,12,0.85);
+    backdrop-filter: blur(8px);
+    position: sticky; top: 0; z-index: 50;
+  }
+  .logo {
+    font-family: "IBM Plex Mono"; font-weight: 600; font-size: 0.85rem;
+    color: var(--cyan); letter-spacing: 0.2em;
+  }
+  .logo::before { content: "▮ "; color: var(--orange); }
+  header.bar .meta { color: var(--text-faint); font-size: 0.78rem; font-family: "IBM Plex Mono"; margin-left: auto; }
+  main { max-width: 1400px; margin: 0 auto; padding: 1.5rem 2rem 5rem; }
+
+  .stale-warning {
+    background: var(--stale-bg); border: 1px solid var(--stale-border); color: var(--stale-text);
+    padding: 0.6rem 1rem; border-radius: 6px; margin-bottom: 1.5rem; font-size: 0.9rem;
+  }
+
+  .verdict {
+    border: 1px solid var(--line-2);
+    background: linear-gradient(135deg, rgba(255,77,106,0.08), rgba(255,138,61,0.04));
+    border-left: 3px solid var(--red);
+    padding: 1.2rem 1.5rem;
+    display: grid; grid-template-columns: auto 1fr auto; gap: 1.5rem; align-items: center;
+  }
+  .verdict.watch { border-left-color: var(--amber); background: linear-gradient(135deg, rgba(255,194,74,0.08), rgba(255,138,61,0.03)); }
+  .verdict.ok { border-left-color: var(--green); background: linear-gradient(135deg, rgba(77,214,151,0.08), transparent); }
+  .verdict-status {
+    font-family: "IBM Plex Mono"; font-weight: 600; font-size: 1.1rem;
+    color: var(--red); letter-spacing: 0.06em;
+  }
+  .verdict.watch .verdict-status { color: var(--amber); }
+  .verdict.ok .verdict-status { color: var(--green); }
+  .verdict-text { font-size: 0.95rem; color: var(--text); }
+  .verdict-text strong { color: #fff; }
+  .verdict-time { font-family: "IBM Plex Mono"; font-size: 0.75rem; color: var(--text-faint); }
+
+  section.actions { margin: 1.5rem 0; }
+  .actions-head { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 0.75rem; }
+  .actions-head h2 { margin: 0; font-size: 0.85rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--orange); font-weight: 500; }
+  .actions-head .sep { flex: 1; height: 1px; background: var(--line); }
+  .actions-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  .action {
+    border: 1px solid var(--line); background: var(--panel); padding: 1rem 1.1rem;
+    position: relative; overflow: hidden;
+  }
+  .action::before {
+    content: ""; position: absolute; top: 0; left: 0; width: 3px; height: 100%;
+    background: var(--orange);
+  }
+  .action.crit::before { background: var(--red); }
+  .action.warn::before { background: var(--amber); }
+  .action.ok::before { background: var(--green); }
+  .action-num { font-family: "IBM Plex Mono"; font-size: 0.7rem; color: var(--text-faint); }
+  .action-title { font-weight: 600; font-size: 1rem; margin: 0.25rem 0 0.4rem; color: var(--text); }
+  .action-detail { font-size: 0.83rem; color: var(--text-dim); }
+  .action a { color: var(--cyan); text-decoration: none; font-family: "IBM Plex Mono"; }
+  .action a:hover { text-decoration: underline; }
+
+  section.kpi-section { margin: 2rem 0; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid var(--line); }
+  .kpi-cell {
+    padding: 1.1rem 1.2rem;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+    position: relative;
+    min-height: 130px;
+  }
+  .kpi-cell:nth-child(4n) { border-right: none; }
+  .kpi-grid > .kpi-cell:nth-last-child(-n+4) { border-bottom: none; }
+  .kpi-label { font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-dim); display: flex; align-items: center; gap: 0.5rem; }
+  .kpi-label::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); flex-shrink: 0; }
+  .kpi-cell.red .kpi-label::before { background: var(--red); box-shadow: 0 0 6px var(--red); }
+  .kpi-cell.amber .kpi-label::before { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+  .kpi-cell.green .kpi-label::before { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .kpi-value {
+    font-family: "IBM Plex Mono"; font-weight: 500; font-size: 2.2rem;
+    line-height: 1.1; margin-top: 0.4rem; color: #fff; letter-spacing: -0.02em;
+  }
+  .kpi-value .unit { font-size: 0.95rem; color: var(--text-dim); margin-left: 0.2rem; font-weight: 400; }
+  .kpi-delta { font-family: "IBM Plex Mono"; font-size: 0.78rem; margin-top: 0.3rem; display: inline-block; }
+  .kpi-delta.up.bad, .kpi-delta.down.bad { color: var(--red); }
+  .kpi-delta.up.good, .kpi-delta.down.good { color: var(--green); }
+  .kpi-delta.flat { color: var(--text-dim); }
+  canvas.spark { position: absolute; right: 0.8rem; bottom: 0.8rem; width: 90px; height: 26px; opacity: 0.85; max-width: 90px; max-height: 26px; }
+
+  .tabs { display: flex; gap: 0; margin: 2rem 0 1rem; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .tab {
+    padding: 0.65rem 1.1rem; cursor: pointer; border: none; background: transparent;
+    color: var(--text-dim); font-family: "IBM Plex Mono"; font-size: 0.78rem; letter-spacing: 0.12em;
+    text-transform: uppercase; font-weight: 500; position: relative; border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .panel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .panel-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+  .chart-card {
+    background: var(--panel); border: 1px solid var(--line); padding: 1rem 1.2rem;
+    position: relative; border-radius: 0;
+  }
+  .chart-card h3 {
+    margin: 0 0 0.8rem 0; font-size: 0.78rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--text-dim); font-weight: 500;
+  }
+  .chart-card canvas { max-height: 220px; }
+  .chart-card.wide { grid-column: 1 / -1; }
+  .chart-card.wide canvas { max-height: 320px; }
+  .meta-line { font-size: 0.8rem; color: var(--text-dim); margin: 0.5rem 0 1rem; font-family: "IBM Plex Mono"; }
+
+  table { width: 100%; border-collapse: collapse; font-family: "IBM Plex Mono"; font-size: 0.82rem; background: var(--panel); }
+  th, td { text-align: left; padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--line); }
+  th { color: var(--text-dim); font-weight: 500; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.14em; background: var(--panel-2); }
+  td a { color: var(--cyan); text-decoration: none; }
+  td a:hover { text-decoration: underline; }
+  td.risk-critical, .risk-critical { color: var(--red); font-weight: 600; }
+  td.risk-at-risk, .risk-at-risk  { color: var(--orange); font-weight: 600; }
+  td.risk-watch, .risk-watch    { color: var(--amber); font-weight: 600; }
+  td.risk-ok, .risk-ok       { color: var(--green); font-weight: 600; }
+
+  .role-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1rem; }
+  .role { background: var(--panel); border: 1px solid var(--line); padding: 1rem 1.1rem; border-top: 2px solid var(--cyan); }
+  .role.dev { border-top-color: var(--violet); }
+  .role.qa  { border-top-color: var(--green); }
+  .role.po  { border-top-color: var(--orange); }
+  .role h4 { margin: 0; font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-dim); }
+  .role-stats { display: flex; gap: 1.2rem; margin-top: 0.5rem; }
+  .role-stat .v { font-family: "IBM Plex Mono"; font-size: 1.4rem; font-weight: 500; color: #fff; }
+  .role-stat .l { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; }
+
   .bucket-selector { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
-  .bucket-btn { padding: 0.25rem 0.6rem; border-radius: 4px; border: 1px solid var(--border); background: var(--advanced-bg); cursor: pointer; font-size: 0.8rem; color: var(--btn-color); }
-  .bucket-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
+  .bucket-btn { padding: 0.25rem 0.6rem; border-radius: 2px; border: 1px solid var(--line); background: var(--panel-2); cursor: pointer; font-size: 0.75rem; color: var(--text-dim); font-family: "IBM Plex Mono"; }
+  .bucket-btn.active { background: var(--cyan); color: var(--bg); border-color: var(--cyan); }
   .bucket-btn:disabled { opacity: 0.5; cursor: default; }
+
   .help-wrap { position: relative; display: inline-block; }
   .help-btn {
-    background: var(--btn-bg); border: none; color: var(--btn-color); cursor: pointer;
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--text-dim); cursor: pointer;
     width: 18px; height: 18px; border-radius: 50%; font-size: 11px; font-weight: 600;
     display: inline-flex; align-items: center; justify-content: center;
     margin-left: 0.4rem; vertical-align: middle; padding: 0; line-height: 1;
   }
-  .help-wrap:hover .help-btn, .help-btn:focus { background: #2563eb; color: white; }
+  .help-wrap:hover .help-btn, .help-btn:focus { background: var(--cyan); color: var(--bg); border-color: var(--cyan); }
   .help-popover {
     display: none;
     position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
-    background: #1f2937; color: #f5f5f5; padding: 0.7rem 0.9rem; border-radius: 6px;
+    background: #0c0d12; color: var(--text); padding: 0.7rem 0.9rem; border-radius: 4px;
+    border: 1px solid var(--line-2);
     width: 280px; font-size: 0.82rem; line-height: 1.45; z-index: 100;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.25); text-align: left; font-weight: normal;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.6); text-align: left; font-weight: normal;
     text-transform: none; letter-spacing: 0;
   }
-  .help-popover strong { display: block; margin-bottom: 0.35rem; color: #fff; font-size: 0.9rem; }
+  .help-popover strong { display: block; margin-bottom: 0.35rem; color: var(--cyan); font-size: 0.9rem; font-family: "IBM Plex Mono"; }
   .help-popover::after {
     content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-    border: 6px solid transparent; border-top-color: #1f2937;
+    border: 6px solid transparent; border-top-color: #0c0d12;
   }
   .help-wrap:hover .help-popover, .help-wrap:focus-within .help-popover { display: block; }
-  .stale-warning {
-    background: var(--stale-bg);
-    border: 1px solid var(--stale-border);
-    color: var(--stale-text);
-    padding: 0.6rem 1rem;
-    border-radius: 6px;
-    margin-bottom: 1.5rem;
-    font-size: 0.9rem;
-  }
-  details.advanced-section { margin-top: 1.5rem; border: 1px solid var(--border); border-radius: 6px; background: var(--advanced-bg); }
-  details.advanced-section > summary { padding: 0.75rem 1rem; cursor: pointer; font-weight: 600; font-size: 0.95rem; color: var(--text); list-style: none; user-select: none; }
-  details.advanced-section > summary::-webkit-details-marker { display: none; }
-  details.advanced-section > summary:hover { color: #2563eb; }
-  details.advanced-section > :not(summary) { padding: 0 1rem 1rem; }
-  .theme-btn { background: var(--btn-bg); border: 1px solid var(--border); color: var(--text); cursor: pointer; padding: 0.3rem 0.75rem; border-radius: 4px; font-size: 0.85rem; white-space: nowrap; }
-  .theme-btn:hover { opacity: 0.8; }
-  .chart-card { position: relative; }
+
   .zoom-btn {
     position: absolute; top: 0.55rem; right: 0.55rem;
-    background: var(--btn-bg); border: 1px solid var(--border); color: var(--btn-color);
-    cursor: pointer; border-radius: 4px; padding: 0.15rem 0.4rem; font-size: 0.85rem;
-    line-height: 1.4; opacity: 0.5; z-index: 1;
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--text-dim);
+    cursor: pointer; border-radius: 2px; padding: 0.15rem 0.4rem; font-size: 0.85rem;
+    line-height: 1.4; opacity: 0.55; z-index: 1;
   }
-  .zoom-btn:hover { opacity: 1; background: #2563eb; color: white; border-color: #2563eb; }
+  .zoom-btn:hover { opacity: 1; background: var(--cyan); color: var(--bg); border-color: var(--cyan); }
   .chart-modal-overlay {
-    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.72);
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.78);
     z-index: 2000; align-items: center; justify-content: center;
   }
   .chart-modal-overlay.open { display: flex; }
   .chart-modal {
-    background: var(--bg-card); border-radius: 8px; padding: 1.25rem 1.5rem 1.5rem;
+    background: var(--panel); border: 1px solid var(--line-2); border-radius: 4px; padding: 1.25rem 1.5rem 1.5rem;
     width: 92vw; max-width: 1300px; max-height: 92vh;
     display: flex; flex-direction: column; gap: 0.75rem;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
   }
   .chart-modal-header { display: flex; justify-content: space-between; align-items: center; min-height: 1.8rem; }
-  .chart-modal-title { font-weight: 600; font-size: 1rem; color: var(--text); }
+  .chart-modal-title { font-weight: 600; font-size: 1rem; color: var(--text); font-family: "IBM Plex Mono"; }
   .chart-modal-close {
-    background: var(--btn-bg); border: 1px solid var(--border); color: var(--btn-color);
-    cursor: pointer; border-radius: 4px; padding: 0.25rem 0.6rem; font-size: 1rem; line-height: 1.2;
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--text-dim);
+    cursor: pointer; border-radius: 2px; padding: 0.25rem 0.6rem; font-size: 1rem; line-height: 1.2;
     flex-shrink: 0;
   }
-  .chart-modal-close:hover { background: #ef4444; color: white; border-color: #ef4444; }
+  .chart-modal-close:hover { background: var(--red); color: #fff; border-color: var(--red); }
   .chart-modal-canvas-wrap { flex: 1; min-height: 0; height: 75vh; position: relative; }
   .chart-modal-canvas-wrap canvas { max-height: none !important; width: 100% !important; height: 100% !important; }
-  .chart-modal-desc { font-size: 0.82rem; color: var(--text-muted); line-height: 1.45; margin: 0; padding-bottom: 0.25rem; border-bottom: 1px solid var(--border); }
+  .chart-modal-desc { font-size: 0.82rem; color: var(--text-dim); line-height: 1.45; margin: 0; padding-bottom: 0.25rem; border-bottom: 1px solid var(--line); }
+
+  @media (max-width: 1100px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .kpi-cell { border-right: 1px solid var(--line); }
+    .kpi-cell:nth-child(2n) { border-right: none; }
+    .actions-grid, .role-grid, .panel-grid, .panel-grid.three { grid-template-columns: 1fr; }
+    main { padding: 1rem 1rem 4rem; }
+  }
 </style>
 </head>
 <body>
-<div class="header-row">
-<h1>Rapport Lean — ${escapeHtml(input.projectKey)}</h1>
-<button class="theme-btn" id="themeToggle" aria-label="Basculer thème"></button>
+<header class="bar">
+  <span class="logo">${escapeHtml(input.projectKey)} // FLOW.OPS</span>
+  <span class="meta">GEN ${escapeHtml(input.generatedAt)} · SNAPSHOT ${escapeHtml(input.lastSnapshotDate)} · ${escapeHtml(syncMetaLabel(input.lastSyncAt))}</span>
+</header>
+<main>
+<div class="verdict ${verdict.status}">
+  <span class="verdict-status">${escapeHtml(VERDICT_LABELS[verdict.status])}</span>
+  <span class="verdict-text">${verdict.phrase}</span>
+  <span class="verdict-time mono">${escapeHtml(syncMetaLabel(input.lastSyncAt))} · Snapshot ${escapeHtml(input.lastSnapshotDate)}</span>
 </div>
-<p class="meta">Généré le ${escapeHtml(input.generatedAt)} · ${syncMetaLabel(input.lastSyncAt)} · Dernière fenêtre hebdo : ${escapeHtml(input.lastSnapshotDate)}</p>
+
 ${staleBannerHtml(input.isSyncStale, input.lastSyncAt)}
-<h2>Livraison</h2>
-<div class="kpis">
-  <div class="kpi"><span class="label">Lead time médian${helpBtn("leadTime")}</span><span class="value">${signals.leadTime}${fmt(input.kpis.leadTimeMedian)}</span></div>
-  <div class="kpi"><span class="label">Cycle time médian${helpBtn("cycleTime")}</span><span class="value">${signals.cycleTime}${fmt(input.kpis.cycleTimeMedian)}</span></div>
-  <div class="kpi"><span class="label">Throughput (7j)${helpBtn("throughput")}</span><span class="value">${signals.throughput}${fmtInt(input.kpis.throughputCount)}</span></div>
-  <div class="kpi"><span class="label">WIP${helpBtn("wip")}</span><span class="value">${signals.wip}${fmtInt(input.kpis.wipCount)}</span></div>
+
+<section class="actions">
+  <div class="actions-head"><h2>À traiter // top 3</h2><div class="sep"></div></div>
+  <div class="actions-grid">${top3Html}</div>
+</section>
+
+<section class="kpi-section">
+  <div class="actions-head"><h2>Indicateurs clés</h2><div class="sep"></div></div>
+  <div class="kpi-grid">${kpiGridHtml}</div>
+</section>
+
+<div class="tabs" id="tabs">
+  <button class="tab active" data-tab="delivery">Livraison</button>
+  <button class="tab" data-tab="quality">Qualité &amp; bugs</button>
+  <button class="tab" data-tab="roles">Flux par rôle</button>
+  <button class="tab" data-tab="forecast">Forecast &amp; aging</button>
+  <button class="tab" data-tab="advanced">Avancé</button>
 </div>
-<div class="charts">
-  <div class="chart-card"><h3>Lead time (jours)${helpBtn("leadTime")}</h3><canvas id="leadTimeChart"></canvas></div>
-  <div class="chart-card"><h3>Cycle time (jours)${helpBtn("cycleTime")}</h3><canvas id="cycleTimeChart"></canvas></div>
-  <div class="chart-card"><h3>Throughput (issues / 7j)${helpBtn("throughput")}</h3><canvas id="throughputChart"></canvas></div>
-  <div class="chart-card"><h3>Throughput pondéré (j-h estimés)${helpBtn("throughputWeighted")}</h3><canvas id="throughputWeightedChart"></canvas></div>
-  <div class="chart-card"><h3>WIP (fin de semaine)${helpBtn("wip")}</h3><canvas id="wipChart"></canvas></div>
-</div>
-<h3>Distribution cycle time${helpBtn("cycleHistogram")}</h3>
-<p class="meta">${input.cycleStats.count} issues · médiane ${input.cycleStats.median.toFixed(1)}j · P85 ${input.cycleStats.p85.toFixed(1)}j · P95 ${input.cycleStats.p95.toFixed(1)}j · moyenne ${input.cycleStats.avg.toFixed(1)}j</p>
-<div class="chart-card"><canvas id="cycleHistogramChart" style="max-height: 320px"></canvas></div>
-<h3>Par taille — fenêtre du ${escapeHtml(input.lastSnapshotDate)}</h3>
-<div class="by-size">
-  <div>
-    <h3>Lead time${helpBtn("leadTimeBySize")}</h3>
-    <table><thead><tr><th>Taille</th><th>Count</th><th>Médiane</th><th>P85</th></tr></thead>
-    <tbody>${bySizeRows(input.leadBySize)}</tbody></table>
+
+<div class="tab-panel active" id="tab-delivery">
+  <div class="panel-grid">
+    <div class="chart-card"><h3>Lead time (jours)${helpBtn("leadTime")}</h3><canvas id="leadTimeChart"></canvas></div>
+    <div class="chart-card"><h3>Cycle time (jours)${helpBtn("cycleTime")}</h3><canvas id="cycleTimeChart"></canvas></div>
+    <div class="chart-card"><h3>Throughput (issues / 7j)${helpBtn("throughput")}</h3><canvas id="throughputChart"></canvas></div>
+    <div class="chart-card"><h3>Throughput pondéré (j-h estimés)${helpBtn("throughputWeighted")}</h3><canvas id="throughputWeightedChart"></canvas></div>
+    <div class="chart-card"><h3>WIP (fin de semaine)${helpBtn("wip")}</h3><canvas id="wipChart"></canvas></div>
+    <div class="chart-card wide">
+      <h3>Distribution cycle time${helpBtn("cycleHistogram")}</h3>
+      <p class="meta-line">${input.cycleStats.count} issues · médiane ${input.cycleStats.median.toFixed(1)}j · P85 ${input.cycleStats.p85.toFixed(1)}j · P95 ${input.cycleStats.p95.toFixed(1)}j · moyenne ${input.cycleStats.avg.toFixed(1)}j</p>
+      <canvas id="cycleHistogramChart"></canvas>
+    </div>
   </div>
-  <div>
-    <h3>Cycle time${helpBtn("cycleTimeBySize")}</h3>
-    <table><thead><tr><th>Taille</th><th>Count</th><th>Médiane</th><th>P85</th></tr></thead>
-    <tbody>${bySizeRows(input.cycleBySize)}</tbody></table>
+  <div class="panel-grid" style="margin-top: 1rem">
+    <div class="chart-card">
+      <h3>Lead time par taille — fenêtre du ${escapeHtml(input.lastSnapshotDate)}${helpBtn("leadTimeBySize")}</h3>
+      <table><thead><tr><th>Taille</th><th>Count</th><th>Médiane</th><th>P85</th></tr></thead>
+      <tbody>${bySizeRows(input.leadBySize)}</tbody></table>
+    </div>
+    <div class="chart-card">
+      <h3>Cycle time par taille${helpBtn("cycleTimeBySize")}</h3>
+      <table><thead><tr><th>Taille</th><th>Count</th><th>Médiane</th><th>P85</th></tr></thead>
+      <tbody>${bySizeRows(input.cycleBySize)}</tbody></table>
+    </div>
   </div>
 </div>
-<details class="advanced-section">
-  <summary>Métriques avancées ▾</summary>
-  <div class="charts">
+
+<div class="tab-panel" id="tab-quality">
+  <div class="panel-grid">
+    <div class="chart-card"><h3>Bugs livrés (issues / 7j)${helpBtn("bugThroughput")}</h3><canvas id="bugThroughputChart"></canvas></div>
+    <div class="chart-card"><h3>Bug cycle time (jours)${helpBtn("bugCycleTime")}</h3><canvas id="bugCycleTimeChart"></canvas></div>
+    <div class="chart-card"><h3>Allocation dev : features vs bugs${helpBtn("devTimeAllocation")}</h3><canvas id="devTimeAllocationChart"></canvas></div>
+    <div class="chart-card"><h3>Bug backlog${helpBtn("bugBacklog")}</h3><canvas id="bugBacklogChart"></canvas></div>
+  </div>
+</div>
+
+<div class="tab-panel" id="tab-roles">
+  <div class="role-grid">
+    ${roleCardHtml({ cls: "dev", name: "Dev", wip: input.kpis.wipDev, med: input.kpis.stageTimeDevMedian, ftr: input.kpis.ftrDev })}
+    ${roleCardHtml({ cls: "qa",  name: "QA",  wip: input.kpis.wipQa, med: input.kpis.stageTimeQaMedian, ftr: input.kpis.ftrQa })}
+    ${roleCardHtml({ cls: "po",  name: "PO",  wip: input.kpis.wipPo, med: input.kpis.stageTimePoMedian, ftr: input.kpis.ftrPo })}
+  </div>
+  <div class="panel-grid">
+    <div class="chart-card"><h3>Temps médian par rôle${helpBtn("stageTimeBreakdown")}</h3><canvas id="stageTimeByRoleChart"></canvas></div>
+    <div class="chart-card"><h3>Répartition cycle time${helpBtn("stageTimeBreakdown")}</h3><canvas id="stageTimeShareChart"></canvas></div>
+    <div class="chart-card"><h3>WIP par rôle${helpBtn("wipPerRole")}</h3><canvas id="wipPerRoleChart"></canvas></div>
+    <div class="chart-card"><h3>Throughput net par rôle${helpBtn("stageThroughputGap")}</h3><canvas id="stageThroughputGapChart"></canvas></div>
+    <div class="chart-card"><h3>FTR par rôle${helpBtn("firstTimeRight")}</h3><canvas id="ftrByRoleChart"></canvas></div>
+    <div class="chart-card"><h3>Taux de rework${helpBtn("handoffRework")}</h3><canvas id="reworkRatioChart"></canvas></div>
+    <div class="chart-card wide"><h3>Reworks par type${helpBtn("handoffRework")}</h3><canvas id="reworkByTypeChart"></canvas></div>
+  </div>
+</div>
+
+<div class="tab-panel" id="tab-forecast">
+  <div class="panel-grid">
+    <div class="chart-card">
+      <h3>Forecast Monte Carlo${helpBtn("forecast")}</h3>
+      <p class="meta-line">Pool : ${input.forecast.weeksUsed} semaines · ${input.forecast.simulations} simulations</p>
+      <table>
+        <thead><tr><th>Horizon</th><th>P15<br><small>(85% conf.)</small></th><th>P50</th><th>P85</th><th>P95</th></tr></thead>
+        <tbody>${forecastTableRows(input.forecast)}</tbody>
+      </table>
+    </div>
+    <div class="chart-card">
+      <h3>Aging WIP — au ${escapeHtml(input.agingWip.asOf)}${helpBtn("agingWip")}</h3>
+      <p class="meta-line">P50 ${input.agingWip.percentiles.p50.toFixed(1)}j · P85 ${input.agingWip.percentiles.p85.toFixed(1)}j · P95 ${input.agingWip.percentiles.p95.toFixed(1)}j · ${input.agingWip.count} en cours</p>
+      <canvas id="agingScatter"></canvas>
+    </div>
+    <div class="chart-card wide">
+      <h3>Top items par âge${helpBtn("agingWip")}</h3>
+      <table>
+        <thead><tr><th>Issue</th><th>Statut</th><th>Âge</th><th>Risque</th></tr></thead>
+        <tbody>${agingRowsHtml(input.agingWip, input.jiraBaseUrl)}</tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="tab-panel" id="tab-advanced">
+  <div class="panel-grid three">
     <div class="chart-card"><h3>Lead normalisé (réel / estimé)${helpBtn("leadTimeNormalized")}</h3><canvas id="leadNormalizedChart"></canvas></div>
     <div class="chart-card"><h3>Cycle normalisé (réel / estimé)${helpBtn("cycleTimeNormalized")}</h3><canvas id="cycleNormalizedChart"></canvas></div>
     <div class="chart-card"><h3>Flow efficiency (ratio)${helpBtn("flowEfficiency")}</h3><canvas id="flowEfficiencyChart"></canvas></div>
   </div>
-  <div class="by-size-trends">
+  <div class="panel-grid" style="margin-top: 1rem">
     <div class="chart-card">
       <h3>Lead time par taille (jours)${helpBtn("leadTimeBySize")}</h3>
       <div class="bucket-selector" id="leadBySizeBuckets"></div>
@@ -630,102 +846,66 @@ ${staleBannerHtml(input.isSyncStale, input.lastSyncAt)}
       <canvas id="cycleBySizeChart"></canvas>
     </div>
   </div>
-</details>
-
-<h2>Bugs &amp; dette qualité</h2>
-<div class="kpis">
-  <div class="kpi"><span class="label">Bugs livrés (7j)${helpBtn("bugThroughput")}</span><span class="value">${fmtInt(input.kpis.bugThroughputCount)}</span></div>
-  <div class="kpi"><span class="label">Bug cycle médian${helpBtn("bugCycleTime")}</span><span class="value">${signals.bugCycle}${fmt(input.kpis.bugCycleTimeMedian)}</span></div>
-  <div class="kpi"><span class="label">Bug ratio moyen${helpBtn("devTimeAllocation")}</span><span class="value">${signals.bugRatio}${fmtPct(input.kpis.devTimeAvgBugRatio)}</span></div>
 </div>
-<div class="charts">
-  <div class="chart-card"><h3>Bugs livrés (issues / 7j)${helpBtn("bugThroughput")}</h3><canvas id="bugThroughputChart"></canvas></div>
-  <div class="chart-card"><h3>Bug cycle time (jours)${helpBtn("bugCycleTime")}</h3><canvas id="bugCycleTimeChart"></canvas></div>
-  <div class="chart-card"><h3>Allocation dev : features vs bugs${helpBtn("devTimeAllocation")}</h3><canvas id="devTimeAllocationChart"></canvas></div>
-  <div class="chart-card"><h3>Bug backlog${helpBtn("bugBacklog")}</h3><canvas id="bugBacklogChart"></canvas></div>
-</div>
-
-<h2>Capacité &amp; prévision</h2>
-<p class="meta">Forecast${helpBtn("forecast")} — Pool : ${input.forecast.weeksUsed} semaines de throughput récent · ${input.forecast.simulations} simulations</p>
-<table>
-  <thead><tr><th>Horizon</th><th>P15<br><small>(85% conf.)</small></th><th>P50<br><small>(médiane)</small></th><th>P85</th><th>P95</th></tr></thead>
-  <tbody>${forecastTableRows(input.forecast)}</tbody>
-</table>
-<h3>Aging WIP — au ${escapeHtml(input.agingWip.asOf)}${helpBtn("agingWip")}</h3>
-<p class="meta">Seuils cycle-time historique : P50 ${input.agingWip.percentiles.p50.toFixed(1)}j · P85 ${input.agingWip.percentiles.p85.toFixed(1)}j · P95 ${input.agingWip.percentiles.p95.toFixed(1)}j · ${input.agingWip.count} items en cours</p>
-<div class="aging-wrap">
-  <div class="chart-card"><h3>Distribution âge × statut</h3><canvas id="agingScatter" style="max-height: 360px"></canvas></div>
-  <div>
-    <h3>Top items par âge</h3>
-    <table>
-      <thead><tr><th>Issue</th><th>Statut</th><th>Âge</th><th>Risque</th></tr></thead>
-      <tbody>${agingRowsHtml(input.agingWip, input.jiraBaseUrl)}</tbody>
-    </table>
-  </div>
-</div>
-
-<h2>Flux par rôle</h2>
-<h3>Stage time breakdown${helpBtn("stageTimeBreakdown")}</h3>
-<div class="kpis">
-  <div class="kpi"><span class="label">Médiane dev</span><span class="value">${fmt(input.kpis.stageTimeDevMedian)}</span></div>
-  <div class="kpi"><span class="label">Médiane qa</span><span class="value">${fmt(input.kpis.stageTimeQaMedian)}</span></div>
-  <div class="kpi"><span class="label">Médiane po</span><span class="value">${fmt(input.kpis.stageTimePoMedian)}</span></div>
-</div>
-<div class="charts">
-  <div class="chart-card"><h3>Temps médian par rôle (jours)</h3><canvas id="stageTimeByRoleChart"></canvas></div>
-  <div class="chart-card"><h3>Répartition moyenne du cycle time</h3><canvas id="stageTimeShareChart"></canvas></div>
-</div>
-<h3>WIP par rôle${helpBtn("wipPerRole")}</h3>
-<div class="kpis">
-  <div class="kpi"><span class="label">WIP dev</span><span class="value">${fmtInt(input.kpis.wipDev)}</span></div>
-  <div class="kpi"><span class="label">WIP qa</span><span class="value">${fmtInt(input.kpis.wipQa)}</span></div>
-  <div class="kpi"><span class="label">WIP po</span><span class="value">${fmtInt(input.kpis.wipPo)}</span></div>
-</div>
-<div class="chart-card"><canvas id="wipPerRoleChart"></canvas></div>
-<h3>Stage throughput gap${helpBtn("stageThroughputGap")}</h3>
-<div class="chart-card"><canvas id="stageThroughputGapChart"></canvas></div>
-<h3>Handoff rework${helpBtn("handoffRework")}</h3>
-<div class="kpis">
-  <div class="kpi"><span class="label">% tickets avec rework</span><span class="value">${fmtPct(input.kpis.reworkRatio)}</span></div>
-  <div class="kpi"><span class="label">Reworks / ticket</span><span class="value">${fmt(input.kpis.avgReworks, "")}</span></div>
-</div>
-<div class="charts">
-  <div class="chart-card"><h3>Taux de rework</h3><canvas id="reworkRatioChart"></canvas></div>
-  <div class="chart-card"><h3>Reworks par type</h3><canvas id="reworkByTypeChart"></canvas></div>
-</div>
-<h3>First-time-right rate${helpBtn("firstTimeRight")}</h3>
-<div class="kpis">
-  <div class="kpi"><span class="label">FTR dev</span><span class="value">${fmtPct(input.kpis.ftrDev)}</span></div>
-  <div class="kpi"><span class="label">FTR qa</span><span class="value">${fmtPct(input.kpis.ftrQa)}</span></div>
-  <div class="kpi"><span class="label">FTR po</span><span class="value">${fmtPct(input.kpis.ftrPo)}</span></div>
-</div>
-<div class="chart-card"><canvas id="ftrByRoleChart"></canvas></div>
+</main>
 
 <script>
-const _isDark = document.documentElement.classList.contains('dark');
-(function() {
-  const btn = document.getElementById('themeToggle');
-  btn.textContent = _isDark ? '☀ Clair' : '☾ Sombre';
-  btn.addEventListener('click', () => {
-    localStorage.setItem('lean-theme', _isDark ? 'light' : 'dark');
-    location.reload();
+Chart.defaults.color = '#7a8194';
+Chart.defaults.borderColor = '#1f2330';
+Chart.defaults.font.family = "'IBM Plex Mono', ui-monospace, monospace";
+Chart.defaults.font.size = 11;
+Chart.defaults.plugins.tooltip.backgroundColor = '#0c0d12';
+Chart.defaults.plugins.tooltip.titleColor = '#ffffff';
+Chart.defaults.plugins.tooltip.bodyColor = '#d7dbe6';
+Chart.defaults.plugins.tooltip.borderColor = '#2a2f40';
+Chart.defaults.plugins.tooltip.borderWidth = 1;
+Chart.defaults.plugins.tooltip.padding = 8;
+
+(function renderSparklines() {
+  document.querySelectorAll('canvas.spark').forEach(function(canvas) {
+    const raw = canvas.getAttribute('data-values');
+    if (!raw) return;
+    let values;
+    try { values = JSON.parse(raw); } catch (_) { return; }
+    if (!Array.isArray(values) || values.length === 0) return;
+    const color = canvas.getAttribute('data-color') || '#7a8194';
+    new Chart(canvas, {
+      type: 'line',
+      data: { labels: values.map(function(_, i) { return i; }), datasets: [{
+        data: values, borderColor: color, backgroundColor: color + '22',
+        borderWidth: 1.4, pointRadius: 0, fill: true, tension: 0.35,
+      }] },
+      options: {
+        responsive: false, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: { x: { display: false }, y: { display: false } },
+      },
+    });
   });
 })();
-if (_isDark) {
-  Chart.defaults.color = '#94a3b8';
-  Chart.defaults.borderColor = '#2d3148';
-}
+
+(function initTabs() {
+  const tabs = document.getElementById('tabs');
+  if (!tabs) return;
+  tabs.addEventListener('click', function(e) {
+    const btn = e.target.closest('.tab');
+    if (!btn) return;
+    const id = btn.dataset.tab;
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.toggle('active', t === btn); });
+    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.toggle('active', p.id === 'tab-' + id); });
+  });
+})();
 
 const CHARTS = ${JSON.stringify(input.charts)};
 
-const COLOR_MEDIAN = "#2563eb";
-const COLOR_P85 = "#f59e0b";
-const COLOR_P95 = "#ef4444";
-const COLOR_COUNT = "#10b981";
-const COLOR_DAYS = "#8b5cf6";
+const COLOR_MEDIAN = "#00e0d4";
+const COLOR_P85 = "#ff8a3d";
+const COLOR_P95 = "#ff4d6a";
+const COLOR_COUNT = "#4dd697";
+const COLOR_DAYS = "#a78bff";
 
-const _gridColor = _isDark ? '#2d3148' : 'rgba(0,0,0,0.1)';
-const _tickColor = _isDark ? '#94a3b8' : '#666';
+const _gridColor = 'rgba(255,255,255,0.04)';
+const _tickColor = '#7a8194';
 const baseOpts = {
   responsive: true, maintainAspectRatio: false,
   plugins: { legend: { position: "bottom", labels: { boxWidth: 12 } } },
@@ -1327,5 +1507,165 @@ export function agingRowsHtml(data: AgingWipSummary, jiraBaseUrl: string): strin
       (i) =>
         `<tr><td>${issueLink(i.issueKey, jiraBaseUrl)}</td><td>${escapeHtml(i.status)}</td><td>${i.ageDays.toFixed(1)}j</td><td class="${RISK_CLASS[i.riskLevel]}">${escapeHtml(i.riskLevel)}</td></tr>`,
     )
+    .join("");
+}
+
+export type KpiDirection = "lower" | "higher";
+
+export interface KpiCell {
+  key: string;
+  label: string;
+  value: number | null;
+  unit: string;
+  signal: HealthSignal;
+  spark: number[];
+  delta4w: number | null;
+  direction: KpiDirection;
+  helpKey?: string;
+}
+
+export interface KpiSignals {
+  leadTime: HealthSignal;
+  cycleTime: HealthSignal;
+  throughput: HealthSignal;
+  wip: HealthSignal;
+  bugCycle: HealthSignal;
+  bugRatio: HealthSignal;
+}
+
+const SPARK_WINDOW = 12;
+const DELTA_WINDOW = 4;
+const FLAT_DELTA_THRESHOLD_PCT = 1;
+const VERDICT_PHRASE_LIMIT = 3;
+const TOP3_LIMIT = 3;
+
+const VERDICT_LABELS: Record<VerdictStatus, string> = {
+  alert: "⚠ ALERTE",
+  watch: "◐ VIGILANCE",
+  ok: "✓ SAIN",
+};
+
+const SIGNAL_CLS: Record<HealthSignal, string> = {
+  red: "red",
+  orange: "amber",
+  green: "green",
+  none: "",
+};
+
+const SIGNAL_COLOR: Record<HealthSignal, string> = {
+  red: "#ff4d6a",
+  orange: "#ffc24a",
+  green: "#4dd697",
+  none: "#7a8194",
+};
+
+function formatKpiNumber(value: number | null): string {
+  if (value === null) {return "—";}
+  return Number.isInteger(value) ? value.toString() : value.toFixed(1);
+}
+
+function fmtDelta(c: KpiCell): string {
+  if (c.delta4w === null) {return `<span class="kpi-delta flat">— 4w</span>`;}
+  const abs = Math.abs(c.delta4w);
+  const flat = abs < FLAT_DELTA_THRESHOLD_PCT;
+  const up = c.delta4w > 0;
+  const polarity = up === (c.direction === "higher") ? "good" : "bad";
+  const cls = flat ? "flat" : `${up ? "up" : "down"} ${polarity}`;
+  const sign = flat ? "■" : up ? "▲" : "▼";
+  return `<span class="kpi-delta ${cls}">${sign} ${abs.toFixed(0)}% 4w</span>`;
+}
+
+function lastValue(values: number[]): number | null {
+  return values.length === 0 ? null : values[values.length - 1];
+}
+
+function delta4w(values: number[]): number | null {
+  if (values.length < DELTA_WINDOW + 1) {return null;}
+  const curr = values[values.length - 1];
+  const refSlice = values.slice(-DELTA_WINDOW - 1, -1);
+  const ref = refSlice.reduce((a, b) => a + b, 0) / refSlice.length;
+  if (ref === 0) {return null;}
+  return ((curr - ref) / ref) * 100;
+}
+
+function sparkOf(values: number[]): number[] {
+  return values.slice(-SPARK_WINDOW);
+}
+
+export function buildKpiCells(
+  charts: Record<string, ChartSeries>,
+  agingWip: AgingWipSummary,
+  signals: KpiSignals,
+): KpiCell[] {
+  const lead = charts.leadTime?.series.median ?? [];
+  const cycle = charts.cycleTime?.series.median ?? [];
+  const thr = charts.throughput?.series.count ?? [];
+  const wip = charts.wip?.series.count ?? [];
+  const bugCycle = charts.bugCycleTime?.series.median ?? [];
+  const bugRatioRaw = charts.devTimeAllocation?.series.bugRatio ?? [];
+  const bugRatioPct = bugRatioRaw.map((v) => v * 100);
+  const ftrDevRaw = charts.ftrByRole?.series.dev ?? [];
+  const ftrDevPct = ftrDevRaw.map((v) => v * 100);
+  const criticalCount = agingWip.issues.filter((i) => i.riskLevel === "critical").length;
+
+  return [
+    { key: "lead",      label: "Lead median",     value: lastValue(lead),       unit: "j",   signal: signals.leadTime,   spark: sparkOf(lead),       delta4w: delta4w(lead),       direction: "lower",  helpKey: "leadTime" },
+    { key: "cycle",     label: "Cycle median",    value: lastValue(cycle),      unit: "j",   signal: signals.cycleTime,  spark: sparkOf(cycle),      delta4w: delta4w(cycle),      direction: "lower",  helpKey: "cycleTime" },
+    { key: "throughput", label: "Throughput / 7j", value: lastValue(thr),       unit: "iss", signal: signals.throughput, spark: sparkOf(thr),        delta4w: delta4w(thr),        direction: "higher", helpKey: "throughput" },
+    { key: "wip",       label: "WIP",             value: lastValue(wip),        unit: "",    signal: signals.wip,        spark: sparkOf(wip),        delta4w: delta4w(wip),        direction: "lower",  helpKey: "wip" },
+    { key: "bugRatio",  label: "Bug ratio",       value: lastValue(bugRatioPct), unit: "%",  signal: signals.bugRatio,   spark: sparkOf(bugRatioPct), delta4w: delta4w(bugRatioPct), direction: "lower",  helpKey: "devTimeAllocation" },
+    { key: "bugCycle",  label: "Bug cycle",       value: lastValue(bugCycle),   unit: "j",   signal: signals.bugCycle,   spark: sparkOf(bugCycle),   delta4w: delta4w(bugCycle),   direction: "lower",  helpKey: "bugCycleTime" },
+    { key: "ftrDev",    label: "FTR dev",         value: lastValue(ftrDevPct),  unit: "%",   signal: "none",             spark: sparkOf(ftrDevPct),  delta4w: delta4w(ftrDevPct),  direction: "higher", helpKey: "firstTimeRight" },
+    // pourquoi: criticalAging dérive son signal directement du compteur (pas de healthThresholds dédié) — toute issue critical est par définition au-delà du P95 historique.
+    { key: "criticalAging", label: "Critical aging", value: criticalCount,      unit: "",    signal: criticalCount > 0 ? "red" : "green", spark: [], delta4w: null,                direction: "lower",  helpKey: "agingWip" },
+  ];
+}
+
+export type VerdictStatus = "alert" | "watch" | "ok";
+
+export interface Verdict {
+  status: VerdictStatus;
+  phrase: string;
+}
+
+function fmtCellValueWithUnit(c: KpiCell): string {
+  const v = formatKpiNumber(c.value);
+  return c.unit && c.value !== null ? `${v}${c.unit}` : v;
+}
+
+export function computeVerdict(cells: KpiCell[]): Verdict {
+  const reds = cells.filter((c) => c.signal === "red");
+  const oranges = cells.filter((c) => c.signal === "orange");
+  if (reds.length === 0 && oranges.length === 0) {
+    return { status: "ok", phrase: "Tous les indicateurs dans la zone verte." };
+  }
+  const dominants = (reds.length > 0 ? reds : oranges).slice(0, VERDICT_PHRASE_LIMIT);
+  const parts = dominants.map(
+    (c) => `${escapeHtml(c.label)} <strong>${escapeHtml(fmtCellValueWithUnit(c))}</strong>`,
+  );
+  const verbe = reds.length > 0 ? "au-dessus du seuil critique" : "en zone de vigilance";
+  return {
+    status: reds.length > 0 ? "alert" : "watch",
+    phrase: `${parts.join(" · ")} ${verbe}.`,
+  };
+}
+
+export function buildTop3Actions(agingWip: AgingWipSummary, jiraBaseUrl: string): string {
+  const byAgeDesc = (a: AgingWipIssue, b: AgingWipIssue): number => b.ageDays - a.ageDays;
+  const critical = agingWip.issues.filter((i) => i.riskLevel === "critical").sort(byAgeDesc);
+  const atRisk = agingWip.issues.filter((i) => i.riskLevel === "at-risk").sort(byAgeDesc);
+  const top = [...critical, ...atRisk].slice(0, TOP3_LIMIT);
+  if (top.length === 0) {
+    return `<div class="action ok"><div class="action-num">// 01</div><div class="action-title">✓ Aucun ticket en zone critique</div><div class="action-detail">Aucun item ne dépasse le seuil P85 du cycle-time historique.</div></div>`;
+  }
+  return top
+    .map((iss, idx) => {
+      const cls = iss.riskLevel === "critical" ? "crit" : "warn";
+      const num = String(idx + 1).padStart(2, "0");
+      const seuil = iss.riskLevel === "critical"
+        ? `&gt; P95 (${agingWip.percentiles.p95.toFixed(1)}j)`
+        : `&gt; P85 (${agingWip.percentiles.p85.toFixed(1)}j)`;
+      return `<div class="action ${cls}"><div class="action-num">// ${num}</div><div class="action-title">Débloquer ${issueLink(iss.issueKey, jiraBaseUrl)}</div><div class="action-detail">${escapeHtml(iss.status)} · âge <strong>${iss.ageDays.toFixed(1)}j</strong> ${seuil} · ${escapeHtml(iss.riskLevel)}</div></div>`;
+    })
     .join("");
 }
