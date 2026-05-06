@@ -10,6 +10,8 @@ jira:
   apiToken: "YOUR_API_TOKEN"
   projectKey: "YOUR_PROJECT_KEY"
   boardId: 1
+  # name : nom affiché dans le rapport (optionnel, sinon projectKey utilisé)
+  # name: "Ma Squad"
 
 db:
   path: "./lean-jira.db"

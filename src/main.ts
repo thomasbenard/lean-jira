@@ -116,6 +116,7 @@ export interface JiraFileConfig {
     apiToken: string;
     projectKey: string;
     boardId: number;
+    name?: string;
   };
   db: { path: string };
 }
@@ -456,7 +457,7 @@ program
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config);
-    generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds);
+    generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds, config.jira.name);
     console.log(`Rapport généré : ${path.resolve(opts.output)}`);
   });
 
@@ -474,7 +475,7 @@ program
     const metricConfig = buildMetricConfig(db, config);
     const count = backfillSnapshots(db, metricConfig);
     console.log(`Snapshots recalculés : ${count} dates hebdomadaires.`);
-    generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds);
+    generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds, config.jira.name);
     console.log(`Rapport généré : ${path.resolve(opts.output)}`);
   });
 

@@ -184,6 +184,7 @@ export function generateReport(
   outputPath: string,
   config: MetricConfig,
   healthThresholds?: HealthThresholds,
+  squadName?: string,
 ): void {
   const snapshots = db.prepare(
     "SELECT snapshot_date, metric_name, bucket, stat, value FROM metric_snapshots ORDER BY snapshot_date ASC"
@@ -283,6 +284,7 @@ export function generateReport(
 
   const html = renderHtml({
     projectKey,
+    squadName,
     jiraBaseUrl,
     generatedAt: new Date().toISOString().slice(0, 19).replace("T", " "),
     lastSnapshotDate: lastDate,
@@ -383,6 +385,7 @@ interface HistogramBin {
 
 interface RenderInput {
   projectKey: string;
+  squadName?: string;
   jiraBaseUrl: string;
   generatedAt: string;
   lastSnapshotDate: string;
@@ -493,7 +496,7 @@ export function renderHtml(input: RenderInput): string {
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<title>Rapport Lean — ${escapeHtml(input.projectKey)}</title>
+<title>Rapport Lean — ${escapeHtml(input.squadName ?? input.projectKey)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -759,7 +762,7 @@ export function renderHtml(input: RenderInput): string {
 </head>
 <body>
 <header class="bar">
-  <span class="logo">${escapeHtml(input.projectKey)} // FLOW.OPS</span>
+  <span class="logo">${escapeHtml(input.squadName ? `${input.squadName} (${input.projectKey})` : input.projectKey)} // FLOW.OPS</span>
   <span class="meta">GEN ${escapeHtml(input.generatedAt)} · SNAPSHOT ${escapeHtml(input.lastSnapshotDate)} · ${escapeHtml(syncMetaLabel(input.lastSyncAt))}</span>
 </header>
 <main>

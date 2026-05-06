@@ -55,7 +55,8 @@ npm start           # Run compiled build
 ```
 
 `metrics` options: `-m <name>` (single metric), `--json`, `--include-outliers`, `-b <path>` (board config, default `./board.yaml`).
-`report` option: `-o <path>` (output file, default `./report.html`), `-b <path>` (board config, default `./board.yaml`).
+`report` options: `-c <path>` (config, default `./config.yaml`), `-b <path>` (board config, default `./board.yaml`), `-o <path>` (output file, default `./report.html`).
+`refresh` options: `-c <path>` (config, default `./config.yaml`), `-b <path>` (board config, default `./board.yaml`), `-o <path>` (output file, default `./report.html`). Permet de générer des rapports distincts par squad : `npm run refresh -- -c config.keck.yaml -b board.yaml -o report.keck.html`.
 `snapshots` / `validate-config` options: `-b <path>` (board config, default `./board.yaml`).
 `autoconfig` options: `-c <path>` (config path, default `./config.yaml`), `-b <path>` (board config, default `./board.yaml`), `--apply` (destructive: creates/overwrites `board.yaml` after 3s delay; backs up existing to `board.yaml.bak`).
 `list-metrics` subcommand prints all registered metric names.
@@ -71,7 +72,7 @@ Jira REST API v2 → SQLite (WAL) → metric computations → stdout / HTML repo
 ```
 
 **Layers** (`src/`):
-- `main.ts` — Commander.js CLI; routes `sync` / `metrics` / `snapshots` / `report` / `autoconfig` / `list-metrics`; exports `inferBoardColumns()`, `renderBoardColumnsYaml()`, `enrichWithLegacyStatuses()`, `mergeColumns()`, `buildUnresolvableComment()`, `loadJiraConfig()`, `loadBoardConfig()`, `loadConfigs()`, `InferredColumn`, `BoardColumn`, `RoleType`, `JiraFileConfig`, `BoardFileConfig`
+- `main.ts` — Commander.js CLI; routes `sync` / `metrics` / `snapshots` / `report` / `refresh` / `autoconfig` / `list-metrics`; exports `inferBoardColumns()`, `renderBoardColumnsYaml()`, `enrichWithLegacyStatuses()`, `mergeColumns()`, `buildUnresolvableComment()`, `loadJiraConfig()`, `loadBoardConfig()`, `loadConfigs()`, `InferredColumn`, `BoardColumn`, `RoleType`, `JiraFileConfig`, `BoardFileConfig`
 - `sync.ts` — fetches sprints + issues (with changelog), upserts to DB; `replaceTransitions` per issue; incremental mode via `getLastSyncDate()` (JQL `updated >= "<date>"` filter when prior sync exists)
 - `jira/client.ts` — Axios + 200ms sleep between pages
 - `db/store.ts` — better-sqlite3; WAL; atomic transactions
@@ -109,7 +110,7 @@ Jira REST API v2 → SQLite (WAL) → metric computations → stdout / HTML repo
 
 ## Configuration (`config.yaml` + `board.yaml`)
 
-Config is split into two files: `config.yaml` (gitignored, secrets: `jira.*` + `db.*`) and `board.yaml` (commitable: `board.*` + `metrics.*`). Use `config.example.yaml` and `board.example.yaml` as templates. `autoconfig --apply` generates `board.yaml`.
+Config is split into two files: `config.yaml` (gitignored, secrets: `jira.*` + `db.*`) and `board.yaml` (commitable: `board.*` + `metrics.*`). `jira.name` (optional) sets the squad display name in the report header; falls back to `projectKey` if absent. Use `config.example.yaml` and `board.example.yaml` as templates. `autoconfig --apply` generates `board.yaml`.
 
 Board is defined as an ordered list of columns under `board.columns`. Each column has a `type` (`todo` | `active` | `queue` | `done`), an optional `devStart: true` flag, an optional `role` (`"dev" | "qa" | "po"`) flag, and a list of `statuses`. Status lists for metrics are derived automatically by `deriveStatusConfig()` in `main.ts`:
 

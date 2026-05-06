@@ -35,7 +35,23 @@ CLI qui synchronise les données d'un board Jira Kanban, calcule des métriques 
 
 | Option | Description |
 |---|---|
+| `-c, --config <path>` | Chemin config YAML (défaut : `./config.yaml`) |
+| `-b, --board-config <path>` | Chemin board YAML (défaut : `./board.yaml`) |
 | `-o, --output <path>` | Fichier HTML de sortie (défaut : `./report.html`) |
+
+### Options `refresh`
+
+| Option | Description |
+|---|---|
+| `-c, --config <path>` | Chemin config YAML (défaut : `./config.yaml`) |
+| `-b, --board-config <path>` | Chemin board YAML (défaut : `./board.yaml`) |
+| `-o, --output <path>` | Fichier HTML de sortie (défaut : `./report.html`) |
+
+Permet de générer des rapports distincts pour plusieurs squads en parallèle :
+```bash
+npm run refresh -- -c config.keck.yaml -b board.yaml -o report.keck.html
+npm run refresh -- -c config.kepler.yaml -b board.yaml -o report.kepler.html
+```
 
 ---
 
@@ -48,6 +64,7 @@ jira:
   apiToken: "xxx"
   projectKey: "KECK"
   boardId: 42
+  name: "Ma Squad"                  # optionnel — affiché dans le titre du rapport
 
 board:
   columns:

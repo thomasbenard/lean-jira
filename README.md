@@ -55,6 +55,7 @@ jira:
   apiToken: "YOUR_API_TOKEN"   # Jira → Profil → Sécurité → Créer un token API
   projectKey: "PROJ"
   boardId: 42                  # Visible dans l'URL du board Jira
+  name: "Ma Squad"             # Optionnel — affiché dans le titre du rapport
 
 db:
   path: "./lean-jira.db"
@@ -153,6 +154,14 @@ Ou en une commande :
 npm run refresh     # sync → snapshots → report (arrêt sur erreur)
 ```
 
+`refresh` accepte les mêmes options que `report`. Pour plusieurs squads avec des configs et rapports distincts :
+
+```bash
+npm run refresh -- -c config.keck.yaml    -b board.yaml -o report.keck.html
+npm run refresh -- -c config.kepler.yaml  -b board.yaml -o report.kepler.html
+npm run refresh -- -c config.james-webb.yaml -b board.yaml -o report.james-webb.html
+```
+
 ### Commandes individuelles
 
 ```bash
@@ -179,7 +188,8 @@ npm run validate    # Vérifie que les statuts du board.yaml existent en base
 | Option | Description | Disponible sur |
 |---|---|---|
 | `-c, --config <path>` | Chemin vers `config.yaml` (défaut : `./config.yaml`) | Toutes les commandes |
-| `-b, --board-config <path>` | Chemin vers `board.yaml` (défaut : `./board.yaml`) | `metrics`, `snapshots`, `report`, `validate-config`, `autoconfig` |
+| `-b, --board-config <path>` | Chemin vers `board.yaml` (défaut : `./board.yaml`) | `metrics`, `snapshots`, `report`, `refresh`, `validate-config`, `autoconfig` |
+| `-o, --output <path>` | Fichier HTML de sortie (défaut : `./report.html`) | `report`, `refresh` |
 
 ---
 
