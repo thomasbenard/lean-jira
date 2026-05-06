@@ -21,6 +21,7 @@ import { wipPerRoleMetric } from "./wipPerRole";
 import { stageThroughputGapMetric } from "./stageThroughputGap";
 import { handoffReworkMetric } from "./handoffRework";
 import { firstTimeRightMetric } from "./firstTimeRight";
+import { scopeChangeMetric } from "./scopeChange";
 
 // Registre central. Ajouter une métrique = importer + pousser ici.
 const ALL_METRICS = [
@@ -45,6 +46,7 @@ const ALL_METRICS = [
   stageThroughputGapMetric,
   handoffReworkMetric,
   firstTimeRightMetric,
+  scopeChangeMetric,
 ];
 
 export function runAllMetrics(db: Database.Database, config: MetricConfig): Record<string, unknown> {

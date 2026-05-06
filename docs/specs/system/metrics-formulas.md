@@ -422,6 +422,45 @@ Pour chaque issue et chaque rôle R :
 
 ---
 
+### `scope-change-rate`
+
+**Définition** : % d'issues dont la description, l'estimation (Story Points) ou l'affectation de sprint a changé après leur entrée en sprint. Mesure la dérive de périmètre.
+
+**Population** : toutes les issues ayant au moins un changement de champ `Sprint` dans `issue_field_changes`.
+
+**Attribution au sprint** : premier sprint dont le `start_date` est le plus ancien parmi tous les `to_value` Sprint de l'issue (correspondance par inclusion de nom : `to_value.includes(sprintName)`).
+
+**Algorithme** :
+```
+Pour chaque issue :
+  firstSprintStart = min(start_date) des sprints mentionnés dans les changements Sprint
+
+  changedDescription = ∃ changement (description|summary) après firstSprintStart
+                       tel que similarityRatio(from, to) < 0.85
+
+  changedStoryPoints = ∃ changement Story Points après firstSprintStart
+                       avec from_value ≠ null
+
+  changedSprint      = ∃ changement Sprint après firstSprintStart
+                       avec from_value ≠ null
+
+  issue changed = changedDescription ∨ changedStoryPoints ∨ changedSprint
+
+changeRatio = changedIssues / totalIssues
+```
+
+**Similarité textuelle** (Levenshtein normalisée) :
+```
+similarityRatio(a, b) = 1 − levenshtein(normalize(a), normalize(b)) / max(|a|, |b|)
+normalize : lowercase, strip Markdown symbols, collapse whitespace
+```
+
+**Snapshot** : **skip** — sortie `bySprint` non mappable au format `(snapshot_date, bucket, stat)`.
+
+**Sortie** : `{ totalIssues, changedIssues, changeRatio, bySprint: Record<sprintName, SprintScopeStats>, changedIssueKeys }`.
+
+---
+
 ## WIP (Work In Progress)
 
 ### `wip` — snapshot courant
@@ -618,6 +657,7 @@ Pour chaque date D :
 | Rework / qualité (`handoff-rework`, `first-time-right`) | `cutoffDate = D − 30j`, `windowEndDate = D` |
 | Flux rôles (`stage-throughput-gap`) | `cutoffDate = D − 30j`, `windowEndDate = D` |
 | `forecast` | **Skip** — Monte Carlo non déterministe, computé live en report |
+| `scope-change-rate` | **Skip** — shape `bySprint` non mappable au format `(snapshot_date, bucket, stat)` |
 
 **Stats extraites et stockées** par snapshot (résolution dans `extractStats`, `src/snapshots/compute.ts`) :
 

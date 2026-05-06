@@ -16,4 +16,4 @@ Nouvelle métrique `scope-change-rate` implémentant `Metric<ScopeChangeResult>`
 
 ## Statut
 
-**à faire**
+**livré**

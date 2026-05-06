@@ -143,6 +143,7 @@ Board is defined as an ordered list of columns under `board.columns`. Each colum
 | `stage-throughput-gap` | byWeek [{devIn,devOut,devNet,qaIn,...}] + avgNetByRole {dev,qa,po} | entrées/sorties par rôle par semaine ISO; fenêtre 30j (snapshot) ou complète (CLI) |
 | `handoff-rework` | count + reworkRatio + avgReworks + byReworkType {qaToDev,poToQa,poDev} | % tickets avec retour arrière entre rôles; population cycle-time; rolling 30j |
 | `first-time-right` | count + ftrByRole {dev,qa,po}: {eligible,firstTimeRight,ftrRate,avgPasses} | % tickets traversant chaque rôle en 1 seul passage; population cycle-time; rolling 30j |
+| `scope-change-rate` | totalIssues + changedIssues + changeRatio + bySprint + changedIssueKeys | issues dont description/estimation/sprint change après entrée en sprint; seuil similarité 0.85; non snapshotté |
 
 ## Adding a metric
 

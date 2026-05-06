@@ -87,6 +87,8 @@ function computeSnapshot(db: Database.Database, date: string, baseConfig: Metric
     }
     // forecast = Monte Carlo non déterministe, pas de stat utile à snapshotter.
     if (metric.name === "forecast") {continue;}
+    // scope-change-rate = sortie bySprint non mappable au format (snapshot_date, bucket, stat).
+    if (metric.name === "scope-change-rate") {continue;}
 
     const isWeekly = WEEKLY_METRICS.has(metric.name);
     const isCumulative = CUMULATIVE_METRICS.has(metric.name);

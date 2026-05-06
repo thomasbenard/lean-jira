@@ -1,0 +1,173 @@
+import type Database from "better-sqlite3";
+import { type Metric, type MetricConfig } from "./types";
+
+export interface SprintScopeStats {
+  totalIssues: number;
+  changedIssues: number;
+  changeRatio: number;
+  byChangeType: {
+    description: number;
+    storyPoints: number;
+    sprintChange: number;
+  };
+}
+
+export interface ScopeChangeResult {
+  totalIssues: number;
+  changedIssues: number;
+  changeRatio: number;
+  bySprint: Record<string, SprintScopeStats>;
+  changedIssueKeys: string[];
+}
+
+const SIMILARITY_THRESHOLD = 0.85;
+const WATCHED_TEXT_FIELDS = new Set(["description", "summary"]);
+const FIELD_STORY_POINTS = "Story Points";
+const FIELD_SPRINT = "Sprint";
+
+export function normalizeText(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[*_#>`~\[\]()]/g, " ")
+    .replace(/`{1,3}/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  let prev = Array.from({ length: n + 1 }, (_, i) => i);
+  for (let i = 1; i <= m; i++) {
+    const curr = [i];
+    for (let j = 1; j <= n; j++) {
+      curr[j] = a[i - 1] === b[j - 1]
+        ? prev[j - 1]
+        : 1 + Math.min(prev[j - 1], prev[j], curr[j - 1]);
+    }
+    prev = curr;
+  }
+  return prev[n];
+}
+
+export function similarityRatio(from: string, to: string): number {
+  const a = normalizeText(from);
+  const b = normalizeText(to);
+  const maxLen = Math.max(a.length, b.length);
+  if (maxLen === 0) {return 1;}
+  return 1 - levenshtein(a, b) / maxLen;
+}
+
+type FieldChangeRow = {
+  issue_key: string;
+  field_name: string;
+  from_value: string | null;
+  to_value: string | null;
+  changed_at: string;
+};
+
+function findFirstSprint(
+  changes: FieldChangeRow[],
+  sprintStartByName: Map<string, string>,
+): { firstSprintName: string | null; firstSprintStart: string | null } {
+  let firstSprintStart: string | null = null;
+  let firstSprintName: string | null = null;
+
+  for (const c of changes) {
+    if (c.field_name !== FIELD_SPRINT || !c.to_value) {continue;}
+    for (const [name, start] of sprintStartByName) {
+      if (c.to_value.includes(name) && (!firstSprintStart || start < firstSprintStart)) {
+        firstSprintStart = start;
+        firstSprintName = name;
+      }
+    }
+  }
+
+  return { firstSprintName, firstSprintStart };
+}
+
+function emptySprintStats(): SprintScopeStats {
+  return {
+    totalIssues: 0,
+    changedIssues: 0,
+    changeRatio: 0,
+    byChangeType: { description: 0, storyPoints: 0, sprintChange: 0 },
+  };
+}
+
+export const scopeChangeMetric: Metric<ScopeChangeResult> = {
+  name: "scope-change-rate",
+  description: "Taux d'issues dont la description ou l'estimation a changé après entrée en sprint. Mesure la dérive de périmètre.",
+
+  compute(db: Database.Database, _config: MetricConfig): ScopeChangeResult {
+    const sprintRows = db.prepare(
+      "SELECT name, start_date FROM sprints WHERE start_date IS NOT NULL",
+    ).all() as { name: string; start_date: string }[];
+    const sprintStartByName = new Map(sprintRows.map((s) => [s.name, s.start_date]));
+
+    const allChanges = db.prepare(`
+      SELECT issue_key, field_name, from_value, to_value, changed_at
+      FROM issue_field_changes
+      WHERE issue_key IN (
+        SELECT DISTINCT issue_key FROM issue_field_changes WHERE field_name = 'Sprint'
+      )
+      ORDER BY issue_key, changed_at
+    `).all() as FieldChangeRow[];
+
+    const byIssue = new Map<string, FieldChangeRow[]>();
+    for (const row of allChanges) {
+      if (!byIssue.has(row.issue_key)) {byIssue.set(row.issue_key, []);}
+      byIssue.get(row.issue_key)!.push(row);
+    }
+
+    const bySprint: Record<string, SprintScopeStats> = {};
+    const changedIssueKeys: string[] = [];
+    let totalIssues = 0;
+    let changedIssues = 0;
+
+    for (const [issueKey, changes] of byIssue) {
+      const { firstSprintName, firstSprintStart } = findFirstSprint(changes, sprintStartByName);
+      if (!firstSprintStart || !firstSprintName) {continue;}
+
+      totalIssues++;
+      if (!bySprint[firstSprintName]) {bySprint[firstSprintName] = emptySprintStats();}
+      bySprint[firstSprintName].totalIssues++;
+
+      const types = { description: false, storyPoints: false, sprintChange: false };
+
+      for (const c of changes) {
+        if (c.changed_at <= firstSprintStart) {continue;}
+
+        if (WATCHED_TEXT_FIELDS.has(c.field_name)) {
+          if (c.from_value !== null && similarityRatio(c.from_value, c.to_value ?? "") < SIMILARITY_THRESHOLD) {
+            types.description = true;
+          }
+        } else if (c.field_name === FIELD_STORY_POINTS) {
+          if (c.from_value !== null) {types.storyPoints = true;}
+        } else if (c.field_name === FIELD_SPRINT) {
+          if (c.from_value !== null) {types.sprintChange = true;}
+        }
+      }
+
+      if (types.description || types.storyPoints || types.sprintChange) {
+        changedIssues++;
+        changedIssueKeys.push(issueKey);
+        bySprint[firstSprintName].changedIssues++;
+        if (types.description) {bySprint[firstSprintName].byChangeType.description++;}
+        if (types.storyPoints) {bySprint[firstSprintName].byChangeType.storyPoints++;}
+        if (types.sprintChange) {bySprint[firstSprintName].byChangeType.sprintChange++;}
+      }
+    }
+
+    for (const stats of Object.values(bySprint)) {
+      stats.changeRatio = stats.totalIssues > 0 ? stats.changedIssues / stats.totalIssues : 0;
+    }
+
+    return {
+      totalIssues,
+      changedIssues,
+      changeRatio: totalIssues > 0 ? changedIssues / totalIssues : 0,
+      bySprint,
+      changedIssueKeys,
+    };
+  },
+};
