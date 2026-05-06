@@ -1,6 +1,6 @@
 import { JiraClient } from "./jira/client";
 import { type FieldChange, type JiraIssue, type StoredIssue, type StoredSprint, type StoredStatus, type Transition } from "./jira/types";
-import { openDb, upsertIssues, upsertSprints, upsertStatuses, replaceAllTransitions, replaceAllFieldChanges, logSync, getLastSyncDate } from "./db/store";
+import { openDb, upsertIssues, upsertSprints, upsertStatuses, replaceAllTransitions, replaceAllFieldChanges, replaceAllIssueSprints, logSync, getLastSyncDate } from "./db/store";
 
 interface SyncConfig {
   jira: {
@@ -57,15 +57,18 @@ export async function sync(config: SyncConfig): Promise<void> {
   const issues: StoredIssue[] = [];
   const allTransitions: { key: string; transitions: Transition[] }[] = [];
   const allFieldChanges: { key: string; changes: FieldChange[] }[] = [];
+  const allIssueSprints: { key: string; sprintIds: number[] }[] = [];
   for (const issue of rawIssues) {
     issues.push(mapIssue(issue, activeSprintIds));
     allTransitions.push({ key: issue.key, transitions: extractTransitions(issue) });
     allFieldChanges.push({ key: issue.key, changes: extractFieldChanges(issue) });
+    allIssueSprints.push({ key: issue.key, sprintIds: (issue.fields.customfield_10020 ?? []).map((s) => s.id) });
   }
 
   upsertIssues(db, issues);
   replaceAllTransitions(db, allTransitions);
   replaceAllFieldChanges(db, allFieldChanges);
+  replaceAllIssueSprints(db, allIssueSprints);
 
   logSync(db, config.jira.projectKey, rawIssues.length);
   console.log(`Sync terminé. ${rawIssues.length} issues stockées.`);

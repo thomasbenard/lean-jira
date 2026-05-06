@@ -104,6 +104,7 @@ Jira REST API v2 → SQLite (WAL) → metric computations → stdout / HTML repo
 - `sprints` — `current_sprint_id` on issues holds only the current active sprint
 - `sync_log` — audit trail
 - `issue_field_changes` — changelog des champs métier (`description`, `summary`, `Story Points`, `Sprint`); replace-all par issue à chaque sync; `from_value`/`to_value` nullable; indexé sur `issue_key`, `field_name`, `changed_at`
+- `issue_sprints` — table de jonction `(issue_key, sprint_id)` peuplée depuis `customfield_10020` à chaque sync (replace-all par issue); représente l'appartenance historique complète d'une issue à ses sprints (inclut les issues créées directement dans un sprint, sans changelog Sprint); dénominateur de `scope-change-rate`; indexé sur `issue_key` et `sprint_id`
 - `metric_snapshots` — long format `(snapshot_date, metric_name, bucket, stat, value)`; populated by `npm run snapshots`; read by `npm run report`
 
 ## Configuration (`config.yaml` + `board.yaml`)

@@ -120,6 +120,17 @@ Index : `issue_key`, `field_name`, `changed_at`.
 
 Champs surveillés définis dans `WATCHED_FIELDS` (constante module-level dans `src/sync.ts`) : `description`, `summary`, `Story Points`, `Sprint`. Tout autre champ est ignoré silencieusement.
 
+### `issue_sprints`
+
+Table de jonction représentant l'appartenance historique complète d'une issue à ses sprints. Peuplée depuis `customfield_10020` à chaque sync (stratégie replace-all par issue). Inclut les issues créées directement dans un sprint (sans entrée changelog Sprint dans `issue_field_changes`). Sert de dénominateur pour `scope-change-rate`.
+
+| Colonne | Type | Description |
+|---|---|---|
+| `issue_key` | TEXT FK → issues | Clé de l'issue |
+| `sprint_id` | INTEGER FK → sprints | Identifiant du sprint |
+
+PK composite : `(issue_key, sprint_id)`. Index : `issue_key`, `sprint_id`.
+
 ### `metric_snapshots`
 
 Long format : une ligne par `(date, métrique, bucket, stat)`.

@@ -109,9 +109,10 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
   description: "Taux d'issues dont la description ou l'estimation a changé après entrée en sprint. Mesure la dérive de périmètre.",
 
   compute(db: Database.Database, config: MetricConfig): ScopeChangeResult {
+    const cutoff = config.cutoffDate ?? "1970-01-01";
     const sprintRows = db.prepare(
-      "SELECT name, start_date FROM sprints WHERE start_date IS NOT NULL",
-    ).all() as { name: string; start_date: string }[];
+      "SELECT name, start_date FROM sprints WHERE start_date IS NOT NULL AND start_date >= ?",
+    ).all(cutoff) as { name: string; start_date: string }[];
     const sprintStartByName = new Map(sprintRows.map((s) => [s.name, s.start_date]));
 
     const excluded = config.excludeIssueTypes ?? [];
@@ -119,6 +120,9 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
       ? `AND i.issue_type NOT IN (${placeholders(excluded)})`
       : "";
 
+    // Limité aux issues ayant un changelog Sprint : seule façon de dériver firstSprintStart.
+    // Limitation connue : une issue créée directement dans un sprint (sans changelog Sprint)
+    // sera comptée dans totalIssues mais exclue du scan de dérive de périmètre.
     const allChanges = db.prepare(`
       SELECT f.issue_key, f.field_name, f.from_value, f.to_value, f.changed_at
       FROM issue_field_changes f
@@ -141,13 +145,27 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
     let totalIssues = 0;
     let changedIssues = 0;
 
+    // issue_sprints (customfield_10020) contient l'effectif réel — inclut les issues créées directement dans le sprint sans passer par un changelog Sprint
+    const totalsRows = db.prepare(`
+      SELECT s.name AS sprint_name, COUNT(DISTINCT isp.issue_key) AS cnt
+      FROM issue_sprints isp
+      JOIN issues i ON i.key = isp.issue_key
+      JOIN sprints s ON s.id = isp.sprint_id
+      WHERE s.start_date IS NOT NULL AND s.start_date >= ?
+      ${excludeClause}
+      GROUP BY s.name
+    `).all(cutoff, ...excluded) as { sprint_name: string; cnt: number }[];
+
+    for (const row of totalsRows) {
+      if (!bySprint[row.sprint_name]) {bySprint[row.sprint_name] = emptySprintStats();}
+      bySprint[row.sprint_name].totalIssues = row.cnt;
+      totalIssues += row.cnt; // une issue dans N sprints compte N fois — intentionnel pour que changeRatio soit cohérent par sprint
+    }
+
     for (const [issueKey, changes] of byIssue) {
       const { firstSprintName, firstSprintStart } = findFirstSprint(changes, sprintStartByName);
-      if (!firstSprintStart || !firstSprintName) {continue;}
-
-      totalIssues++;
-      if (!bySprint[firstSprintName]) {bySprint[firstSprintName] = emptySprintStats();}
-      bySprint[firstSprintName].totalIssues++;
+      // bySprint absent = sprint non dans issue_sprints → issue hors périmètre (ex. sprint sans start_date)
+      if (!firstSprintStart || !firstSprintName || !bySprint[firstSprintName]) {continue;}
 
       const types = { description: false, storyPoints: false, sprintChange: false };
 

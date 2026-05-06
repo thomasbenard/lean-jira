@@ -65,6 +65,17 @@ CREATE INDEX IF NOT EXISTS idx_field_changes_issue_key ON issue_field_changes(is
 CREATE INDEX IF NOT EXISTS idx_field_changes_field ON issue_field_changes(field_name);
 CREATE INDEX IF NOT EXISTS idx_field_changes_at ON issue_field_changes(changed_at);
 
+CREATE TABLE IF NOT EXISTS issue_sprints (
+  issue_key  TEXT NOT NULL,
+  sprint_id  INTEGER NOT NULL,
+  PRIMARY KEY (issue_key, sprint_id),
+  FOREIGN KEY (issue_key) REFERENCES issues(key),
+  FOREIGN KEY (sprint_id) REFERENCES sprints(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_issue_sprints_issue_key ON issue_sprints(issue_key);
+CREATE INDEX IF NOT EXISTS idx_issue_sprints_sprint ON issue_sprints(sprint_id);
+
 -- Snapshots historiques pour visualisation de tendances. Long format:
 -- une ligne par (date, métrique, bucket, statistique).
 CREATE TABLE IF NOT EXISTS metric_snapshots (

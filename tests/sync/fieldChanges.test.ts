@@ -25,6 +25,7 @@ vi.mock("../../src/db/store", async (importOriginal) => {
     upsertStatuses: vi.fn(),
     replaceAllTransitions: vi.fn(),
     replaceAllFieldChanges: mockReplaceAllFieldChanges,
+    replaceAllIssueSprints: vi.fn(),
     logSync: vi.fn(),
     getLastSyncDate: vi.fn(),
   };

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "../helpers/db";
 import { makeIssue, makeSprint, resetSeq, TEST_CONFIG } from "../helpers/seeders";
-import { upsertIssues, upsertSprints, replaceAllFieldChanges } from "../../src/db/store";
+import { upsertIssues, upsertSprints, replaceAllFieldChanges, replaceAllIssueSprints } from "../../src/db/store";
 import { scopeChangeMetric, normalizeText, similarityRatio } from "../../src/metrics/scopeChange";
 import type Database from "better-sqlite3";
 import type { FieldChange } from "../../src/jira/types";
@@ -100,7 +100,7 @@ describe("scopeChangeMetric.compute — structure de base", () => {
     expect(result.bySprint).toEqual({});
   });
 
-  it("exclut issue sans sprint (pas de FieldChange Sprint)", () => {
+  it("exclut issue absente de issue_sprints (aucune appartenance sprint)", () => {
     seedIssue("PROJ-1");
     seedSprint(1, "Sprint 1", "2025-03-10T00:00:00.000Z");
     seedFieldChanges("PROJ-1", [
@@ -108,6 +108,18 @@ describe("scopeChangeMetric.compute — structure de base", () => {
     ]);
     const result = scopeChangeMetric.compute(db, TEST_CONFIG);
     expect(result.totalIssues).toBe(0);
+  });
+
+  it("exclut sprints dont start_date < cutoffDate", () => {
+    seedIssue("PROJ-1");
+    seedSprint(1, "Sprint Old", "2024-01-10T00:00:00.000Z");
+    seedSprint(2, "Sprint New", "2025-03-10T00:00:00.000Z");
+    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1, 2] }]);
+    const config = { ...TEST_CONFIG, cutoffDate: "2025-01-01" };
+    const result = scopeChangeMetric.compute(db, config);
+    expect(result.bySprint["Sprint Old"]).toBeUndefined();
+    expect(result.bySprint["Sprint New"]).toBeDefined();
+    expect(result.totalIssues).toBe(1);
   });
 
   it("exclut issue dont le sprint n'a pas de start_date", () => {
@@ -128,6 +140,7 @@ describe("Règle 1 — changements description/summary", () => {
   beforeEach(() => {
     seedIssue("PROJ-1");
     seedSprint(1, "Sprint 42", "2025-03-10T00:00:00.000Z");
+    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
     // Assignation au sprint (première, from_value null)
     seedFieldChanges("PROJ-1", [
       { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" },
@@ -195,6 +208,7 @@ describe("Règle 2 — Story Points", () => {
   beforeEach(() => {
     seedIssue("PROJ-1");
     seedSprint(1, "Sprint 42", "2025-03-10T00:00:00.000Z");
+    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
   });
 
   it("ignore première estimation (null → valeur)", () => {
@@ -229,6 +243,7 @@ describe("Règle 3 — Périmètre temporel", () => {
   beforeEach(() => {
     seedIssue("PROJ-1");
     seedSprint(1, "Sprint 42", "2025-03-10T00:00:00.000Z");
+    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
   });
 
   it("ignore changement de description avant le sprint start", () => {
@@ -288,6 +303,7 @@ describe("Règle 4 — Sprint change", () => {
     seedIssue("PROJ-1");
     seedSprint(1, "Sprint 42", "2025-03-10T00:00:00.000Z");
     seedSprint(2, "Sprint 43", "2025-03-24T00:00:00.000Z");
+    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
   });
 
   it("ignore assignation initiale (null → sprint)", () => {
@@ -327,6 +343,12 @@ describe("Agrégation bySprint", () => {
 
     const longText = "Texte initial très complet avec beaucoup de critères d'acceptation détaillés";
     const shortText = "Abrégé";
+
+    replaceAllIssueSprints(db, [
+      { key: "PROJ-1", sprintIds: [1] },
+      { key: "PROJ-2", sprintIds: [1] },
+      { key: "PROJ-3", sprintIds: [1] },
+    ]);
 
     // PROJ-1 : changement significatif
     replaceAllFieldChanges(db, [
@@ -371,6 +393,10 @@ describe("Agrégation bySprint", () => {
     seedSprint(1, "Sprint 42", "2025-03-10T00:00:00.000Z");
     seedSprint(2, "Sprint 43", "2025-03-24T00:00:00.000Z");
 
+    replaceAllIssueSprints(db, [
+      { key: "PROJ-1", sprintIds: [1] },
+      { key: "PROJ-2", sprintIds: [2] },
+    ]);
     replaceAllFieldChanges(db, [
       {
         key: "PROJ-1",
@@ -393,5 +419,76 @@ describe("Agrégation bySprint", () => {
     expect(result.bySprint["Sprint 42"].changedIssues).toBe(1);
     expect(result.bySprint["Sprint 43"].changedIssues).toBe(0);
     expect(result.bySprint["Sprint 43"].totalIssues).toBe(1);
+  });
+});
+
+// ─── Règle 5 — Dénominateur depuis issue_sprints (ticket 034) ────────────────
+
+describe("Règle 5 — Dénominateur depuis issue_sprints", () => {
+  it("totalIssues compte les issues sans changelog Sprint (créées directement dans sprint)", () => {
+    upsertIssues(db, [makeIssue({ key: "PROJ-1" }), makeIssue({ key: "PROJ-2" })]);
+    upsertSprints(db, [makeSprint({ id: 1, name: "Sprint 42", state: "active", startDate: "2025-03-10T00:00:00.000Z", endDate: "2099-01-01T00:00:00.000Z", boardId: 1 })]);
+    // PROJ-1 : créé directement dans sprint, aucun field change Sprint
+    // PROJ-2 : a un field change Sprint
+    replaceAllIssueSprints(db, [
+      { key: "PROJ-1", sprintIds: [1] },
+      { key: "PROJ-2", sprintIds: [1] },
+    ]);
+    replaceAllFieldChanges(db, [{
+      key: "PROJ-2",
+      changes: [{ issueKey: "PROJ-2", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" }],
+    }]);
+    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    expect(result.bySprint["Sprint 42"].totalIssues).toBe(2);
+    expect(result.totalIssues).toBe(2);
+  });
+
+  it("retourne résultats vides si issue_sprints est vide (base non re-synchée)", () => {
+    upsertIssues(db, [makeIssue({ key: "PROJ-1" })]);
+    upsertSprints(db, [makeSprint({ id: 1, name: "Sprint 42", state: "active", startDate: "2025-03-10T00:00:00.000Z", endDate: "2099-01-01T00:00:00.000Z", boardId: 1 })]);
+    replaceAllFieldChanges(db, [{
+      key: "PROJ-1",
+      changes: [{ issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" }],
+    }]);
+    // issue_sprints non peuplé
+    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    expect(result.totalIssues).toBe(0);
+    expect(result.bySprint).toEqual({});
+  });
+
+  it("issue dans plusieurs sprints : totalIssues correct dans chaque sprint", () => {
+    upsertIssues(db, [makeIssue({ key: "PROJ-1" }), makeIssue({ key: "PROJ-2" })]);
+    upsertSprints(db, [
+      makeSprint({ id: 1, name: "Sprint 42", state: "closed", startDate: "2025-03-10T00:00:00.000Z", endDate: "2025-03-24T00:00:00.000Z", boardId: 1 }),
+      makeSprint({ id: 2, name: "Sprint 43", state: "active", startDate: "2025-03-24T00:00:00.000Z", endDate: "2099-01-01T00:00:00.000Z", boardId: 1 }),
+    ]);
+    // PROJ-1 dans les deux sprints (reprogrammé), PROJ-2 uniquement Sprint 43
+    replaceAllIssueSprints(db, [
+      { key: "PROJ-1", sprintIds: [1, 2] },
+      { key: "PROJ-2", sprintIds: [2] },
+    ]);
+    replaceAllFieldChanges(db, [{
+      key: "PROJ-1",
+      changes: [{ issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" }],
+    }]);
+    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    expect(result.bySprint["Sprint 42"].totalIssues).toBe(1);
+    expect(result.bySprint["Sprint 43"].totalIssues).toBe(2);
+    expect(result.totalIssues).toBe(3);
+  });
+
+  it("exclut les issue_types de excludeIssueTypes du dénominateur", () => {
+    upsertIssues(db, [
+      makeIssue({ key: "PROJ-1", issueType: "Story" }),
+      makeIssue({ key: "PROJ-2", issueType: "Epic" }),
+    ]);
+    upsertSprints(db, [makeSprint({ id: 1, name: "Sprint 42", state: "active", startDate: "2025-03-10T00:00:00.000Z", endDate: "2099-01-01T00:00:00.000Z", boardId: 1 })]);
+    replaceAllIssueSprints(db, [
+      { key: "PROJ-1", sprintIds: [1] },
+      { key: "PROJ-2", sprintIds: [1] },
+    ]);
+    const config = { ...TEST_CONFIG, excludeIssueTypes: ["Epic"] };
+    const result = scopeChangeMetric.compute(db, config);
+    expect(result.bySprint["Sprint 42"].totalIssues).toBe(1);
   });
 });

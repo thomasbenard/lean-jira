@@ -18,4 +18,4 @@ Le problème actuel : `totalIssues` compte uniquement les issues ayant au moins 
 
 ## Statut
 
-**à faire**
+**livré**

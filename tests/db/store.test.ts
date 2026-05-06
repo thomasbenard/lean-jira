@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "../helpers/db";
-import { upsertIssues, upsertSprints, upsertStatuses, replaceTransitions, getDoneStatusNames, getAllStatuses, logSync, getLastSyncDate, getDistinctTransitionStatuses } from "../../src/db/store";
+import { upsertIssues, upsertSprints, upsertStatuses, replaceTransitions, replaceAllIssueSprints, getDoneStatusNames, getAllStatuses, logSync, getLastSyncDate, getDistinctTransitionStatuses } from "../../src/db/store";
 import type Database from "better-sqlite3";
 import { makeIssue, makeSprint, makeTransitions, resetSeq } from "../helpers/seeders";
 
@@ -57,6 +57,41 @@ describe("upsertSprints", () => {
     const row = db.prepare("SELECT name, state FROM sprints WHERE id = 10").get() as { name: string; state: string };
     expect(row.name).toBe("Nouveau");
     expect(row.state).toBe("active");
+  });
+});
+
+describe("replaceAllIssueSprints", () => {
+  it("insère les appartenances sprint d'une issue", () => {
+    upsertIssues(db, [makeIssue({ key: "PROJ-1" })]);
+    upsertSprints(db, [makeSprint({ id: 10, name: "Sprint A" }), makeSprint({ id: 11, name: "Sprint B" })]);
+    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [10, 11] }]);
+    const rows = db.prepare("SELECT sprint_id FROM issue_sprints WHERE issue_key = 'PROJ-1' ORDER BY sprint_id").all() as { sprint_id: number }[];
+    expect(rows.map((r) => r.sprint_id)).toEqual([10, 11]);
+  });
+
+  it("remplace les entrées existantes (replace-all)", () => {
+    upsertIssues(db, [makeIssue({ key: "PROJ-1" })]);
+    upsertSprints(db, [makeSprint({ id: 10, name: "Sprint A" }), makeSprint({ id: 11, name: "Sprint B" })]);
+    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [10] }]);
+    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [11] }]);
+    const rows = db.prepare("SELECT sprint_id FROM issue_sprints WHERE issue_key = 'PROJ-1'").all() as { sprint_id: number }[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].sprint_id).toBe(11);
+  });
+
+  it("ignore les doublons dans sprintIds", () => {
+    upsertIssues(db, [makeIssue({ key: "PROJ-1" })]);
+    upsertSprints(db, [makeSprint({ id: 10, name: "Sprint A" })]);
+    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [10, 10] }]);
+    const rows = db.prepare("SELECT sprint_id FROM issue_sprints WHERE issue_key = 'PROJ-1'").all();
+    expect(rows).toHaveLength(1);
+  });
+
+  it("insère rien si sprintIds vide", () => {
+    upsertIssues(db, [makeIssue({ key: "PROJ-1" })]);
+    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [] }]);
+    const rows = db.prepare("SELECT * FROM issue_sprints WHERE issue_key = 'PROJ-1'").all();
+    expect(rows).toHaveLength(0);
   });
 });
 

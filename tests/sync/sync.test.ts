@@ -24,6 +24,7 @@ vi.mock("../../src/db/store", async (importOriginal) => {
     upsertStatuses: vi.fn(),
     replaceAllTransitions: vi.fn(),
     replaceAllFieldChanges: vi.fn(),
+    replaceAllIssueSprints: vi.fn(),
     logSync: vi.fn(),
     getLastSyncDate: vi.fn(),
   };
@@ -103,5 +104,66 @@ describe("sync — liste vide si aucune issue modifiée", () => {
     vi.mocked(store.getLastSyncDate).mockReturnValue("2026-04-20T10:00:00.000Z");
     await sync(baseConfig);
     expect(store.logSync).toHaveBeenCalledWith(expect.anything(), "KECK", 0);
+  });
+
+  it("appelle replaceAllIssueSprints avec liste vide si aucune issue", async () => {
+    vi.mocked(store.getLastSyncDate).mockReturnValue("2026-04-20T10:00:00.000Z");
+    await sync(baseConfig);
+    expect(store.replaceAllIssueSprints).toHaveBeenCalledWith(expect.anything(), []);
+  });
+});
+
+describe("sync — extraction issue_sprints depuis customfield_10020", () => {
+  it("stocke les sprint ids de customfield_10020 pour chaque issue", async () => {
+    mockFetchAllIssues.mockResolvedValue([
+      {
+        key: "PROJ-1",
+        fields: {
+          summary: "US test",
+          issuetype: { name: "Story" },
+          status: { name: "Done" },
+          created: "2025-01-01T00:00:00.000Z",
+          resolutiondate: null,
+          assignee: null,
+          priority: null,
+          timeoriginalestimate: null,
+          customfield_10020: [
+            { id: 10, name: "Sprint A", state: "closed", startDate: "2025-01-01T00:00:00.000Z", endDate: "2025-01-14T00:00:00.000Z" },
+            { id: 11, name: "Sprint B", state: "active", startDate: "2025-01-15T00:00:00.000Z", endDate: "2025-01-28T00:00:00.000Z" },
+          ],
+        },
+        changelog: { histories: [] },
+      },
+    ]);
+    await sync(baseConfig);
+    expect(store.replaceAllIssueSprints).toHaveBeenCalledWith(
+      expect.anything(),
+      [{ key: "PROJ-1", sprintIds: [10, 11] }],
+    );
+  });
+
+  it("stocke liste vide si customfield_10020 est null", async () => {
+    mockFetchAllIssues.mockResolvedValue([
+      {
+        key: "PROJ-1",
+        fields: {
+          summary: "US test",
+          issuetype: { name: "Story" },
+          status: { name: "Done" },
+          created: "2025-01-01T00:00:00.000Z",
+          resolutiondate: null,
+          assignee: null,
+          priority: null,
+          timeoriginalestimate: null,
+          customfield_10020: null,
+        },
+        changelog: { histories: [] },
+      },
+    ]);
+    await sync(baseConfig);
+    expect(store.replaceAllIssueSprints).toHaveBeenCalledWith(
+      expect.anything(),
+      [{ key: "PROJ-1", sprintIds: [] }],
+    );
   });
 });

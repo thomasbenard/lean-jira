@@ -104,6 +104,21 @@ export function replaceAllFieldChanges(
   })();
 }
 
+export function replaceAllIssueSprints(
+  db: Database.Database,
+  allItems: { key: string; sprintIds: number[] }[],
+): void {
+  const del = db.prepare("DELETE FROM issue_sprints WHERE issue_key = ?");
+  const ins = db.prepare("INSERT OR IGNORE INTO issue_sprints (issue_key, sprint_id) VALUES (?, ?)");
+
+  db.transaction(() => {
+    for (const { key, sprintIds } of allItems) {
+      del.run(key);
+      for (const id of sprintIds) { ins.run(key, id); }
+    }
+  })();
+}
+
 export function upsertStatuses(db: Database.Database, statuses: StoredStatus[]): void {
   const stmt = db.prepare(`
     INSERT INTO statuses (name, category_key, category_name)
