@@ -29,55 +29,78 @@ export function normalizeText(s: string): string {
 }
 ```
 
-### `similarityRatio` — pure-addition guard
+### `similarityRatio` — dénominateur original
 
-Ajouter après calcul du levenshtein, avant le `return` :
+Remplacer la fonction entière :
 
 ```typescript
 export function similarityRatio(from: string, to: string): number {
   const a = normalizeText(from);
   const b = normalizeText(to);
-  const maxLen = Math.max(a.length, b.length);
-  if (maxLen === 0) { return 1; }
-  const dist = levenshtein(a, b);
-  // Addition pure : seules des insertions, aucune substitution ni suppression.
-  // Enrichissement sans réécriture → pas de dérive de périmètre.
-  if (b.length > a.length && dist === b.length - a.length) { return 1; }
-  return 1 - dist / maxLen;
+  if (a.length === 0) {return b.length === 0 ? 1 : 0;}
+  // Dénominateur = longueur du texte original : mesure la dérive relative à l'état de référence.
+  // Un ajout de N% donne sim = 1-N% ; détecté si N > ~15% (seuil 0.85).
+  return Math.max(0, 1 - levenshtein(a, b) / a.length);
 }
 ```
 
-### Boucle de détection — first vs last par champ + grace period
+Supprimer le `pure-addition guard` (`if (b.length > a.length && dist === b.length - a.length)`).
+Supprimer la variable `maxLen`.
 
-Remplacer la boucle actuelle (lignes 165-175) :
+### Pré-calcul `firstDevStartByIssue` — avant la boucle principale
+
+Ajouter après la construction de `byIssue` :
 
 ```typescript
-// Calcul du cutoff grace period (en ms depuis epoch)
-const gracePeriodHours = config.scopeChangeGracePeriodHours ?? 0;
-const graceCutoff = gracePeriodHours > 0
-  ? new Date(new Date(firstSprintStart).getTime() + gracePeriodHours * 3_600_000).toISOString()
-  : firstSprintStart;
-
-// first vs last par champ surveillé
-type FieldState = { first: string; last: string };
-const fieldStates = new Map<string, FieldState>();
-
-for (const c of changes) {
-  if (c.changed_at <= graceCutoff) { continue; }
-  if (!WATCHED_TEXT_FIELDS.has(c.field_name) || c.from_value === null) { continue; }
-  if (!fieldStates.has(c.field_name)) {
-    fieldStates.set(c.field_name, { first: c.from_value, last: c.to_value ?? "" });
-  } else {
-    fieldStates.get(c.field_name)!.last = c.to_value ?? "";
-  }
-}
-
-const descriptionChanged = [...fieldStates.values()].some(
-  ({ first, last }) => similarityRatio(first, last) < SIMILARITY_THRESHOLD,
-);
+const devStartPlaceholders = config.devStartStatuses.map(() => "?").join(",");
+const devStartRows = db.prepare(`
+  SELECT issue_key, MIN(transitioned_at) AS first_dev_start
+  FROM transitions
+  WHERE to_status IN (${devStartPlaceholders})
+  GROUP BY issue_key
+`).all(...config.devStartStatuses) as { issue_key: string; first_dev_start: string }[];
+const firstDevStartByIssue = new Map(devStartRows.map(r => [r.issue_key, r.first_dev_start]));
 ```
 
-Supprimer la variable `descriptionChanged = false` et la boucle `for` existante.
+### Boucle de détection — first vs last par champ + grace period depuis devStart
+
+Remplacer la boucle actuelle :
+
+```typescript
+for (const [issueKey, changes] of byIssue) {
+  const { firstSprintName } = findFirstSprint(changes, sprintStartByName);
+  if (!firstSprintName || !bySprint[firstSprintName]) { continue; }
+
+  const firstDevStart = firstDevStartByIssue.get(issueKey);
+  if (!firstDevStart) { continue; } // jamais démarré → skip détection
+
+  const graceCutoff = gracePeriodMs > 0
+    ? new Date(Date.parse(firstDevStart) + gracePeriodMs).toISOString()
+    : firstDevStart;
+
+  const fieldStates = new Map<string, FieldState>();
+  for (const c of changes) {
+    if (c.changed_at <= graceCutoff) { continue; }
+    if (!WATCHED_TEXT_FIELDS.has(c.field_name) || c.from_value === null) { continue; }
+    if (!fieldStates.has(c.field_name)) {
+      fieldStates.set(c.field_name, { first: c.from_value, last: c.to_value ?? "" });
+    } else {
+      fieldStates.get(c.field_name)!.last = c.to_value ?? "";
+    }
+  }
+
+  let descriptionChanged = false;
+  for (const { first, last } of fieldStates.values()) {
+    if (similarityRatio(first, last) < SIMILARITY_THRESHOLD) {
+      descriptionChanged = true;
+      break;
+    }
+  }
+  // ... suite inchangée
+}
+```
+
+**Suppression** : `firstSprintStart` n'est plus utilisé comme borne de détection. `findFirstSprint` retourne uniquement `firstSprintName`.
 
 ---
 

@@ -29,8 +29,13 @@ const SIMILARITY_THRESHOLD = 0.85;
 const WATCHED_TEXT_FIELDS = new Set(["description", "summary"]);
 const FIELD_SPRINT = "Sprint";
 
+type FieldState = { first: string; last: string };
+
 export function normalizeText(s: string): string {
   return s
+    .replace(/\{[^}]*\}/g, " ")
+    .replace(/![^!\s][^!]*!/g, " ")
+    .replace(/\[([^\]|]+)\|[^\]]+\]/g, "$1")
     .toLowerCase()
     .replace(/[*_#>`~\[\]()]/g, " ")
     .replace(/`{1,3}/g, " ")
@@ -56,9 +61,9 @@ function levenshtein(a: string, b: string): number {
 export function similarityRatio(from: string, to: string): number {
   const a = normalizeText(from);
   const b = normalizeText(to);
-  const maxLen = Math.max(a.length, b.length);
-  if (maxLen === 0) {return 1;}
-  return 1 - levenshtein(a, b) / maxLen;
+  if (a.length === 0) {return b.length === 0 ? 1 : 0;}
+  // Dénominateur = longueur du texte original : ajout de N% → sim = 1-N%, détecté si N > ~15%.
+  return Math.max(0, 1 - levenshtein(a, b) / a.length);
 }
 
 type FieldChangeRow = {
@@ -72,7 +77,7 @@ type FieldChangeRow = {
 function findFirstSprint(
   changes: FieldChangeRow[],
   sprintStartByName: Map<string, string>,
-): { firstSprintName: string | null; firstSprintStart: string | null } {
+): string | null {
   let firstSprintStart: string | null = null;
   let firstSprintName: string | null = null;
 
@@ -86,7 +91,7 @@ function findFirstSprint(
     }
   }
 
-  return { firstSprintName, firstSprintStart };
+  return firstSprintName;
 }
 
 function emptySprintStats(): SprintScopeStats {
@@ -157,20 +162,43 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
       totalIssues += row.cnt; // une issue dans N sprints compte N fois — intentionnel pour que changeRatio soit cohérent par sprint
     }
 
-    for (const [issueKey, changes] of byIssue) {
-      const { firstSprintName, firstSprintStart } = findFirstSprint(changes, sprintStartByName);
-      // bySprint absent = sprint non dans issue_sprints → issue hors périmètre (ex. sprint sans start_date)
-      if (!firstSprintStart || !firstSprintName || !bySprint[firstSprintName]) {continue;}
+    const issueKeys = Array.from(byIssue.keys());
+    const devStartRows = issueKeys.length > 0
+      ? db.prepare(
+          `SELECT issue_key, MIN(transitioned_at) AS first_dev_start FROM transitions WHERE issue_key IN (${placeholders(issueKeys)}) AND to_status IN (${placeholders(config.devStartStatuses)}) GROUP BY issue_key`,
+        ).all(...issueKeys, ...config.devStartStatuses) as { issue_key: string; first_dev_start: string }[]
+      : [];
+    const firstDevStartByIssue = new Map(devStartRows.map((r) => [r.issue_key, r.first_dev_start]));
 
-      let descriptionChanged = false;
+    const gracePeriodMs = (config.scopeChangeGracePeriodHours ?? 0) * 3_600_000;
+
+    for (const [issueKey, changes] of byIssue) {
+      const firstSprintName = findFirstSprint(changes, sprintStartByName);
+      // bySprint absent = sprint non dans issue_sprints → issue hors périmètre (ex. sprint sans start_date)
+      if (!firstSprintName || !bySprint[firstSprintName]) {continue;}
+
+      const firstDevStart = firstDevStartByIssue.get(issueKey);
+      if (!firstDevStart) {continue;}
+
+      const graceCutoff = new Date(Date.parse(firstDevStart) + gracePeriodMs).toISOString();
+
+      const fieldStates = new Map<string, FieldState>();
 
       for (const c of changes) {
-        if (c.changed_at <= firstSprintStart) {continue;}
-        if (WATCHED_TEXT_FIELDS.has(c.field_name) && c.from_value !== null) {
-          if (similarityRatio(c.from_value, c.to_value ?? "") < SIMILARITY_THRESHOLD) {
-            descriptionChanged = true;
-            break;
-          }
+        if (c.changed_at <= graceCutoff) {continue;}
+        if (!WATCHED_TEXT_FIELDS.has(c.field_name) || c.from_value === null) {continue;}
+        if (!fieldStates.has(c.field_name)) {
+          fieldStates.set(c.field_name, { first: c.from_value, last: c.to_value ?? "" });
+        } else {
+          fieldStates.get(c.field_name)!.last = c.to_value ?? "";
+        }
+      }
+
+      let descriptionChanged = false;
+      for (const { first, last } of fieldStates.values()) {
+        if (similarityRatio(first, last) < SIMILARITY_THRESHOLD) {
+          descriptionChanged = true;
+          break;
         }
       }
 

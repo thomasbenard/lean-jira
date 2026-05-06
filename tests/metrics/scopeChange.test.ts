@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "../helpers/db";
-import { makeIssue, makeSprint, resetSeq, TEST_CONFIG } from "../helpers/seeders";
-import { upsertIssues, upsertSprints, replaceAllFieldChanges, replaceAllIssueSprints } from "../../src/db/store";
+import { makeIssue, makeSprint, makeTransitions, resetSeq, TEST_CONFIG } from "../helpers/seeders";
+import { upsertIssues, upsertSprints, replaceAllFieldChanges, replaceAllIssueSprints, replaceTransitions } from "../../src/db/store";
 import { scopeChangeMetric, normalizeText, similarityRatio } from "../../src/metrics/scopeChange";
 import type Database from "better-sqlite3";
 import type { FieldChange } from "../../src/jira/types";
@@ -181,6 +181,7 @@ describe("Règle 1 — changements description/summary", () => {
         { issueKey: "PROJ-1", fieldName: "description", fromValue: longText, toValue: shortened, changedAt: "2025-03-15T10:00:00.000Z" },
       ],
     }]);
+    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
     const result = scopeChangeMetric.compute(db, TEST_CONFIG);
     expect(result.changedIssues).toBe(1);
     expect(result.bySprint["Sprint 42"].byChangeType.description).toBe(1);
@@ -196,6 +197,7 @@ describe("Règle 1 — changements description/summary", () => {
         { issueKey: "PROJ-1", fieldName: "summary", fromValue: longSummary, toValue: shortSummary, changedAt: "2025-03-15T10:00:00.000Z" },
       ],
     }]);
+    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
     const result = scopeChangeMetric.compute(db, TEST_CONFIG);
     expect(result.changedIssues).toBe(1);
     expect(result.bySprint["Sprint 42"].byChangeType.description).toBe(1);
@@ -269,6 +271,7 @@ describe("Règle 3 — Périmètre temporel", () => {
         { issueKey: "PROJ-1", fieldName: "description", fromValue: longText, toValue: shortText, changedAt: "2025-03-15T10:00:00.000Z" },
       ],
     }]);
+    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
     const result = scopeChangeMetric.compute(db, TEST_CONFIG);
     expect(result.changedIssues).toBe(1);
   });
@@ -287,6 +290,7 @@ describe("Règle 3 — Périmètre temporel", () => {
         { issueKey: "PROJ-1", fieldName: "description", fromValue: longText, toValue: shortText, changedAt: "2025-03-12T10:00:00.000Z" },
       ],
     }]);
+    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
     const result = scopeChangeMetric.compute(db, TEST_CONFIG);
     // Premier sprint = Sprint 42 (start 2025-03-10, plus ancien que Sprint 43)
     // Changement le 2025-03-12 > 2025-03-10 → comptabilisé
@@ -373,6 +377,7 @@ describe("Agrégation bySprint", () => {
       },
     ]);
 
+    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
     const result = scopeChangeMetric.compute(db, TEST_CONFIG);
     expect(result.totalIssues).toBe(3);
     expect(result.changedIssues).toBe(1);
@@ -411,6 +416,7 @@ describe("Agrégation bySprint", () => {
       },
     ]);
 
+    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
     const result = scopeChangeMetric.compute(db, TEST_CONFIG);
     expect(result.totalIssues).toBe(2);
     expect(Object.keys(result.bySprint)).toHaveLength(2);
@@ -488,5 +494,219 @@ describe("Règle 5 — Dénominateur depuis issue_sprints", () => {
     const config = { ...TEST_CONFIG, excludeIssueTypes: ["Epic"] };
     const result = scopeChangeMetric.compute(db, config);
     expect(result.bySprint["Sprint 42"].totalIssues).toBe(1);
+  });
+});
+
+// ─── Règle 8 — Strip macros Jira dans normalizeText ─────────────────────────
+
+describe("normalizeText — macros Jira", () => {
+  it("supprime les macros Jira avec paramètres", () => {
+    const a = normalizeText("{panel:title=Avant}Contenu identique{panel}");
+    const b = normalizeText("{panel:title=Après}Contenu identique{panel}");
+    expect(a).toBe(b);
+  });
+
+  it("supprime les macros Jira simples", () => {
+    const a = normalizeText("{noformat}code ici{noformat}");
+    const b = normalizeText("{code}code ici{code}");
+    expect(a).toBe(b);
+  });
+
+  it("supprime les images inline", () => {
+    const a = normalizeText("Voir !image-avant.png! pour détails");
+    const b = normalizeText("Voir !image-après.png|thumbnail! pour détails");
+    expect(a).toBe(b);
+  });
+
+  it("conserve le texte du lien Jira, supprime l'URL", () => {
+    const a = normalizeText("Voir [ticket|https://jira.example.com/old]");
+    const b = normalizeText("Voir [ticket|https://jira.example.com/new]");
+    expect(a).toBe(b);
+  });
+
+  it("changement de contenu réel reste détectable après strip", () => {
+    const sim = similarityRatio("{panel}Critère A{panel}", "{panel}Critère B complètement différent{panel}");
+    expect(sim).toBeLessThan(0.85);
+  });
+});
+
+// ─── Règle 9 — Dérive proportionnelle à l'original ──────────────────────────
+
+describe("similarityRatio — dénominateur original", () => {
+  it("petit ajout (10% de l'original) → sim 0.90, non détecté", () => {
+    const from = "a".repeat(100);
+    const to = "a".repeat(100) + "b".repeat(10);
+    expect(similarityRatio(from, to)).toBeCloseTo(0.90);
+    expect(similarityRatio(from, to)).toBeGreaterThanOrEqual(0.85);
+  });
+
+  it("gros ajout (30% de l'original) → sim 0.70, détecté", () => {
+    const from = "a".repeat(100);
+    const to = "a".repeat(100) + "b".repeat(30);
+    expect(similarityRatio(from, to)).toBeCloseTo(0.70);
+    expect(similarityRatio(from, to)).toBeLessThan(0.85);
+  });
+
+  it("suppression de contenu → sim < 1", () => {
+    const sim = similarityRatio("Critère principal. Détails importants.", "Critère principal.");
+    expect(sim).toBeLessThan(1);
+  });
+
+  it("réécriture complète → clampé à 0", () => {
+    const sim = similarityRatio("a".repeat(100), "b".repeat(100));
+    expect(sim).toBe(0);
+  });
+});
+
+// ─── Règle 6 — First vs last (dérive cumulée) ───────────────────────────────
+
+describe("scopeChangeMetric — Règle 6 first vs last", () => {
+  it("détecte dérive cumulée : 3 changements chacun sim=0.9 mais first-vs-last sim=0.7", () => {
+    seedIssue("PROJ-1");
+    seedSprint(1, "Sprint 1", "2025-03-10T00:00:00.000Z");
+    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    // a→b→c→d : chaque pas remplace 10 "a" par "x" → pairwise sim=0.9 > 0.85 (non détecté pairwise)
+    // first "a"×100 vs last "x"×30+"a"×70 → lev=30, sim=0.7 < 0.85 → détecté first-vs-last
+    const a = "a".repeat(100);
+    const b = "x".repeat(10) + "a".repeat(90);
+    const c = "x".repeat(20) + "a".repeat(80);
+    const d = "x".repeat(30) + "a".repeat(70);
+    seedFieldChanges("PROJ-1", [
+      { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 1", changedAt: "2025-03-09T12:00:00.000Z" },
+      { issueKey: "PROJ-1", fieldName: "description", fromValue: a, toValue: b, changedAt: "2025-03-11T10:00:00.000Z" },
+      { issueKey: "PROJ-1", fieldName: "description", fromValue: b, toValue: c, changedAt: "2025-03-12T10:00:00.000Z" },
+      { issueKey: "PROJ-1", fieldName: "description", fromValue: c, toValue: d, changedAt: "2025-03-13T10:00:00.000Z" },
+    ]);
+    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T09:00:00.000Z" }]));
+    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    expect(result.changedIssues).toBe(1);
+  });
+
+  it("n'alerte pas si delta cumulé first-vs-last reste sous le seuil (revert)", () => {
+    seedIssue("PROJ-1");
+    seedSprint(1, "Sprint 1", "2025-03-10T00:00:00.000Z");
+    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    // Description change radicalement puis revient à l'état initial.
+    // Pairwise : sim(v1,v2)=0 < 0.85 → ancien code détecte (faux positif).
+    // First vs last : sim(v1,v3)=1.0 → pas de dérive réelle.
+    const v1 = "a".repeat(100);
+    const v2 = "b".repeat(100);
+    seedFieldChanges("PROJ-1", [
+      { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 1", changedAt: "2025-03-09T12:00:00.000Z" },
+      { issueKey: "PROJ-1", fieldName: "description", fromValue: v1, toValue: v2, changedAt: "2025-03-11T10:00:00.000Z" },
+      { issueKey: "PROJ-1", fieldName: "description", fromValue: v2, toValue: v1, changedAt: "2025-03-12T10:00:00.000Z" },
+    ]);
+    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T09:00:00.000Z" }]));
+    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    expect(result.changedIssues).toBe(0);
+  });
+});
+
+// ─── Règle 7 — Grace period ──────────────────────────────────────────────────
+
+describe("scopeChangeMetric — Règle 7 grace period", () => {
+  it("ignore un changement dans la grace period (11h < 24h)", () => {
+    seedIssue("PROJ-1");
+    seedSprint(1, "Sprint 1", "2025-03-10T00:00:00.000Z");
+    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    const from = "a".repeat(100);
+    const to = "b".repeat(100);
+    seedFieldChanges("PROJ-1", [
+      { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 1", changedAt: "2025-03-09T12:00:00.000Z" },
+      // 11h après devStart → dans la grace period de 24h
+      { issueKey: "PROJ-1", fieldName: "description", fromValue: from, toValue: to, changedAt: "2025-03-10T11:00:00.000Z" },
+    ]);
+    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T00:00:00.000Z" }]));
+    const config = { ...TEST_CONFIG, scopeChangeGracePeriodHours: 24 };
+    const result = scopeChangeMetric.compute(db, config);
+    expect(result.changedIssues).toBe(0);
+  });
+
+  it("détecte un changement après la grace period (25h > 24h)", () => {
+    seedIssue("PROJ-1");
+    seedSprint(1, "Sprint 1", "2025-03-10T00:00:00.000Z");
+    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    const from = "a".repeat(100);
+    const to = "b".repeat(100);
+    seedFieldChanges("PROJ-1", [
+      { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 1", changedAt: "2025-03-09T12:00:00.000Z" },
+      // 25h après devStart → après la grace period de 24h
+      { issueKey: "PROJ-1", fieldName: "description", fromValue: from, toValue: to, changedAt: "2025-03-11T01:00:00.000Z" },
+    ]);
+    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T00:00:00.000Z" }]));
+    const config = { ...TEST_CONFIG, scopeChangeGracePeriodHours: 24 };
+    const result = scopeChangeMetric.compute(db, config);
+    expect(result.changedIssues).toBe(1);
+  });
+
+  it("grace period à 0 (absent) : comportement inchangé", () => {
+    seedIssue("PROJ-1");
+    seedSprint(1, "Sprint 1", "2025-03-10T00:00:00.000Z");
+    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    const from = "a".repeat(100);
+    const to = "b".repeat(100);
+    seedFieldChanges("PROJ-1", [
+      { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 1", changedAt: "2025-03-09T12:00:00.000Z" },
+      // 1h après devStart, sim=0 → détecté (pas de grace period)
+      { issueKey: "PROJ-1", fieldName: "description", fromValue: from, toValue: to, changedAt: "2025-03-10T01:00:00.000Z" },
+    ]);
+    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T00:00:00.000Z" }]));
+    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    expect(result.changedIssues).toBe(1);
+  });
+});
+
+// ─── Règle 10 — Borne de détection = premier devStart ───────────────────────
+
+describe("scopeChangeMetric — Règle 10 devStart comme borne de détection", () => {
+  it("skip si aucune transition devStart (issue jamais démarrée)", () => {
+    seedIssue("PROJ-1");
+    seedSprint(1, "Sprint 1", "2025-03-10T00:00:00.000Z");
+    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    const from = "a".repeat(100);
+    const to = "b".repeat(100);
+    seedFieldChanges("PROJ-1", [
+      { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 1", changedAt: "2025-03-09T12:00:00.000Z" },
+      { issueKey: "PROJ-1", fieldName: "description", fromValue: from, toValue: to, changedAt: "2025-03-15T10:00:00.000Z" },
+    ]);
+    // Pas de transition "In Progress" → devStart absent → skip détection
+    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    expect(result.changedIssues).toBe(0);
+    expect(result.totalIssues).toBe(1); // reste dans le dénominateur
+  });
+
+  it("ignore changements post-sprint-start mais pré-devStart", () => {
+    seedIssue("PROJ-1");
+    seedSprint(1, "Sprint 1", "2025-03-10T00:00:00.000Z");
+    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    const from = "a".repeat(100);
+    const to = "b".repeat(100);
+    seedFieldChanges("PROJ-1", [
+      { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 1", changedAt: "2025-03-09T12:00:00.000Z" },
+      // Changement significatif entre sprint start (10 mars) et devStart (14 mars) → doit être ignoré
+      { issueKey: "PROJ-1", fieldName: "description", fromValue: from, toValue: to, changedAt: "2025-03-12T10:00:00.000Z" },
+    ]);
+    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [
+      { to: "In Progress", at: "2025-03-14T09:00:00.000Z" },
+    ]));
+    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    expect(result.changedIssues).toBe(0);
+  });
+
+  it("détecte changement post-devStart", () => {
+    seedIssue("PROJ-1");
+    seedSprint(1, "Sprint 1", "2025-03-10T00:00:00.000Z");
+    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    const from = "a".repeat(100);
+    const to = "b".repeat(100);
+    seedFieldChanges("PROJ-1", [
+      { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 1", changedAt: "2025-03-09T12:00:00.000Z" },
+      { issueKey: "PROJ-1", fieldName: "description", fromValue: from, toValue: to, changedAt: "2025-03-15T10:00:00.000Z" },
+    ]);
+    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [
+      { to: "In Progress", at: "2025-03-14T09:00:00.000Z" },
+    ]));
+    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    expect(result.changedIssues).toBe(1);
   });
 });

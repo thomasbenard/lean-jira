@@ -6,21 +6,25 @@
 
 ## Comportement attendu
 
-### Règle 1 — Comparaison first vs last par champ
+### Règle 1 — Comparaison first vs last par champ, depuis le premier devStart
 
 Pour chaque issue, pour chaque champ surveillé (`description`, `summary`) indépendamment :
 
-- Identifier le premier changement du champ **après** la grace period (voir Règle 2)
-- `firstValue` = `from_value` de ce premier changement (état au moment de l'entrée en sprint)
-- `lastValue` = `to_value` du dernier changement du champ après la grace period
+- `firstDevStart` = première transition vers un statut `devStartStatuses` dans la table `transitions`
+- Si aucune transition devStart trouvée → issue **exclue de la détection** (reste dans `totalIssues`)
+- Identifier le premier changement du champ **après** `firstDevStart` (+ grace period, voir Règle 2)
+- `firstValue` = `from_value` de ce premier changement post-devStart
+- `lastValue` = `to_value` du dernier changement du champ post-devStart
 - Comparer `firstValue` vs `lastValue` via `similarityRatio`
 - Si `similarityRatio < 0.85` → issue détectée
 
-Les modifications intermédiaires ne sont plus évaluées. Si un seul changement existe après la grace period : `firstValue = from_value`, `lastValue = to_value` de ce changement (comportement identique à l'actuel pour ce cas).
+Les modifications intermédiaires ne sont plus évaluées. Si un seul changement post-devStart existe : `firstValue = from_value`, `lastValue = to_value` de ce changement.
+
+**Rôle de `firstSprintName`** : l'attribution sprint (clé de `bySprint`) reste basée sur le premier sprint de l'issue via `findFirstSprint` / `issue_sprints` — inchangé.
 
 ### Règle 2 — Grace period
 
-Les changements intervenant dans les `gracePeriodHours` heures suivant `firstSprintStart` sont ignorés dans la détection (non comptabilisés comme post-sprint). Valeur par défaut : 0 (aucune grace period, comportement identique à l'actuel).
+Les changements intervenant dans les `gracePeriodHours` heures suivant `firstDevStart` sont ignorés dans la détection. Valeur par défaut : 0 (aucune grace period).
 
 Configuration : `board.yaml` → `metrics.scopeChangeGracePeriodHours: 24`.
 
@@ -33,11 +37,22 @@ La fonction `normalizeText` supprime, avant toute autre transformation :
 
 Ces suppressions s'appliquent avant le `toLowerCase` et le collapse `\s+` existants. Un changement qui ne modifie que la macro encapsulant du contenu inchangé produit un `similarityRatio = 1.0` → non détecté.
 
-### Règle 4 — Additions pures ignorées
+### Règle 4 — Dénominateur = longueur du texte original
 
-Après normalisation, si `levenshtein(a, b) === len(b) − len(a)` **et** `len(b) > len(a)` : aucune substitution ni suppression, uniquement des insertions. La fonction retourne `1.0` (pas de dérive).
+`similarityRatio` mesure la dérive **par rapport au texte d'origine** :
 
-Les suppressions pures (`len(a) > len(b)`) **ne sont pas** exemptées : retirer des exigences est une dérive de périmètre.
+```
+sim = max(0, 1 − levenshtein(a, b) / len(a))
+```
+
+où `a = normalizeText(from)`, `b = normalizeText(to)`.
+
+Conséquences :
+- Ajout de N% de contenu → sim = `1 − N%`. Détecté si N > ~15 % (seuil 0.85).
+- Suppression partielle ou totale → dist élevé relatif à `len(a)` → sim proche de 0 → toujours détecté.
+- Réécriture complète → dist ≈ max(len(a), len(b)) → sim ≤ 0 → clampé à 0 → détecté.
+
+Le `pure-addition guard` binaire (cas spécial `dist === len(b) − len(a)`) est supprimé. Les petits appends (< 15 % de l'original) passent naturellement sous le seuil sans traitement spécial.
 
 ### Règle 5 — Whitespace guard (implicite)
 
@@ -45,13 +60,15 @@ Si après normalisation complète (macros + whitespace collapse) les deux textes
 
 ## Cas limites
 
-- Issue avec 1 seul changement description après sprint start : `firstValue = from_value`, `lastValue = to_value` → comportement inchangé par rapport à l'actuel (hors normalisation améliorée)
+- Issue sans transition devStart (jamais démarrée) : exclue de la détection, reste dans `totalIssues`
+- Issue avec 1 seul changement description après devStart : `firstValue = from_value`, `lastValue = to_value` → comportement simple
 - Issue avec changements description ET summary : chaque champ évalué indépendamment ; suffit qu'un seul franchisse le seuil pour que l'issue soit détectée
-- `firstSprintStart` tombant exactement à la même seconde qu'un changement : ce changement est exclu (`changed_at <= graceCutoff`, opérateur `<=` strict)
-- Grace period > durée totale des changements : aucun changement retenu → `firstValue = null` → non détecté
+- Changements de description antérieurs à `firstDevStart` : ignorés (y compris les rewrites faits pendant la préparation backlog avant que le dev commence)
+- `firstDevStart` tombant exactement à la même seconde qu'un changement : ce changement est exclu (`changed_at <= graceCutoff`, opérateur `<=` strict)
+- Grace period > durée totale des changements post-devStart : aucun changement retenu → non détecté
 - Texte vide avant ou après (suppression complète) : `similarityRatio(text, "") < 0.85` pour tout texte non vide → détecté (suppression totale = dérive)
 - Macro Jira dans lien `[texte|https://…]` : l'URL est supprimée, le texte conservé → un changement d'URL seule n'est plus détecté
-- `from_value = null` : ignoré (changement initial sans valeur précédente, comportement inchangé)
+- `from_value = null` : ignoré (changement initial sans valeur précédente)
 
 ## Ce qui ne change pas
 

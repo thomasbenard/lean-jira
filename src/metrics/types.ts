@@ -30,6 +30,8 @@ export interface MetricConfig {
   bugIssueTypes: string[];
   // Types Jira exclus de toutes les métriques (ex: Feature, Epic).
   excludeIssueTypes: string[];
+  // Couvre le nettoyage de description en sprint planning (ex: 24).
+  scopeChangeGracePeriodHours?: number;
 }
 
 // Contrat que chaque métrique doit implémenter

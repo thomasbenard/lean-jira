@@ -127,6 +127,7 @@ export interface BoardFileConfig {
     bugIssueTypes?: string[];
     excludeIssueTypes?: string[];
     healthThresholds?: HealthThresholds;
+    scopeChangeGracePeriodHours?: number;
   };
 }
 
@@ -194,6 +195,7 @@ function buildMetricConfig(db: Database.Database, app: AppConfig, opts: { exclud
     excludeOutliers: opts.excludeOutliers !== false,
     bugIssueTypes: app.metrics?.bugIssueTypes ?? ["Bug"],
     excludeIssueTypes: app.metrics?.excludeIssueTypes ?? [],
+    scopeChangeGracePeriodHours: app.metrics?.scopeChangeGracePeriodHours,
   };
 }
 
