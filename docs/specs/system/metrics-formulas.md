@@ -459,6 +459,8 @@ normalize : lowercase, strip Markdown symbols, collapse whitespace
 
 **Sortie** : `{ totalIssues, changedIssues, changeRatio, bySprint: Record<sprintName, SprintScopeStats>, changedIssueKeys }`.
 
+`SprintScopeStats` : `{ totalIssues, changedIssues, changeRatio, byChangeType: {description, storyPoints, sprintChange}, issueDetails: [{key, description, storyPoints, sprintChange}] }`. `issueDetails` permet au rapport de mapper chaque issue modifiée à son sprint réel et d'afficher ses types de changement.
+
 ---
 
 ## WIP (Work In Progress)

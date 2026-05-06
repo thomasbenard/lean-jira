@@ -206,6 +206,7 @@ npm run validate    # Vérifie que les statuts du board.yaml existent en base
 | `stage-throughput-gap` | Flux net (entrées − sorties) par rôle par semaine |
 | `handoff-rework` | % tickets avec retour arrière entre rôles |
 | `first-time-right` | % tickets traversant chaque rôle en un seul passage |
+| `scope-change-rate` | % issues dont description/estimation/sprint a changé après entrée en sprint (dérive de périmètre) |
 
 **Notes** :
 - Toutes les métriques de durée produisent : moyenne, médiane (P50), P85, P95
@@ -220,11 +221,12 @@ npm run validate    # Vérifie que les statuts du board.yaml existent en base
 
 Le rapport est un fichier autonome (Chart.js chargé depuis CDN, aucune dépendance serveur, partageable par email ou Slack).
 
-**4 sections** :
+**5 sections** :
 1. **Livraison** — KPIs, graphes lead/cycle time, throughput, WIP, distribution, par taille, métriques normalisées
 2. **Bugs & dette qualité** — bug throughput, bug cycle time, allocation dev, bug backlog (barres net flow + courbe open count)
 3. **Capacité & prévision** — forecast Monte Carlo, aging WIP avec liens Jira cliquables
 4. **Flux par rôle** — stage time, WIP par rôle, throughput gap, rework, first-time-right
+5. **Scope change** — barres empilées par sprint (description / story points / reprogrammation) + taux de dérive, table des issues modifiées avec liens Jira cliquables ; bannière d'alerte orange si dérive détectée sur le sprint actif ou précédent ; section absente si la base n'a pas été migrée (ticket 031)
 
 Chaque graphe inclut une courbe de tendance (moyenne mobile 4 semaines). Les KPIs configurés avec `healthThresholds` affichent un signal de santé coloré (vert / orange / rouge). La section "Flux par rôle" est masquée silencieusement si aucune colonne `role:` n'est configurée dans `board.yaml`.
 

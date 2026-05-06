@@ -1,5 +1,13 @@
 import type Database from "better-sqlite3";
 import { type Metric, type MetricConfig } from "./types";
+import { placeholders } from "./utils";
+
+export interface ScopeChangedIssueDetail {
+  key: string;
+  description: boolean;
+  storyPoints: boolean;
+  sprintChange: boolean;
+}
 
 export interface SprintScopeStats {
   totalIssues: number;
@@ -10,6 +18,7 @@ export interface SprintScopeStats {
     storyPoints: number;
     sprintChange: number;
   };
+  issueDetails: ScopeChangedIssueDetail[];
 }
 
 export interface ScopeChangeResult {
@@ -91,6 +100,7 @@ function emptySprintStats(): SprintScopeStats {
     changedIssues: 0,
     changeRatio: 0,
     byChangeType: { description: 0, storyPoints: 0, sprintChange: 0 },
+    issueDetails: [],
   };
 }
 
@@ -98,20 +108,27 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
   name: "scope-change-rate",
   description: "Taux d'issues dont la description ou l'estimation a changé après entrée en sprint. Mesure la dérive de périmètre.",
 
-  compute(db: Database.Database, _config: MetricConfig): ScopeChangeResult {
+  compute(db: Database.Database, config: MetricConfig): ScopeChangeResult {
     const sprintRows = db.prepare(
       "SELECT name, start_date FROM sprints WHERE start_date IS NOT NULL",
     ).all() as { name: string; start_date: string }[];
     const sprintStartByName = new Map(sprintRows.map((s) => [s.name, s.start_date]));
 
+    const excluded = config.excludeIssueTypes ?? [];
+    const excludeClause = excluded.length > 0
+      ? `AND i.issue_type NOT IN (${placeholders(excluded)})`
+      : "";
+
     const allChanges = db.prepare(`
-      SELECT issue_key, field_name, from_value, to_value, changed_at
-      FROM issue_field_changes
-      WHERE issue_key IN (
+      SELECT f.issue_key, f.field_name, f.from_value, f.to_value, f.changed_at
+      FROM issue_field_changes f
+      JOIN issues i ON i.key = f.issue_key
+      WHERE f.issue_key IN (
         SELECT DISTINCT issue_key FROM issue_field_changes WHERE field_name = 'Sprint'
       )
-      ORDER BY issue_key, changed_at
-    `).all() as FieldChangeRow[];
+      ${excludeClause}
+      ORDER BY f.issue_key, f.changed_at
+    `).all(...excluded) as FieldChangeRow[];
 
     const byIssue = new Map<string, FieldChangeRow[]>();
     for (const row of allChanges) {
@@ -155,6 +172,7 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
         if (types.description) {bySprint[firstSprintName].byChangeType.description++;}
         if (types.storyPoints) {bySprint[firstSprintName].byChangeType.storyPoints++;}
         if (types.sprintChange) {bySprint[firstSprintName].byChangeType.sprintChange++;}
+        bySprint[firstSprintName].issueDetails.push({ key: issueKey, ...types });
       }
     }
 

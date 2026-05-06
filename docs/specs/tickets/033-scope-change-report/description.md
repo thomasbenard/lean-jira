@@ -16,4 +16,4 @@ Dans `src/report/generate.ts`, ajouter une nouvelle section "Scope change" qui a
 
 ## Statut
 
-**à faire**
+**livré**

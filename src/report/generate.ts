@@ -1,10 +1,11 @@
 import type Database from "better-sqlite3";
 import fs from "fs";
-import { BUCKET_LABELS, BUCKET_ORDER } from "../metrics/utils";
+import { BUCKET_LABELS, BUCKET_ORDER, placeholders } from "../metrics/utils";
 import { type MetricConfig } from "../metrics/types";
 import { agingWipMetric, type AgingWipSummary, type AgingWipIssue, type AgingRisk } from "../metrics/agingWip";
 import { forecastMetric, type ForecastSummary } from "../metrics/forecast";
 import { cycleTimeMetric } from "../metrics/cycleTime";
+import { scopeChangeMetric, type ScopeChangeResult } from "../metrics/scopeChange";
 import { getLastSyncDate } from "../db/store";
 
 const STALE_THRESHOLD_DAYS = 7;
@@ -167,6 +168,14 @@ const HELP_TEXTS: Record<string, { title: string; body: string } | undefined> = 
     title: "First-time-right rate",
     body: "% tickets ayant traversé chaque rôle en un seul passage (sans retour). FTR 100% = aucun rework. Complément lisible du handoff-rework.",
   },
+  scopeChange: {
+    title: "Dérive de périmètre par sprint",
+    body:
+      "Issues dont la description, l'estimation ou l'assignation de sprint a changé significativement après le début du sprint. " +
+      "Seuil de détection : similarité texte < 85% (Levenshtein normalisé). " +
+      "Tout changement de story points post-sprint est comptabilisé. " +
+      "Une dérive élevée corrèle avec des sprints ratés et un cycle time long.",
+  },
 };
 
 export function generateReport(
@@ -265,6 +274,14 @@ export function generateReport(
   const cycleTime = cycleTimeMetric.compute(db, config);
   const histogram = buildHistogram(cycleTime.issues.map((i) => i.cycleTimeDays));
 
+  let scopeAlertHtml = "";
+  let scopeSectionHtml = "";
+  if (isScopeChangeAvailable(db)) {
+    const scopeData = scopeChangeMetric.compute(db, config);
+    scopeAlertHtml = buildScopeAlertBanner(db, scopeData);
+    scopeSectionHtml = buildScopeSection(scopeData, db, jiraBaseUrl);
+  }
+
   const html = renderHtml({
     projectKey,
     jiraBaseUrl,
@@ -289,6 +306,8 @@ export function generateReport(
       count: cycleTime.count,
     },
     healthThresholds,
+    scopeAlertHtml,
+    scopeSectionHtml,
   });
 
   fs.writeFileSync(outputPath, html);
@@ -381,6 +400,8 @@ interface RenderInput {
   histogram: HistogramBin[];
   cycleStats: { median: number; p85: number; p95: number; avg: number; count: number };
   healthThresholds?: HealthThresholds;
+  scopeAlertHtml?: string;
+  scopeSectionHtml?: string;
 }
 
 function buildHistogram(values: number[]): HistogramBin[] {
@@ -533,6 +554,19 @@ export function renderHtml(input: RenderInput): string {
     background: var(--stale-bg); border: 1px solid var(--stale-border); color: var(--stale-text);
     padding: 0.6rem 1rem; border-radius: 6px; margin-bottom: 1.5rem; font-size: 0.9rem;
   }
+
+  .alert-orange {
+    background: rgba(255,138,61,0.12); border: 1px solid var(--orange); color: var(--orange);
+    padding: 0.7rem 1.2rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem;
+  }
+  .alert-orange .alert-detail { color: var(--text-dim); margin-left: 0.4rem; }
+
+  .scope-section { margin: 2rem 0; }
+  .scope-help { color: var(--text-dim); font-size: 0.85rem; margin: 0.5rem 0 1rem; }
+  .scope-issues-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 1rem; }
+  .scope-issues-table th { text-align: left; color: var(--text-faint); font-weight: 500; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--line); }
+  .scope-issues-table td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--line); }
+  .text-dim { color: var(--text-dim); font-size: 0.9rem; }
 
   .verdict {
     border: 1px solid var(--line-2);
@@ -734,6 +768,7 @@ export function renderHtml(input: RenderInput): string {
 </div>
 
 ${staleBannerHtml(input.isSyncStale, input.lastSyncAt)}
+${input.scopeAlertHtml ?? ""}
 
 <section class="actions">
   <div class="actions-head"><h2>À traiter // top 3</h2><div class="sep"></div></div>
@@ -750,6 +785,7 @@ ${staleBannerHtml(input.isSyncStale, input.lastSyncAt)}
   <button class="tab" data-tab="quality">Qualité &amp; bugs</button>
   <button class="tab" data-tab="roles">Flux par rôle</button>
   <button class="tab" data-tab="forecast">Forecast &amp; aging</button>
+  ${input.scopeSectionHtml ? `<button class="tab" data-tab="scope">Dérive de périmètre</button>` : ""}
   <button class="tab" data-tab="advanced">Avancé</button>
 </div>
 
@@ -831,6 +867,8 @@ ${staleBannerHtml(input.isSyncStale, input.lastSyncAt)}
   </div>
 </div>
 
+${input.scopeSectionHtml ? `<div class="tab-panel" id="tab-scope">${input.scopeSectionHtml}</div>` : ""}
+
 <div class="tab-panel" id="tab-advanced">
   <div class="panel-grid three">
     <div class="chart-card"><h3>Lead normalisé (réel / estimé)${helpBtn("leadTimeNormalized")}</h3><canvas id="leadNormalizedChart"></canvas></div>
@@ -850,6 +888,7 @@ ${staleBannerHtml(input.isSyncStale, input.lastSyncAt)}
     </div>
   </div>
 </div>
+
 </main>
 
 <script>
@@ -1672,4 +1711,122 @@ export function buildTop3Actions(agingWip: AgingWipSummary, jiraBaseUrl: string)
       return `<div class="action ${cls}"><div class="action-num">// ${num}</div><div class="action-title">Débloquer ${issueLink(iss.issueKey, jiraBaseUrl)}</div><div class="action-detail">${escapeHtml(iss.status)} · âge <strong>${iss.ageDays.toFixed(1)}j</strong> ${seuil} · ${escapeHtml(iss.riskLevel)}</div></div>`;
     })
     .join("");
+}
+
+export function isScopeChangeAvailable(db: Database.Database): boolean {
+  const cols = db.prepare("PRAGMA table_info(issue_field_changes)").all() as { name: string }[];
+  return cols.length > 0;
+}
+
+export function buildScopeAlertBanner(db: Database.Database, scopeData: ScopeChangeResult): string {
+  if (scopeData.changedIssues === 0) {return "";}
+
+  const activeSprint = db.prepare(
+    "SELECT name FROM sprints WHERE state = 'active' ORDER BY start_date DESC LIMIT 1",
+  ).get() as { name: string } | undefined;
+
+  if (!activeSprint) {return "";}
+
+  const alertSprints = (scopeData.bySprint[activeSprint.name]?.changedIssues ?? 0) > 0
+    ? [activeSprint.name]
+    : [];
+
+  if (alertSprints.length === 0) {return "";}
+
+  const count = alertSprints.reduce((s, n) => s + (scopeData.bySprint[n]?.changedIssues ?? 0), 0);
+  const sprintLabel = alertSprints.join(", ");
+  return `<div class="alert-orange">⚠️ Dérive de périmètre détectée — <strong>${count} issue(s)</strong> modifiée(s) après entrée en sprint <span class="alert-detail">(sprint : ${escapeHtml(sprintLabel)})</span></div>`;
+}
+
+export function buildScopeChangeChart(scopeData: ScopeChangeResult): string {
+  const sprintNames = Object.keys(scopeData.bySprint).sort((a, b) => {
+    const numA = parseInt(a.match(/\d+/)?.[0] ?? "0", 10);
+    const numB = parseInt(b.match(/\d+/)?.[0] ?? "0", 10);
+    return numA - numB;
+  });
+
+  const shortLabels = sprintNames.map((n) => {
+    const idx = n.indexOf(" - ");
+    return idx >= 0 ? n.slice(idx + 3) : n;
+  });
+
+  const extracted = sprintNames.map((n) => {
+    const s = scopeData.bySprint[n];
+    return { changed: s.changedIssues, unchanged: s.totalIssues - s.changedIssues, ratio: Math.round(s.changeRatio * 100) };
+  });
+
+  return JSON.stringify({
+    type: "bar",
+    data: {
+      labels: shortLabels,
+      datasets: [
+        { label: "Issues modifiées", data: extracted.map((e) => e.changed), backgroundColor: "rgba(224, 49, 49, 0.75)", stack: "scope" },
+        {
+          label: "Taux dérive (%)", data: extracted.map((e) => e.ratio), type: "line", yAxisID: "y2",
+          borderColor: "#0bc5ea", backgroundColor: "rgba(11, 197, 234, 0.08)",
+          borderWidth: 2, borderDash: [5, 3], pointRadius: 5, pointBackgroundColor: "#0bc5ea",
+          tension: 0.3, fill: false,
+        },
+      ],
+    },
+    options: {
+      datasets: { bar: { barPercentage: 0.6, categoryPercentage: 0.7 } },
+      scales: {
+        x: { ticks: { maxRotation: 0, minRotation: 0 } },
+        y:  { stacked: true, min: 0, ticks: { stepSize: 1 }, title: { display: true, text: "Nb issues" } },
+        y2: { position: "right", min: 0, suggestedMax: 110, title: { display: true, text: "Taux dérive (%)" }, grid: { drawOnChartArea: false } },
+      },
+    },
+  });
+}
+
+export function buildScopeSection(scopeData: ScopeChangeResult, db: Database.Database, jiraBaseUrl: string): string {
+  const chartCfg = buildScopeChangeChart(scopeData);
+
+  let tableHtml = "";
+  if (scopeData.changedIssueKeys.length > 0) {
+    const keys = scopeData.changedIssueKeys;
+    const ph = placeholders(keys);
+    const summaries = db.prepare(
+      `SELECT key, summary FROM issues WHERE key IN (${ph})`,
+    ).all(...keys) as { key: string; summary: string }[];
+    const summaryByKey = new Map(summaries.map((r) => [r.key, r.summary]));
+
+    type IssueRow = { sprint: string; description: boolean; storyPoints: boolean; sprintChange: boolean };
+    const issueRowMap = new Map<string, IssueRow>();
+    for (const [sprintName, stats] of Object.entries(scopeData.bySprint)) {
+      for (const detail of stats.issueDetails) {
+        issueRowMap.set(detail.key, { sprint: sprintName, description: detail.description, storyPoints: detail.storyPoints, sprintChange: detail.sprintChange });
+      }
+    }
+
+    const rows = keys.map((key) => {
+      const row = issueRowMap.get(key);
+      const sprint = row?.sprint ?? "—";
+      const types = row ? [row.description && "Description", row.storyPoints && "Story Points", row.sprintChange && "Reprogrammé"].filter(Boolean).join(", ") : "—";
+      const summary = summaryByKey.get(key) ?? "";
+      return `<tr><td>${issueLink(key, jiraBaseUrl)}</td><td>${escapeHtml(sprint)}</td><td>${escapeHtml(types)}</td><td>${escapeHtml(summary)}</td></tr>`;
+    }).join("");
+
+    tableHtml = `<table class="scope-issues-table">
+      <thead><tr><th>Clé</th><th>Sprint</th><th>Changements</th><th>Résumé</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
+  const hasData = Object.keys(scopeData.bySprint).length > 0;
+
+  return `<section class="scope-section">
+  <div class="actions-head"><h2>Dérive de périmètre par sprint</h2><div class="sep"></div></div>
+  <p class="scope-help">Issues dont la description, l'estimation ou l'assignation de sprint a changé significativement après le début du sprint. Seuil de détection : similarité texte &lt; 85% (Levenshtein normalisé). Tout changement de story points post-sprint est comptabilisé. Une dérive élevée corrèle avec des sprints ratés et un cycle time long.</p>
+  ${hasData ? "" : `<p class="text-dim">Aucune dérive de périmètre détectée.</p>`}
+  ${hasData ? `<div class="chart-card"><canvas id="scopeChangeChart"></canvas></div>` : ""}
+  ${tableHtml}
+  <script>
+  (function(){
+    var ctx = document.getElementById('scopeChangeChart');
+    if (ctx) { new Chart(ctx, ${chartCfg}); }
+  })();
+  </script>
+</section>`;
 }
