@@ -389,6 +389,7 @@ interface SyncOpts { config: string }
 interface MetricsOpts { config: string; boardConfig: string; metric?: string; json?: boolean; includeOutliers?: boolean }
 interface SnapshotsOpts { config: string; boardConfig: string }
 interface ReportOpts { config: string; boardConfig: string; output: string }
+interface RefreshOpts { config: string; boardConfig: string; output: string }
 interface ValidateConfigOpts { config: string; boardConfig: string }
 interface AutoconfigOpts { config: string; boardConfig: string; apply?: boolean }
 
@@ -455,6 +456,24 @@ program
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config);
+    generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds);
+    console.log(`Rapport généré : ${path.resolve(opts.output)}`);
+  });
+
+program
+  .command("refresh")
+  .description("Enchaîne sync → snapshots → report (arrêt sur erreur)")
+  .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
+  .option("-b, --board-config <path>", "Chemin vers board.yaml", "./board.yaml")
+  .option("-o, --output <path>", "Chemin du fichier HTML de sortie", "./report.html")
+  .action(async (opts: RefreshOpts) => {
+    const jiraConfig = loadJiraConfig(path.resolve(opts.config));
+    await sync(jiraConfig);
+    const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
+    const db = openDb(config.db.path);
+    const metricConfig = buildMetricConfig(db, config);
+    const count = backfillSnapshots(db, metricConfig);
+    console.log(`Snapshots recalculés : ${count} dates hebdomadaires.`);
     generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds);
     console.log(`Rapport généré : ${path.resolve(opts.output)}`);
   });
