@@ -103,6 +103,7 @@ Jira REST API v2 → SQLite (WAL) → metric computations → stdout / HTML repo
 - `statuses` — `(name, category_key, category_name)`; populated by `sync` from `/rest/api/2/status`; drives done-status detection at runtime
 - `sprints` — `current_sprint_id` on issues holds only the current active sprint
 - `sync_log` — audit trail
+- `issue_field_changes` — changelog des champs métier (`description`, `summary`, `Story Points`, `Sprint`); replace-all par issue à chaque sync; `from_value`/`to_value` nullable; indexé sur `issue_key`, `field_name`, `changed_at`
 - `metric_snapshots` — long format `(snapshot_date, metric_name, bucket, stat, value)`; populated by `npm run snapshots`; read by `npm run report`
 
 ## Configuration (`config.yaml` + `board.yaml`)

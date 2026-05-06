@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
-import { type StoredIssue, type StoredSprint, type StoredStatus, type Transition } from "../jira/types";
+import { type FieldChange, type StoredIssue, type StoredSprint, type StoredStatus, type Transition } from "../jira/types";
 
 export function openDb(dbPath: string): Database.Database {
   const db = new Database(dbPath);
@@ -82,6 +82,24 @@ export function replaceAllTransitions(
     for (const { key, transitions } of allTransitions) {
       del.run(key);
       for (const t of transitions) {ins.run(t);}
+    }
+  })();
+}
+
+export function replaceAllFieldChanges(
+  db: Database.Database,
+  allChanges: { key: string; changes: FieldChange[] }[],
+): void {
+  const del = db.prepare("DELETE FROM issue_field_changes WHERE issue_key = ?");
+  const ins = db.prepare(`
+    INSERT INTO issue_field_changes (issue_key, field_name, from_value, to_value, changed_at)
+    VALUES (@issueKey, @fieldName, @fromValue, @toValue, @changedAt)
+  `);
+
+  db.transaction(() => {
+    for (const { key, changes } of allChanges) {
+      del.run(key);
+      for (const c of changes) {ins.run(c);}
     }
   })();
 }

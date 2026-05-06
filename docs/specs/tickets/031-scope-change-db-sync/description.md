@@ -16,4 +16,4 @@ Le changelog Jira est déjà fetché (`expand: "changelog"`) dans `client.ts`. I
 
 ## Statut
 
-**à faire**
+**livré**

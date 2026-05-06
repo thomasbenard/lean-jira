@@ -103,6 +103,23 @@ Mapping statut → catégorie Atlassian. Populé par `sync` depuis `/rest/api/2/
 | `issues_count` | Issues traitées |
 | `project_key` | Clé projet |
 
+### `issue_field_changes`
+
+Historique des changements de champs métier par issue, extrait du changelog Jira. Populé à chaque sync (stratégie replace-all par issue, comme `transitions`).
+
+| Colonne | Type | Description |
+|---|---|---|
+| `id` | INTEGER PK AUTOINCREMENT | |
+| `issue_key` | TEXT FK → issues | |
+| `field_name` | TEXT | Nom brut du champ Jira : `description`, `summary`, `Story Points`, `Sprint` |
+| `from_value` | TEXT | Valeur précédente (`NULL` si première assignation) |
+| `to_value` | TEXT | Nouvelle valeur (`NULL` si suppression du champ) |
+| `changed_at` | TEXT | ISO 8601, horodatage de l'entrée changelog |
+
+Index : `issue_key`, `field_name`, `changed_at`.
+
+Champs surveillés définis dans `WATCHED_FIELDS` (constante module-level dans `src/sync.ts`) : `description`, `summary`, `Story Points`, `Sprint`. Tout autre champ est ignoré silencieusement.
+
 ### `metric_snapshots`
 
 Long format : une ligne par `(date, métrique, bucket, stat)`.

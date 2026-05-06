@@ -70,6 +70,14 @@ export interface Transition {
   transitionedAt: string;
 }
 
+export interface FieldChange {
+  issueKey: string;
+  fieldName: string;
+  fromValue: string | null;
+  toValue: string | null;
+  changedAt: string;
+}
+
 export interface StoredIssue {
   key: string;
   summary: string;

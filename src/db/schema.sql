@@ -51,6 +51,20 @@ CREATE INDEX IF NOT EXISTS idx_transitions_issue_key ON transitions(issue_key);
 CREATE INDEX IF NOT EXISTS idx_transitions_to_status ON transitions(to_status);
 CREATE INDEX IF NOT EXISTS idx_transitions_at ON transitions(transitioned_at);
 
+CREATE TABLE IF NOT EXISTS issue_field_changes (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  issue_key   TEXT NOT NULL,
+  field_name  TEXT NOT NULL,
+  from_value  TEXT,
+  to_value    TEXT,
+  changed_at  TEXT NOT NULL,
+  FOREIGN KEY (issue_key) REFERENCES issues(key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_field_changes_issue_key ON issue_field_changes(issue_key);
+CREATE INDEX IF NOT EXISTS idx_field_changes_field ON issue_field_changes(field_name);
+CREATE INDEX IF NOT EXISTS idx_field_changes_at ON issue_field_changes(changed_at);
+
 -- Snapshots historiques pour visualisation de tendances. Long format:
 -- une ligne par (date, métrique, bucket, statistique).
 CREATE TABLE IF NOT EXISTS metric_snapshots (

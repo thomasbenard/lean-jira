@@ -1,6 +1,6 @@
 import { JiraClient } from "./jira/client";
-import { type JiraIssue, type StoredIssue, type StoredSprint, type StoredStatus, type Transition } from "./jira/types";
-import { openDb, upsertIssues, upsertSprints, upsertStatuses, replaceAllTransitions, logSync, getLastSyncDate } from "./db/store";
+import { type FieldChange, type JiraIssue, type StoredIssue, type StoredSprint, type StoredStatus, type Transition } from "./jira/types";
+import { openDb, upsertIssues, upsertSprints, upsertStatuses, replaceAllTransitions, replaceAllFieldChanges, logSync, getLastSyncDate } from "./db/store";
 
 interface SyncConfig {
   jira: {
@@ -54,14 +54,18 @@ export async function sync(config: SyncConfig): Promise<void> {
   }, lastSyncDate ?? undefined);
   console.log(`\n  ${rawIssues.length} issues récupérées depuis Jira`);
 
-  const issues: StoredIssue[] = rawIssues.map((i) => mapIssue(i, activeSprintIds));
-  const allTransitions: { key: string; transitions: Transition[] }[] = rawIssues.map((issue) => ({
-    key: issue.key,
-    transitions: extractTransitions(issue),
-  }));
+  const issues: StoredIssue[] = [];
+  const allTransitions: { key: string; transitions: Transition[] }[] = [];
+  const allFieldChanges: { key: string; changes: FieldChange[] }[] = [];
+  for (const issue of rawIssues) {
+    issues.push(mapIssue(issue, activeSprintIds));
+    allTransitions.push({ key: issue.key, transitions: extractTransitions(issue) });
+    allFieldChanges.push({ key: issue.key, changes: extractFieldChanges(issue) });
+  }
 
   upsertIssues(db, issues);
   replaceAllTransitions(db, allTransitions);
+  replaceAllFieldChanges(db, allFieldChanges);
 
   logSync(db, config.jira.projectKey, rawIssues.length);
   console.log(`Sync terminé. ${rawIssues.length} issues stockées.`);
@@ -85,6 +89,28 @@ function mapIssue(issue: JiraIssue, activeSprintIds: Set<number>): StoredIssue {
     currentSprintId: activeSprint?.id ?? null,
     originalEstimateSeconds: issue.fields.timeoriginalestimate ?? null,
   };
+}
+
+const WATCHED_FIELDS = new Set(["description", "summary", "Story Points", "Sprint"]);
+
+function extractFieldChanges(issue: JiraIssue): FieldChange[] {
+  if (!issue.changelog?.histories) {return [];}
+
+  const changes: FieldChange[] = [];
+  for (const history of issue.changelog.histories) {
+    for (const item of history.items) {
+      if (WATCHED_FIELDS.has(item.field)) {
+        changes.push({
+          issueKey: issue.key,
+          fieldName: item.field,
+          fromValue: item.fromString ?? null,
+          toValue: item.toString ?? null,
+          changedAt: history.created,
+        });
+      }
+    }
+  }
+  return changes;
 }
 
 function extractTransitions(issue: JiraIssue): Transition[] {

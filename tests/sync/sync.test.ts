@@ -23,6 +23,7 @@ vi.mock("../../src/db/store", async (importOriginal) => {
     upsertSprints: vi.fn(),
     upsertStatuses: vi.fn(),
     replaceAllTransitions: vi.fn(),
+    replaceAllFieldChanges: vi.fn(),
     logSync: vi.fn(),
     getLastSyncDate: vi.fn(),
   };
