@@ -16,6 +16,7 @@ Implémente un ticket spécifié dans `docs/specs/tickets/<NNN>-<slug>/`. Garant
 - Code review sous-agent fait (ou justification d'exemption < 30 lignes)
 - **Si nouvelle métrique** → `docs/specs/system/spec-fonctionnelle.md` + `metrics-formulas.md` + `CLAUDE.md` (section "Metric catalog") mis à jour
 - **Si autre invariant modifié** (DB schema, CLI, config, export API) → sections concernées dans `docs/specs/system/` + `CLAUDE.md` mis à jour
+- **Si surface publique modifiée** (nouvelle commande, option, comportement observable) → `README.md` mis à jour
 - `description.md` du ticket → `Statut: **livré**`
 
 Ces 6 points sont non-négociables. Les phases ci-dessous décrivent comment y arriver.
@@ -115,11 +116,13 @@ Pour chaque finding sévérité `bug` ou `spec-deviation` :
 
 Re-lancer `npx vitest run` après chaque correction.
 
-### Phase 7 — Mise à jour specs système + CLAUDE.md (conditionnelle)
+### Phase 7 — Mise à jour specs système + CLAUDE.md + README.md (conditionnelle)
 
 Voir la **Definition of Done** en tête de document pour les critères de déclenchement.
 
-**Procédure** : grep dans `docs/specs/system/` et `CLAUDE.md` pour trouver les sections à toucher. Éditer en ton descriptif (état présent, pas changelog). Pas d'historique « avant/après ».
+**Procédure** : grep dans `docs/specs/system/`, `CLAUDE.md` et `README.md` pour trouver les sections à toucher. Éditer en ton descriptif (état présent, pas changelog). Pas d'historique « avant/après ».
+
+**README.md** : mettre à jour si la surface publique change — nouvelle commande CLI, nouvelle option, nouveau comportement observable par l'utilisateur final. Appliquer la même règle de tranchage que pour les specs système.
 
 **Exemptions** (skip màj) : refactor interne sans changement de surface publique, bug fix qui restaure un comportement déjà documenté, cosmétique pure (CSS/HTML/logs), test-only.
 
@@ -154,7 +157,7 @@ Voir la **Definition of Done** en tête de document pour les critères de décle
 | 4. /simplify | 3-8k | inline |
 | 5. Review sous-agent | 1-2k retournés (raisonnement isolé) | sous-agent |
 | 6. Fixes | 2-5k | inline |
-| 7. Màj specs système + CLAUDE.md (si applicable) | 1-4k | inline |
+| 7. Màj specs système + CLAUDE.md + README.md (si applicable) | 1-4k | inline |
 | 8. Clôture | <1k | inline |
 | **Total ticket M** | **20-55k** | |
 
