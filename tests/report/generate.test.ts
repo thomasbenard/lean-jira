@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { issueLink, agingRowsHtml, buildBucketSeries, buildRoleSeries, syncMetaLabel, staleBannerHtml, computeMovingAvg, renderHtml, isScopeChangeAvailable, buildScopeAlertBanner, buildScopeChangeChart, buildScopeSection } from "../../src/report/generate";
 import type { AgingWipSummary } from "../../src/metrics/agingWip";
 import type { SnapshotRow } from "../../src/snapshots/compute";
-import type { ScopeChangeResult } from "../../src/metrics/scopeChange";
+import type { ScopeChangeResult, SprintScopeStats } from "../../src/metrics/scopeChange";
 import { createTestDb } from "../helpers/db";
 import { upsertIssues, upsertSprints } from "../../src/db/store";
 import { makeIssue } from "../helpers/seeders";
@@ -402,6 +402,10 @@ function makeScopeData(overrides: Partial<ScopeChangeResult> = {}): ScopeChangeR
   };
 }
 
+function makeSprintStats(overrides: Partial<SprintScopeStats> = {}): SprintScopeStats {
+  return { totalIssues: 0, changedIssues: 0, changeRatio: 0, byChangeType: { description: 0 }, issueDetails: [], ...overrides };
+}
+
 describe("isScopeChangeAvailable", () => {
   it("retourne true si la table issue_field_changes existe", () => {
     const db = createTestDb();
@@ -428,7 +432,7 @@ describe("buildScopeAlertBanner", () => {
     const scopeData = makeScopeData({
       changedIssues: 2,
       bySprint: {
-        "KECK Sprint 45": { totalIssues: 5, changedIssues: 2, changeRatio: 0.4, byChangeType: { description: 1, storyPoints: 1, sprintChange: 0 } },
+        "KECK Sprint 45": makeSprintStats({ totalIssues: 5, changedIssues: 2, changeRatio: 0.4, byChangeType: { description: 1 } }),
       },
     });
     const result = buildScopeAlertBanner(db, scopeData);
@@ -446,7 +450,7 @@ describe("buildScopeAlertBanner", () => {
     const scopeData = makeScopeData({
       changedIssues: 3,
       bySprint: {
-        "KECK Sprint 44": { totalIssues: 8, changedIssues: 3, changeRatio: 0.375, byChangeType: { description: 2, storyPoints: 1, sprintChange: 0 } },
+        "KECK Sprint 44": makeSprintStats({ totalIssues: 8, changedIssues: 3, changeRatio: 0.375, byChangeType: { description: 2 } }),
       },
     });
     const result = buildScopeAlertBanner(db, scopeData);
@@ -462,7 +466,7 @@ describe("buildScopeAlertBanner", () => {
     const scopeData = makeScopeData({
       changedIssues: 3,
       bySprint: {
-        "KECK Sprint 40": { totalIssues: 5, changedIssues: 3, changeRatio: 0.6, byChangeType: { description: 2, storyPoints: 1, sprintChange: 0 } },
+        "KECK Sprint 40": makeSprintStats({ totalIssues: 5, changedIssues: 3, changeRatio: 0.6, byChangeType: { description: 2 } }),
       },
     });
     const result = buildScopeAlertBanner(db, scopeData);
@@ -474,9 +478,9 @@ describe("buildScopeChangeChart", () => {
   it("trie les sprints par numéro croissant", () => {
     const scopeData = makeScopeData({
       bySprint: {
-        "KECK Sprint 43": { totalIssues: 5, changedIssues: 1, changeRatio: 0.2, byChangeType: { description: 1, storyPoints: 0, sprintChange: 0 } },
-        "KECK Sprint 41": { totalIssues: 4, changedIssues: 2, changeRatio: 0.5, byChangeType: { description: 1, storyPoints: 1, sprintChange: 0 } },
-        "KECK Sprint 42": { totalIssues: 6, changedIssues: 0, changeRatio: 0,   byChangeType: { description: 0, storyPoints: 0, sprintChange: 0 } },
+        "KECK Sprint 43": makeSprintStats({ totalIssues: 5, changedIssues: 1, changeRatio: 0.2, byChangeType: { description: 1 } }),
+        "KECK Sprint 41": makeSprintStats({ totalIssues: 4, changedIssues: 2, changeRatio: 0.5, byChangeType: { description: 1 } }),
+        "KECK Sprint 42": makeSprintStats({ totalIssues: 6, changedIssues: 0, changeRatio: 0,   byChangeType: { description: 0 } }),
       },
     });
     const result = buildScopeChangeChart(scopeData);
@@ -504,7 +508,7 @@ describe("buildScopeSection", () => {
     const db = createTestDb();
     const scopeData = makeScopeData({
       bySprint: {
-        "Sprint 1": { totalIssues: 3, changedIssues: 1, changeRatio: 0.33, byChangeType: { description: 1, storyPoints: 0, sprintChange: 0 }, issueDetails: [{ key: "P-1", description: true, storyPoints: false, sprintChange: false }] },
+        "Sprint 1": { totalIssues: 3, changedIssues: 1, changeRatio: 0.33, byChangeType: { description: 1 }, issueDetails: [{ key: "P-1", description: true }] },
       },
       changedIssueKeys: ["P-1"],
     });
@@ -524,8 +528,8 @@ describe("buildScopeSection", () => {
       changedIssues: 2,
       changedIssueKeys: ["P-1", "P-2"],
       bySprint: {
-        "Sprint 1": { totalIssues: 5, changedIssues: 1, changeRatio: 0.2, byChangeType: { description: 1, storyPoints: 0, sprintChange: 0 }, issueDetails: [{ key: "P-1", description: true, storyPoints: false, sprintChange: false }] },
-        "Sprint 2": { totalIssues: 4, changedIssues: 1, changeRatio: 0.25, byChangeType: { description: 0, storyPoints: 1, sprintChange: 0 }, issueDetails: [{ key: "P-2", description: false, storyPoints: true, sprintChange: false }] },
+        "Sprint 1": { totalIssues: 5, changedIssues: 1, changeRatio: 0.2, byChangeType: { description: 1 }, issueDetails: [{ key: "P-1", description: true }] },
+        "Sprint 2": { totalIssues: 4, changedIssues: 1, changeRatio: 0.25, byChangeType: { description: 0 }, issueDetails: [{ key: "P-2", description: false }] },
       },
     });
     const html = buildScopeSection(scopeData, db, "https://test.atlassian.net");
@@ -537,18 +541,22 @@ describe("buildScopeSection", () => {
     expect(sprint2AfterP2).toBeGreaterThan(p2Idx);
   });
 
-  it("affiche les types de changement par issue dans le tableau", () => {
+  it("affiche l'issue et son sprint dans le tableau sans colonne Changements", () => {
     const db = createTestDb();
-    upsertIssues(db, [makeIssue({ key: "P-3", summary: "US reprogrammée" })]);
+    upsertIssues(db, [makeIssue({ key: "P-3", summary: "US modifiée" })]);
     const scopeData = makeScopeData({
       changedIssues: 1,
       changedIssueKeys: ["P-3"],
       bySprint: {
-        "Sprint 5": { totalIssues: 2, changedIssues: 1, changeRatio: 0.5, byChangeType: { description: 0, storyPoints: 1, sprintChange: 1 }, issueDetails: [{ key: "P-3", description: false, storyPoints: true, sprintChange: true }] },
+        "Sprint 5": { totalIssues: 2, changedIssues: 1, changeRatio: 0.5, byChangeType: { description: 1 }, issueDetails: [{ key: "P-3", description: true }] },
       },
     });
     const html = buildScopeSection(scopeData, db, "https://test.atlassian.net");
-    expect(html).toContain("Story Points");
-    expect(html).toContain("Reprogrammé");
+    expect(html).toContain("P-3");
+    expect(html).toContain("Sprint 5");
+    expect(html).toContain("US modifiée");
+    expect(html).not.toContain("Changements");
+    expect(html).not.toContain("Story Points");
+    expect(html).not.toContain("Reprogrammé");
   });
 });

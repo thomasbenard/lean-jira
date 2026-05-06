@@ -171,9 +171,8 @@ const HELP_TEXTS: Record<string, { title: string; body: string } | undefined> = 
   scopeChange: {
     title: "Dérive de périmètre par sprint",
     body:
-      "Issues dont la description, l'estimation ou l'assignation de sprint a changé significativement après le début du sprint. " +
+      "Issues dont la description ou le résumé a changé significativement après le début du sprint. " +
       "Seuil de détection : similarité texte < 85% (Levenshtein normalisé). " +
-      "Tout changement de story points post-sprint est comptabilisé. " +
       "Une dérive élevée corrèle avec des sprints ratés et un cycle time long.",
   },
 };
@@ -564,7 +563,10 @@ export function renderHtml(input: RenderInput): string {
   .scope-section { margin: 2rem 0; }
   .scope-help { color: var(--text-dim); font-size: 0.85rem; margin: 0.5rem 0 1rem; }
   .scope-issues-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 1rem; }
-  .scope-issues-table th { text-align: left; color: var(--text-faint); font-weight: 500; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--line); }
+  .scope-issues-table th { text-align: left; color: var(--text-faint); font-weight: 500; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--line); cursor: pointer; user-select: none; white-space: nowrap; }
+  .scope-issues-table th::after { content: ' ⇅'; font-size: 0.7em; opacity: 0.4; }
+  .scope-issues-table th.sort-asc::after { content: ' ↑'; opacity: 1; }
+  .scope-issues-table th.sort-desc::after { content: ' ↓'; opacity: 1; }
   .scope-issues-table td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--line); }
   .text-dim { color: var(--text-dim); font-size: 0.9rem; }
 
@@ -1792,24 +1794,39 @@ export function buildScopeSection(scopeData: ScopeChangeResult, db: Database.Dat
     ).all(...keys) as { key: string; summary: string }[];
     const summaryByKey = new Map(summaries.map((r) => [r.key, r.summary]));
 
-    type IssueRow = { sprint: string; description: boolean; storyPoints: boolean; sprintChange: boolean };
-    const issueRowMap = new Map<string, IssueRow>();
+    const sprintNames = Object.keys(scopeData.bySprint);
+    const sprintStartRows = sprintNames.length > 0
+      ? db.prepare(`SELECT name, start_date FROM sprints WHERE name IN (${placeholders(sprintNames)})`).all(...sprintNames) as { name: string; start_date: string | null }[]
+      : [];
+    const sprintStartByName = new Map(sprintStartRows.map((r) => [r.name, r.start_date ?? ""]));
+
+    const sprintByKey = new Map<string, string>();
     for (const [sprintName, stats] of Object.entries(scopeData.bySprint)) {
       for (const detail of stats.issueDetails) {
-        issueRowMap.set(detail.key, { sprint: sprintName, description: detail.description, storyPoints: detail.storyPoints, sprintChange: detail.sprintChange });
+        sprintByKey.set(detail.key, sprintName);
       }
     }
 
-    const rows = keys.map((key) => {
-      const row = issueRowMap.get(key);
-      const sprint = row?.sprint ?? "—";
-      const types = row ? [row.description && "Description", row.storyPoints && "Story Points", row.sprintChange && "Reprogrammé"].filter(Boolean).join(", ") : "—";
+    const sortedKeys = [...keys].sort((a, b) => {
+      const sa = sprintByKey.get(a) ?? "";
+      const sb = sprintByKey.get(b) ?? "";
+      if (sa === sb) return a.localeCompare(b);
+      if (!sa) return 1;
+      if (!sb) return -1;
+      const da = sprintStartByName.get(sa) ?? sa;
+      const db2 = sprintStartByName.get(sb) ?? sb;
+      return da < db2 ? 1 : da > db2 ? -1 : 0;
+    });
+
+    const rows = sortedKeys.map((key) => {
+      const sprint = sprintByKey.get(key) ?? "—";
+      const sprintStart = sprintStartByName.get(sprint) ?? sprint;
       const summary = summaryByKey.get(key) ?? "";
-      return `<tr><td>${issueLink(key, jiraBaseUrl)}</td><td>${escapeHtml(sprint)}</td><td>${escapeHtml(types)}</td><td>${escapeHtml(summary)}</td></tr>`;
+      return `<tr data-sprint-start="${escapeHtml(sprintStart)}"><td>${issueLink(key, jiraBaseUrl)}</td><td>${escapeHtml(sprint)}</td><td>${escapeHtml(summary)}</td></tr>`;
     }).join("");
 
-    tableHtml = `<table class="scope-issues-table">
-      <thead><tr><th>Clé</th><th>Sprint</th><th>Changements</th><th>Résumé</th></tr></thead>
+    tableHtml = `<table class="scope-issues-table" id="scopeIssuesTable">
+      <thead><tr><th data-col="0">Clé</th><th data-col="1" class="sort-desc">Sprint</th><th data-col="2">Résumé</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
   }
@@ -1818,7 +1835,7 @@ export function buildScopeSection(scopeData: ScopeChangeResult, db: Database.Dat
 
   return `<section class="scope-section">
   <div class="actions-head"><h2>Dérive de périmètre par sprint</h2><div class="sep"></div></div>
-  <p class="scope-help">Issues dont la description, l'estimation ou l'assignation de sprint a changé significativement après le début du sprint. Seuil de détection : similarité texte &lt; 85% (Levenshtein normalisé). Tout changement de story points post-sprint est comptabilisé. Une dérive élevée corrèle avec des sprints ratés et un cycle time long.</p>
+  <p class="scope-help">Issues dont la description ou le résumé a changé significativement après le début du sprint. Seuil de détection : similarité texte &lt; 85% (Levenshtein normalisé). Une dérive élevée corrèle avec des sprints ratés et un cycle time long.</p>
   ${hasData ? "" : `<p class="text-dim">Aucune dérive de périmètre détectée.</p>`}
   ${hasData ? `<div class="chart-card"><canvas id="scopeChangeChart"></canvas></div>` : ""}
   ${tableHtml}
@@ -1826,6 +1843,37 @@ export function buildScopeSection(scopeData: ScopeChangeResult, db: Database.Dat
   (function(){
     var ctx = document.getElementById('scopeChangeChart');
     if (ctx) { new Chart(ctx, ${chartCfg}); }
+  })();
+  (function(){
+    var table = document.getElementById('scopeIssuesTable');
+    if (!table) return;
+    var tbody = table.querySelector('tbody');
+    var ths = table.querySelectorAll('th[data-col]');
+    var sortCol = 1, sortAsc = false;
+    function cellValue(row, col) {
+      if (col === 1) return row.dataset.sprintStart || '';
+      return row.cells[col].textContent || '';
+    }
+    function sort() {
+      var rows = Array.from(tbody.querySelectorAll('tr'));
+      rows.sort(function(a, b) {
+        var av = cellValue(a, sortCol), bv = cellValue(b, sortCol);
+        var cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' });
+        return sortAsc ? cmp : -cmp;
+      });
+      rows.forEach(function(r) { tbody.appendChild(r); });
+      ths.forEach(function(th) {
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (Number(th.dataset.col) === sortCol) th.classList.add(sortAsc ? 'sort-asc' : 'sort-desc');
+      });
+    }
+    ths.forEach(function(th) {
+      th.addEventListener('click', function() {
+        var col = Number(th.dataset.col);
+        if (col === sortCol) { sortAsc = !sortAsc; } else { sortCol = col; sortAsc = true; }
+        sort();
+      });
+    });
   })();
   </script>
 </section>`;

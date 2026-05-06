@@ -5,8 +5,6 @@ import { placeholders } from "./utils";
 export interface ScopeChangedIssueDetail {
   key: string;
   description: boolean;
-  storyPoints: boolean;
-  sprintChange: boolean;
 }
 
 export interface SprintScopeStats {
@@ -15,8 +13,6 @@ export interface SprintScopeStats {
   changeRatio: number;
   byChangeType: {
     description: number;
-    storyPoints: number;
-    sprintChange: number;
   };
   issueDetails: ScopeChangedIssueDetail[];
 }
@@ -31,7 +27,6 @@ export interface ScopeChangeResult {
 
 const SIMILARITY_THRESHOLD = 0.85;
 const WATCHED_TEXT_FIELDS = new Set(["description", "summary"]);
-const FIELD_STORY_POINTS = "Story Points";
 const FIELD_SPRINT = "Sprint";
 
 export function normalizeText(s: string): string {
@@ -99,14 +94,14 @@ function emptySprintStats(): SprintScopeStats {
     totalIssues: 0,
     changedIssues: 0,
     changeRatio: 0,
-    byChangeType: { description: 0, storyPoints: 0, sprintChange: 0 },
+    byChangeType: { description: 0 },
     issueDetails: [],
   };
 }
 
 export const scopeChangeMetric: Metric<ScopeChangeResult> = {
   name: "scope-change-rate",
-  description: "Taux d'issues dont la description ou l'estimation a changé après entrée en sprint. Mesure la dérive de périmètre.",
+  description: "Taux d'issues dont la description ou le résumé a changé après entrée en sprint. Mesure la dérive de périmètre.",
 
   compute(db: Database.Database, config: MetricConfig): ScopeChangeResult {
     const cutoff = config.cutoffDate ?? "1970-01-01";
@@ -167,30 +162,24 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
       // bySprint absent = sprint non dans issue_sprints → issue hors périmètre (ex. sprint sans start_date)
       if (!firstSprintStart || !firstSprintName || !bySprint[firstSprintName]) {continue;}
 
-      const types = { description: false, storyPoints: false, sprintChange: false };
+      let descriptionChanged = false;
 
       for (const c of changes) {
         if (c.changed_at <= firstSprintStart) {continue;}
-
-        if (WATCHED_TEXT_FIELDS.has(c.field_name)) {
-          if (c.from_value !== null && similarityRatio(c.from_value, c.to_value ?? "") < SIMILARITY_THRESHOLD) {
-            types.description = true;
+        if (WATCHED_TEXT_FIELDS.has(c.field_name) && c.from_value !== null) {
+          if (similarityRatio(c.from_value, c.to_value ?? "") < SIMILARITY_THRESHOLD) {
+            descriptionChanged = true;
+            break;
           }
-        } else if (c.field_name === FIELD_STORY_POINTS) {
-          if (c.from_value !== null) {types.storyPoints = true;}
-        } else if (c.field_name === FIELD_SPRINT) {
-          if (c.from_value !== null) {types.sprintChange = true;}
         }
       }
 
-      if (types.description || types.storyPoints || types.sprintChange) {
+      if (descriptionChanged) {
         changedIssues++;
         changedIssueKeys.push(issueKey);
         bySprint[firstSprintName].changedIssues++;
-        if (types.description) {bySprint[firstSprintName].byChangeType.description++;}
-        if (types.storyPoints) {bySprint[firstSprintName].byChangeType.storyPoints++;}
-        if (types.sprintChange) {bySprint[firstSprintName].byChangeType.sprintChange++;}
-        bySprint[firstSprintName].issueDetails.push({ key: issueKey, ...types });
+        bySprint[firstSprintName].byChangeType.description++;
+        bySprint[firstSprintName].issueDetails.push({ key: issueKey, description: true });
       }
     }
 

@@ -18,4 +18,4 @@ Les champs `Story Points` et `Sprint` continuent d'être capturés dans `issue_f
 
 ## Statut
 
-**à faire**
+**livré**

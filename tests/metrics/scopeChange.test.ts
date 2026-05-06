@@ -223,7 +223,7 @@ describe("Règle 2 — Story Points", () => {
     expect(result.changedIssues).toBe(0);
   });
 
-  it("comptabilise réévaluation (valeur → valeur)", () => {
+  it("ignore réévaluation Story Points (valeur → valeur)", () => {
     replaceAllFieldChanges(db, [{
       key: "PROJ-1",
       changes: [
@@ -232,8 +232,7 @@ describe("Règle 2 — Story Points", () => {
       ],
     }]);
     const result = scopeChangeMetric.compute(db, TEST_CONFIG);
-    expect(result.changedIssues).toBe(1);
-    expect(result.bySprint["Sprint 42"].byChangeType.storyPoints).toBe(1);
+    expect(result.changedIssues).toBe(0);
   });
 });
 
@@ -318,7 +317,7 @@ describe("Règle 4 — Sprint change", () => {
     expect(result.totalIssues).toBe(1);
   });
 
-  it("comptabilise reprogrammation sprint (sprint → sprint)", () => {
+  it("ignore reprogrammation sprint (sprint → sprint)", () => {
     replaceAllFieldChanges(db, [{
       key: "PROJ-1",
       changes: [
@@ -327,8 +326,7 @@ describe("Règle 4 — Sprint change", () => {
       ],
     }]);
     const result = scopeChangeMetric.compute(db, TEST_CONFIG);
-    expect(result.changedIssues).toBe(1);
-    expect(result.bySprint["Sprint 42"].byChangeType.sprintChange).toBe(1);
+    expect(result.changedIssues).toBe(0);
   });
 });
 
@@ -377,13 +375,13 @@ describe("Agrégation bySprint", () => {
 
     const result = scopeChangeMetric.compute(db, TEST_CONFIG);
     expect(result.totalIssues).toBe(3);
-    expect(result.changedIssues).toBe(2);
-    expect(result.changeRatio).toBeCloseTo(2 / 3);
+    expect(result.changedIssues).toBe(1);
+    expect(result.changeRatio).toBeCloseTo(1 / 3);
     expect(result.bySprint["Sprint 42"].totalIssues).toBe(3);
-    expect(result.bySprint["Sprint 42"].changedIssues).toBe(2);
-    expect(result.bySprint["Sprint 42"].changeRatio).toBeCloseTo(2 / 3);
+    expect(result.bySprint["Sprint 42"].changedIssues).toBe(1);
+    expect(result.bySprint["Sprint 42"].changeRatio).toBeCloseTo(1 / 3);
     expect(result.changedIssueKeys).toContain("PROJ-1");
-    expect(result.changedIssueKeys).toContain("PROJ-2");
+    expect(result.changedIssueKeys).not.toContain("PROJ-2");
     expect(result.changedIssueKeys).not.toContain("PROJ-3");
   });
 
@@ -402,7 +400,7 @@ describe("Agrégation bySprint", () => {
         key: "PROJ-1",
         changes: [
           { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" },
-          { issueKey: "PROJ-1", fieldName: "Story Points", fromValue: "2", toValue: "5", changedAt: "2025-03-15T10:00:00.000Z" },
+          { issueKey: "PROJ-1", fieldName: "description", fromValue: "Critère complet avec beaucoup de détails et de spécifications nécessaires", toValue: "Abrégé", changedAt: "2025-03-15T10:00:00.000Z" },
         ],
       },
       {
