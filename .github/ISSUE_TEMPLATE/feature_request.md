@@ -4,20 +4,14 @@ about: Suggest a new metric, command, or improvement
 labels: enhancement
 ---
 
-## User story
+## Problem
 
-As a **[persona: lead tech / scrum master / PO / developer]**,
-I want **[action]**,
-so that **[benefit]**.
-
-## Context
-
-<!-- Why is this needed? What problem does it solve? What currently exists? -->
+<!-- What problem does this feature solve? Who is affected and how? -->
 
 ## Proposed solution
 
-<!-- Optional: how might this work? Rough idea is fine. -->
+<!-- How should this work? A rough idea is fine. -->
 
 ## Alternatives considered
 
-<!-- Optional: other approaches you thought about -->
+<!-- Other approaches you thought about, and why you prefer the proposed solution. -->
