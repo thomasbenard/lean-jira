@@ -4,9 +4,19 @@ about: Something is broken or producing wrong results
 labels: bug
 ---
 
-## Description
+## Steps to reproduce
 
-<!-- What went wrong? What did you expect? -->
+1. 
+2. 
+3. 
+
+## Expected behavior
+
+<!-- What should have happened? -->
+
+## Actual behavior
+
+<!-- What happened instead? -->
 
 ## Environment
 
