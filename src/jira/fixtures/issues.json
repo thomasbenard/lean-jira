@@ -886,5 +886,116 @@
         { "id": "DEMO38-h1", "created": "2025-12-01T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "In Progress" }] }
       ]
     }
+  },
+  {
+    "id": "39",
+    "key": "DEMO-39",
+    "fields": {
+      "summary": "Fix SQL injection in admin search endpoint",
+      "issuetype": { "name": "Bug" },
+      "status": { "name": "Done" },
+      "created": "2025-11-10T09:00:00.000Z",
+      "resolutiondate": "2025-11-18T16:00:00.000Z",
+      "updated": "2025-11-18T16:00:00.000Z",
+      "assignee": { "displayName": "Charlie" },
+      "priority": { "name": "Critical" },
+      "customfield_10020": [{ "id": 6, "name": "Sprint 6", "state": "closed", "startDate": "2025-11-10T08:00:00.000Z", "endDate": "2025-11-23T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 28800
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO39-h1", "created": "2025-11-10T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "In Progress" }] },
+        { "id": "DEMO39-h2", "created": "2025-11-18T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "40",
+    "key": "DEMO-40",
+    "fields": {
+      "summary": "Fix XSS vulnerability in user profile bio field",
+      "issuetype": { "name": "Bug" },
+      "status": { "name": "Done" },
+      "created": "2025-11-24T09:00:00.000Z",
+      "resolutiondate": "2025-12-04T16:00:00.000Z",
+      "updated": "2025-12-04T16:00:00.000Z",
+      "assignee": { "displayName": "Alice" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 7, "name": "Sprint 7", "state": "closed", "startDate": "2025-11-24T08:00:00.000Z", "endDate": "2025-12-07T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 14400
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO40-h1", "created": "2025-11-24T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "In Progress" }] },
+        { "id": "DEMO40-h2", "created": "2025-11-28T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In QA" }] },
+        { "id": "DEMO40-h3", "created": "2025-12-04T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In QA", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "41",
+    "key": "DEMO-41",
+    "fields": {
+      "summary": "Fix CSRF token validation on password reset flow",
+      "issuetype": { "name": "Bug" },
+      "status": { "name": "Done" },
+      "created": "2025-12-08T09:00:00.000Z",
+      "resolutiondate": "2025-12-15T16:00:00.000Z",
+      "updated": "2025-12-15T16:00:00.000Z",
+      "assignee": { "displayName": "Bob" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 8, "name": "Sprint 8", "state": "closed", "startDate": "2025-12-08T08:00:00.000Z", "endDate": "2025-12-21T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 21600
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO41-h1", "created": "2025-12-08T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "In Progress" }] },
+        { "id": "DEMO41-h2", "created": "2025-12-15T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "42",
+    "key": "DEMO-42",
+    "fields": {
+      "summary": "Add audit log dashboard for admin panel",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "In Progress" },
+      "created": "2026-01-05T09:00:00.000Z",
+      "resolutiondate": null,
+      "updated": "2026-01-08T09:00:00.000Z",
+      "assignee": { "displayName": "Charlie" },
+      "priority": { "name": "Medium" },
+      "customfield_10020": [{ "id": 9, "name": "Sprint 9", "state": "active", "startDate": "2026-01-05T08:00:00.000Z", "endDate": "2026-01-18T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 57600
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO42-h1", "created": "2026-01-05T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO42-h2", "created": "2026-01-08T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] }
+      ]
+    }
+  },
+  {
+    "id": "43",
+    "key": "DEMO-43",
+    "fields": {
+      "summary": "Fix broken CSV export for non-ASCII characters",
+      "issuetype": { "name": "Bug" },
+      "status": { "name": "In Review" },
+      "created": "2025-12-22T09:00:00.000Z",
+      "resolutiondate": null,
+      "updated": "2026-01-10T09:00:00.000Z",
+      "assignee": { "displayName": "Alice" },
+      "priority": { "name": "Medium" },
+      "customfield_10020": [{ "id": 9, "name": "Sprint 9", "state": "active", "startDate": "2026-01-05T08:00:00.000Z", "endDate": "2026-01-18T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 14400
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO43-h1", "created": "2025-12-22T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "In Progress" }] },
+        { "id": "DEMO43-h2", "created": "2026-01-10T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In Review" }] }
+      ]
+    }
   }
 ]

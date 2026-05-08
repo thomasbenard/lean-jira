@@ -17,7 +17,7 @@
 - `diff out1.json out2.json` doit être vide après deux cycles sync → metrics.
 
 **Fixtures embarquées** (`src/jira/fixtures/`) :
-- 38 issues (25 Story/Task + 8 Bug fermés, 5 WIP actifs), couvrant toutes les métriques.
+- 43 issues (29 Story/Task + 12 Bug fermés + 2 Bug WIP, 7 WIP actifs), couvrant toutes les métriques.
 - 4 niveaux de risque aging-wip (ok / watch / at-risk / critical).
 - 2 issues avec scope change (summary ou description changé après entrée sprint).
 - 3 issues avec backward transitions (rework QA→Dev ou PO→QA).

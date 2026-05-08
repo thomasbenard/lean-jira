@@ -12,4 +12,4 @@ Ajouter un `FakeJiraClient` chargé via `jira.mode: fake` dans `config.yaml`. Le
 
 ## Statut
 
-En cours
+Livré

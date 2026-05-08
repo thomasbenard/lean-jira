@@ -10,7 +10,7 @@
 | `src/jira/fakeClient.ts` | `FakeJiraClient implements JiraClientLike`, charge fixtures JSON |
 | `src/jira/fixtures/statuses.json` | 6 statuts fake |
 | `src/jira/fixtures/sprints.json` | 9 sprints (8 closed + 1 active) |
-| `src/jira/fixtures/issues.json` | 38 issues avec changelogs |
+| `src/jira/fixtures/issues.json` | 43 issues avec changelogs |
 | `src/jira/fixtures/boardConfig.json` | Config board fake pour autoconfig |
 | `config.fake.yaml` | Config exemple (commitable) |
 | `board.fake.yaml` | Board exemple aligné fixtures (commitable) |
@@ -22,7 +22,7 @@
 | `src/jira/types.ts` | Export `JiraConfig` avec `mode?`, `frozenNow?`, `fixturesPath?` |
 | `src/jira/client.ts` | `implements JiraClientLike` |
 | `src/sync.ts` | `createJiraClient(config.jira)` remplace `new JiraClient(config.jira)` |
-| `src/main.ts` | `JiraFileConfig.jira` enrichi; bootstrap `initClock`/`initRandom` si `mode=fake` |
+| `src/main.ts` | `JiraFileConfig.jira` enrichi; bootstrap `initClock`/`initRandom` si `mode=fake`; guard `autoconfig` bloqué en mode fake |
 | `src/metrics/forecast.ts:69` | `Math.random` → `random()` depuis `src/random.ts` |
 | `src/metrics/agingWip.ts:34` | `new Date()` → `now()` depuis `src/clock.ts` |
 | `src/metrics/bugBacklog.ts:21` | idem |
@@ -46,7 +46,7 @@ export interface JiraClientLike {
 
 **clock.ts** : module-global `frozen: Date | null`. `initClock("2026-01-15")` fige l'horloge. `now()` retourne `new Date(frozen)` si figé, sinon `new Date()`.
 
-**random.ts** : Mulberry32 seedé via hash djb2 de `frozenNow`. `initRandom(seed)` remplace le RNG global. `random()` délègue au RNG courant.
+**random.ts** : Mulberry32 seedé via hash 31-multiplier (`Math.imul(31, hash) + char`) de `frozenNow`. `initRandom(seed)` remplace le RNG global. `random()` délègue au RNG courant.
 
 ## Bootstrap (src/main.ts)
 

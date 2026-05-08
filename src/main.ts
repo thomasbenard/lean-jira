@@ -560,6 +560,10 @@ program
   .option("--apply", "Crée/écrase board.yaml (destructif)")
   .action(async (opts: AutoconfigOpts) => {
     const jiraConfig = loadJiraConfig(path.resolve(opts.config));
+    if (jiraConfig.jira.mode === "fake") {
+      console.error("Erreur : autoconfig non disponible en mode fake (aucune API Jira accessible).");
+      process.exit(1);
+    }
     const client = new JiraClient(jiraConfig.jira);
 
     const [boardConfig, allStatuses] = await Promise.all([

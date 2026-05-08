@@ -4,7 +4,7 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
 {
   "aging-wip": {
     "asOf": "2026-01-15",
-    "count": 5,
+    "count": 7,
     "issues": [
       {
         "ageDays": 32.625,
@@ -23,6 +23,14 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         "summary": "Implement GDPR data export feature",
       },
       {
+        "ageDays": 17.625,
+        "issueKey": "DEMO-43",
+        "riskLevel": "critical",
+        "startedAt": "2025-12-22T09:00:00.000Z",
+        "status": "In Review",
+        "summary": "Fix broken CSV export for non-ASCII characters",
+      },
+      {
         "ageDays": 10.625,
         "issueKey": "DEMO-36",
         "riskLevel": "critical",
@@ -37,6 +45,14 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         "startedAt": "2026-01-06T09:00:00.000Z",
         "status": "In Review",
         "summary": "Add keyboard shortcuts to editor",
+      },
+      {
+        "ageDays": 4.625,
+        "issueKey": "DEMO-42",
+        "riskLevel": "ok",
+        "startedAt": "2026-01-08T09:00:00.000Z",
+        "status": "In Progress",
+        "summary": "Add audit log dashboard for admin panel",
       },
       {
         "ageDays": 1.625,
@@ -54,29 +70,29 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
     },
     "riskCounts": {
       "atRisk": 0,
-      "critical": 3,
-      "ok": 1,
+      "critical": 4,
+      "ok": 2,
       "watch": 1,
     },
     "unit": "j",
   },
   "bug-backlog": {
-    "closed": 9,
-    "created": 10,
-    "netFlow": -1,
-    "openCount": 1,
+    "closed": 12,
+    "created": 14,
+    "netFlow": -2,
+    "openCount": 2,
   },
   "bug-cycle-time": {
-    "avgDays": 4.291666666666667,
-    "count": 7,
-    "excludedOutliers": 2,
+    "avgDays": 5.541666666666667,
+    "count": 12,
+    "excludedOutliers": 0,
     "medianDays": 4.291666666666667,
-    "p85Days": 4.291666666666667,
-    "p95Days": 4.291666666666667,
+    "p85Days": 8.291666666666666,
+    "p95Days": 8.291666666666666,
     "unit": "j",
   },
   "bug-throughput": {
-    "avgPerWeek": 1.125,
+    "avgPerWeek": 1.5,
     "byWeek": [
       {
         "count": 1,
@@ -99,15 +115,15 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         "week": "2025-W44",
       },
       {
-        "count": 1,
+        "count": 2,
         "week": "2025-W46",
       },
       {
-        "count": 1,
+        "count": 2,
         "week": "2025-W48",
       },
       {
-        "count": 1,
+        "count": 2,
         "week": "2025-W50",
       },
     ],
@@ -429,7 +445,7 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
       {
         "bugDays": 0,
         "bugRatio": 0,
-        "featureDays": 5,
+        "featureDays": 9.625,
         "week": "2026-W02",
       },
       {
@@ -695,30 +711,30 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
     "byHorizon": [
       {
         "p15": 1,
-        "p50": 2,
-        "p85": 4,
+        "p50": 3,
+        "p85": 5,
         "p95": 5,
         "weeks": 1,
       },
       {
         "p15": 3,
         "p50": 5,
-        "p85": 7,
-        "p95": 8,
+        "p85": 8,
+        "p95": 9,
         "weeks": 2,
       },
       {
-        "p15": 7,
+        "p15": 8,
         "p50": 10,
-        "p85": 12,
-        "p95": 14,
+        "p85": 14,
+        "p95": 16,
         "weeks": 4,
       },
       {
-        "p15": 16,
-        "p50": 19,
-        "p85": 23,
-        "p95": 25,
+        "p15": 17,
+        "p50": 21,
+        "p85": 26,
+        "p95": 28,
         "weeks": 8,
       },
     ],
@@ -731,10 +747,10 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
       3,
       5,
       1,
-      3,
       4,
+      5,
       2,
-      2,
+      3,
     ],
     "simulations": 10000,
     "unit": "issues",
@@ -1028,7 +1044,7 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         "changeRatio": 0,
         "changedIssues": 0,
         "issueDetails": [],
-        "totalIssues": 4,
+        "totalIssues": 5,
       },
       "Sprint 7": {
         "byChangeType": {
@@ -1037,7 +1053,7 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         "changeRatio": 0,
         "changedIssues": 0,
         "issueDetails": [],
-        "totalIssues": 4,
+        "totalIssues": 5,
       },
       "Sprint 8": {
         "byChangeType": {
@@ -1046,7 +1062,7 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         "changeRatio": 0,
         "changedIssues": 0,
         "issueDetails": [],
-        "totalIssues": 4,
+        "totalIssues": 5,
       },
       "Sprint 9": {
         "byChangeType": {
@@ -1055,17 +1071,17 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         "changeRatio": 0,
         "changedIssues": 0,
         "issueDetails": [],
-        "totalIssues": 5,
+        "totalIssues": 7,
       },
     },
     "changeRatio": 0,
     "changedIssueKeys": [],
     "changedIssues": 0,
-    "totalIssues": 38,
+    "totalIssues": 43,
   },
   "stage-throughput-gap": {
     "avgNetByRole": {
-      "dev": 0.15,
+      "dev": 0.25,
       "po": 0.05,
       "qa": 0.05,
     },
@@ -1191,8 +1207,8 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         "week": "2025-W45",
       },
       {
-        "devIn": 4,
-        "devNet": 3,
+        "devIn": 5,
+        "devNet": 4,
         "devOut": 1,
         "poIn": 0,
         "poNet": 0,
@@ -1204,8 +1220,8 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
       },
       {
         "devIn": 1,
-        "devNet": -3,
-        "devOut": 4,
+        "devNet": -4,
+        "devOut": 5,
         "poIn": 0,
         "poNet": 0,
         "poOut": 0,
@@ -1215,14 +1231,14 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         "week": "2025-W47",
       },
       {
-        "devIn": 4,
+        "devIn": 5,
         "devNet": 4,
-        "devOut": 0,
+        "devOut": 1,
         "poIn": 0,
         "poNet": 0,
         "poOut": 0,
-        "qaIn": 0,
-        "qaNet": 0,
+        "qaIn": 1,
+        "qaNet": 1,
         "qaOut": 0,
         "week": "2025-W48",
       },
@@ -1234,13 +1250,13 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         "poNet": 0,
         "poOut": 1,
         "qaIn": 2,
-        "qaNet": 0,
-        "qaOut": 2,
+        "qaNet": -1,
+        "qaOut": 3,
         "week": "2025-W49",
       },
       {
-        "devIn": 4,
-        "devNet": 2,
+        "devIn": 5,
+        "devNet": 3,
         "devOut": 2,
         "poIn": 0,
         "poNet": 0,
@@ -1252,8 +1268,8 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
       },
       {
         "devIn": 1,
-        "devNet": -2,
-        "devOut": 3,
+        "devNet": -3,
+        "devOut": 4,
         "poIn": 0,
         "poNet": 0,
         "poOut": 0,
@@ -1263,8 +1279,8 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         "week": "2025-W51",
       },
       {
-        "devIn": 0,
-        "devNet": 0,
+        "devIn": 1,
+        "devNet": 1,
         "devOut": 0,
         "poIn": 1,
         "poNet": 1,
@@ -1287,8 +1303,8 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         "week": "2026-W01",
       },
       {
-        "devIn": 1,
-        "devNet": 1,
+        "devIn": 2,
+        "devNet": 2,
         "devOut": 0,
         "poIn": 0,
         "poNet": 0,
@@ -1348,7 +1364,7 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
     "excludedOutliers": 0,
   },
   "throughput": {
-    "avgPerWeek": 2.357142857142857,
+    "avgPerWeek": 2.5714285714285716,
     "byWeek": [
       {
         "count": 1,
@@ -1391,11 +1407,11 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         "week": "2025-W45",
       },
       {
-        "count": 3,
+        "count": 4,
         "week": "2025-W46",
       },
       {
-        "count": 4,
+        "count": 5,
         "week": "2025-W48",
       },
       {
@@ -1403,7 +1419,7 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         "week": "2025-W49",
       },
       {
-        "count": 2,
+        "count": 3,
         "week": "2025-W50",
       },
     ],
@@ -1498,24 +1514,28 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
     ],
   },
   "wip": {
-    "currentWip": 5,
+    "currentWip": 7,
     "issueKeys": [
       "DEMO-34",
       "DEMO-35",
       "DEMO-36",
       "DEMO-37",
       "DEMO-38",
+      "DEMO-42",
+      "DEMO-43",
     ],
     "sprintName": "Sprint 9",
   },
   "wip-per-role": {
     "byRole": {
       "dev": {
-        "count": 3,
+        "count": 5,
         "issueKeys": [
           "DEMO-34",
           "DEMO-35",
           "DEMO-38",
+          "DEMO-42",
+          "DEMO-43",
         ],
       },
       "po": {
