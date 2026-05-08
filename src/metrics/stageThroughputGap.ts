@@ -70,7 +70,7 @@ export const stageThroughputGapMetric: Metric<StageThroughputGapResult> = {
 
     const weekMap = new Map<string, Record<`${RoleKey}In` | `${RoleKey}Out`, number>>();
 
-    const getWeekEntry = (week: string) => {
+    const getWeekEntry = (week: string): Record<`${RoleKey}In` | `${RoleKey}Out`, number> => {
       let e = weekMap.get(week);
       if (!e) {
         e = { devIn: 0, devOut: 0, qaIn: 0, qaOut: 0, poIn: 0, poOut: 0 };
@@ -80,9 +80,9 @@ export const stageThroughputGapMetric: Metric<StageThroughputGapResult> = {
     };
 
     const getRole = (status: string): RoleKey | null => {
-      if (roles.dev.has(status)) return "dev";
-      if (roles.qa.has(status)) return "qa";
-      if (roles.po.has(status)) return "po";
+      if (roles.dev.has(status)) {return "dev";}
+      if (roles.qa.has(status)) {return "qa";}
+      if (roles.po.has(status)) {return "po";}
       return null;
     };
 

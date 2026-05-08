@@ -28,16 +28,16 @@ export interface HealthThresholds {
 export type HealthSignal = "green" | "orange" | "red" | "none";
 
 export function evalLowerBetter(value: number | null, t: ThresholdPair | undefined): HealthSignal {
-  if (value === null || t === undefined) return "none";
-  if (value <= t.warn) return "green";
-  if (value <= t.crit) return "orange";
+  if (value === null || t === undefined) {return "none";}
+  if (value <= t.warn) {return "green";}
+  if (value <= t.crit) {return "orange";}
   return "red";
 }
 
 export function evalHigherBetter(value: number | null, t: ThresholdPair | undefined): HealthSignal {
-  if (value === null || t === undefined) return "none";
-  if (value >= t.warn) return "green";
-  if (value >= t.crit) return "orange";
+  if (value === null || t === undefined) {return "none";}
+  if (value >= t.warn) {return "green";}
+  if (value >= t.crit) {return "orange";}
   return "red";
 }
 
@@ -1641,7 +1641,7 @@ function sparkOf(values: number[]): number[] {
 }
 
 export function buildKpiCells(
-  charts: Record<string, ChartSeries>,
+  charts: Partial<Record<string, ChartSeries>>,
   agingWip: AgingWipSummary,
   signals: KpiSignals,
 ): KpiCell[] {
@@ -1746,8 +1746,8 @@ export function buildScopeAlertBanner(db: Database.Database, scopeData: ScopeCha
 
 export function buildScopeChangeChart(scopeData: ScopeChangeResult): string {
   const sprintNames = Object.keys(scopeData.bySprint).sort((a, b) => {
-    const numA = parseInt(a.match(/\d+/)?.[0] ?? "0", 10);
-    const numB = parseInt(b.match(/\d+/)?.[0] ?? "0", 10);
+    const numA = parseInt((/\d+/.exec(a))?.[0] ?? "0", 10);
+    const numB = parseInt((/\d+/.exec(b))?.[0] ?? "0", 10);
     return numA - numB;
   });
 
@@ -1758,7 +1758,11 @@ export function buildScopeChangeChart(scopeData: ScopeChangeResult): string {
 
   const extracted = sprintNames.map((n) => {
     const s = scopeData.bySprint[n];
-    return { changed: s.changedIssues, unchanged: s.totalIssues - s.changedIssues, ratio: Math.round(s.changeRatio * 100) };
+    return {
+      changed: s?.changedIssues ?? 0,
+      unchanged: (s?.totalIssues ?? 0) - (s?.changedIssues ?? 0),
+      ratio: Math.round((s?.changeRatio ?? 0) * 100),
+    };
   });
 
   return JSON.stringify({
@@ -1806,6 +1810,7 @@ export function buildScopeSection(scopeData: ScopeChangeResult, db: Database.Dat
 
     const sprintByKey = new Map<string, string>();
     for (const [sprintName, stats] of Object.entries(scopeData.bySprint)) {
+      if (!stats) {continue;}
       for (const detail of stats.issueDetails) {
         sprintByKey.set(detail.key, sprintName);
       }
@@ -1814,9 +1819,9 @@ export function buildScopeSection(scopeData: ScopeChangeResult, db: Database.Dat
     const sortedKeys = [...keys].sort((a, b) => {
       const sa = sprintByKey.get(a) ?? "";
       const sb = sprintByKey.get(b) ?? "";
-      if (sa === sb) return a.localeCompare(b);
-      if (!sa) return 1;
-      if (!sb) return -1;
+      if (sa === sb) {return a.localeCompare(b);}
+      if (!sa) {return 1;}
+      if (!sb) {return -1;}
       const da = sprintStartByName.get(sa) ?? sa;
       const db2 = sprintStartByName.get(sb) ?? sb;
       return da < db2 ? 1 : da > db2 ? -1 : 0;

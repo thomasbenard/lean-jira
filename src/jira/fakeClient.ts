@@ -10,32 +10,32 @@ export class FakeJiraClient implements JiraClientLike {
     this.fixturesDir = fixturesPath ? path.resolve(fixturesPath) : path.join(__dirname, "fixtures");
   }
 
-  private load<T>(filename: string): T {
+  private load(filename: string): unknown {
     const content = fs.readFileSync(path.join(this.fixturesDir, filename), "utf-8");
-    return JSON.parse(content) as T;
+    return JSON.parse(content);
   }
 
-  async fetchAllStatuses(): Promise<JiraStatus[]> {
-    return this.load<JiraStatus[]>("statuses.json");
+  fetchAllStatuses(): Promise<JiraStatus[]> {
+    return Promise.resolve(this.load("statuses.json") as JiraStatus[]);
   }
 
-  async fetchAllSprints(): Promise<JiraSprint[]> {
-    return this.load<JiraSprint[]>("sprints.json");
+  fetchAllSprints(): Promise<JiraSprint[]> {
+    return Promise.resolve(this.load("sprints.json") as JiraSprint[]);
   }
 
-  async fetchBoardConfiguration(): Promise<JiraBoardConfig> {
-    return this.load<JiraBoardConfig>("boardConfig.json");
+  fetchBoardConfiguration(): Promise<JiraBoardConfig> {
+    return Promise.resolve(this.load("boardConfig.json") as JiraBoardConfig);
   }
 
-  async fetchAllIssues(
+  fetchAllIssues(
     onProgress?: (fetched: number, total: number) => void,
     updatedSince?: string,
   ): Promise<JiraIssue[]> {
-    const issues = this.load<(JiraIssue & { fields: { updated?: string } })[]>("issues.json");
+    const issues = this.load("issues.json") as (JiraIssue & { fields: { updated?: string } })[];
     const filtered = updatedSince
       ? issues.filter((i) => (i.fields.updated ?? i.fields.created) >= updatedSince)
       : issues;
     onProgress?.(filtered.length, filtered.length);
-    return filtered;
+    return Promise.resolve(filtered);
   }
 }

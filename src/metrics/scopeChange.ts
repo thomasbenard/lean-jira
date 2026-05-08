@@ -21,7 +21,7 @@ export interface ScopeChangeResult {
   totalIssues: number;
   changedIssues: number;
   changeRatio: number;
-  bySprint: Record<string, SprintScopeStats>;
+  bySprint: Partial<Record<string, SprintScopeStats>>;
   changedIssueKeys: string[];
 }
 
@@ -29,7 +29,7 @@ const SIMILARITY_THRESHOLD = 0.85;
 const WATCHED_TEXT_FIELDS = new Set(["description", "summary"]);
 const FIELD_SPRINT = "Sprint";
 
-type FieldState = { first: string; last: string };
+interface FieldState { first: string; last: string }
 
 export function normalizeText(s: string): string {
   return s
@@ -66,13 +66,13 @@ export function similarityRatio(from: string, to: string): number {
   return Math.max(0, 1 - levenshtein(a, b) / a.length);
 }
 
-type FieldChangeRow = {
+interface FieldChangeRow {
   issue_key: string;
   field_name: string;
   from_value: string | null;
   to_value: string | null;
   changed_at: string;
-};
+}
 
 function findFirstSprint(
   changes: FieldChangeRow[],
@@ -115,7 +115,7 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
     ).all(cutoff) as { name: string; start_date: string }[];
     const sprintStartByName = new Map(sprintRows.map((s) => [s.name, s.start_date]));
 
-    const excluded = config.excludeIssueTypes ?? [];
+    const excluded = config.excludeIssueTypes;
     const excludeClause = excluded.length > 0
       ? `AND i.issue_type NOT IN (${placeholders(excluded)})`
       : "";
@@ -136,11 +136,15 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
 
     const byIssue = new Map<string, FieldChangeRow[]>();
     for (const row of allChanges) {
-      if (!byIssue.has(row.issue_key)) {byIssue.set(row.issue_key, []);}
-      byIssue.get(row.issue_key)!.push(row);
+      let issueChanges = byIssue.get(row.issue_key);
+      if (!issueChanges) {
+        issueChanges = [];
+        byIssue.set(row.issue_key, issueChanges);
+      }
+      issueChanges.push(row);
     }
 
-    const bySprint: Record<string, SprintScopeStats> = {};
+    const bySprint: Partial<Record<string, SprintScopeStats>> = {};
     const changedIssueKeys: string[] = [];
     let totalIssues = 0;
     let changedIssues = 0;
@@ -157,8 +161,9 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
     `).all(cutoff, ...excluded) as { sprint_name: string; cnt: number }[];
 
     for (const row of totalsRows) {
-      if (!bySprint[row.sprint_name]) {bySprint[row.sprint_name] = emptySprintStats();}
-      bySprint[row.sprint_name].totalIssues = row.cnt;
+      const sprintStats = bySprint[row.sprint_name] ?? emptySprintStats();
+      bySprint[row.sprint_name] = sprintStats;
+      sprintStats.totalIssues = row.cnt;
       totalIssues += row.cnt; // une issue dans N sprints compte N fois — intentionnel pour que changeRatio soit cohérent par sprint
     }
 
@@ -174,8 +179,10 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
 
     for (const [issueKey, changes] of byIssue) {
       const firstSprintName = findFirstSprint(changes, sprintStartByName);
+      if (!firstSprintName) {continue;}
       // bySprint absent = sprint non dans issue_sprints → issue hors périmètre (ex. sprint sans start_date)
-      if (!firstSprintName || !bySprint[firstSprintName]) {continue;}
+      const currentSprintStats = bySprint[firstSprintName];
+      if (!currentSprintStats) {continue;}
 
       const firstDevStart = firstDevStartByIssue.get(issueKey);
       if (!firstDevStart) {continue;}
@@ -190,7 +197,8 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
         if (!fieldStates.has(c.field_name)) {
           fieldStates.set(c.field_name, { first: c.from_value, last: c.to_value ?? "" });
         } else {
-          fieldStates.get(c.field_name)!.last = c.to_value ?? "";
+          const state = fieldStates.get(c.field_name);
+          if (state) {state.last = c.to_value ?? "";}
         }
       }
 
@@ -205,13 +213,14 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
       if (descriptionChanged) {
         changedIssues++;
         changedIssueKeys.push(issueKey);
-        bySprint[firstSprintName].changedIssues++;
-        bySprint[firstSprintName].byChangeType.description++;
-        bySprint[firstSprintName].issueDetails.push({ key: issueKey, description: true });
+        currentSprintStats.changedIssues++;
+        currentSprintStats.byChangeType.description++;
+        currentSprintStats.issueDetails.push({ key: issueKey, description: true });
       }
     }
 
     for (const stats of Object.values(bySprint)) {
+      if (!stats) {continue;}
       stats.changeRatio = stats.totalIssues > 0 ? stats.changedIssues / stats.totalIssues : 0;
     }
 
