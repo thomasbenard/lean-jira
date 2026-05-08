@@ -19,3 +19,4 @@ dist/
 report*.html
 refresh-*.bat
 tmp/
+*.stackdump
