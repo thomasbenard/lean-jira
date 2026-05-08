@@ -22,21 +22,21 @@ function accumulateWeeks(
   byWeekMap: Map<string, { featureDays: number; bugDays: number }>,
 ): void {
   const days = workingDaysBetween(startedAt, doneAt);
-  if (days <= 0) return;
+  if (days <= 0) {return;}
   for (const [week, alloc] of distributeAcrossWeeks(startedAt, doneAt, days)) {
     let entry = byWeekMap.get(week);
     if (!entry) {
       entry = { featureDays: 0, bugDays: 0 };
       byWeekMap.set(week, entry);
     }
-    if (isBug) entry.bugDays += alloc;
-    else entry.featureDays += alloc;
+    if (isBug) {entry.bugDays += alloc;}
+    else {entry.featureDays += alloc;}
   }
 }
 
 function distributeAcrossWeeks(startedAt: string, doneAt: string, totalDays: number): Map<string, number> {
   const result = new Map<string, number>();
-  if (totalDays <= 0) return result;
+  if (totalDays <= 0) {return result;}
   const doneWeek = isoWeek(doneAt);
   const d = new Date(startedAt.length <= 10 ? startedAt + "T00:00:00Z" : startedAt);
   const dow = d.getUTCDay() || 7;
@@ -48,7 +48,7 @@ function distributeAcrossWeeks(startedAt: string, doneAt: string, totalDays: num
     const alloc = isLast ? remaining : Math.min(5, remaining);
     result.set(week, (result.get(week) ?? 0) + alloc);
     remaining -= alloc;
-    if (isLast) break;
+    if (isLast) {break;}
     d.setUTCDate(d.getUTCDate() + 7);
   }
   return result;

@@ -22,9 +22,9 @@ export interface HandoffReworkResult {
 const ROLE_ORDER: Record<string, number> = { dev: 0, qa: 1, po: 2 };
 
 function reworkKey(from: string, to: string): ReworkType | null {
-  if (from === "qa" && to === "dev") return "qaToDev";
-  if (from === "po" && to === "qa") return "poToQa";
-  if (from === "po" && to === "dev") return "poDev";
+  if (from === "qa" && to === "dev") {return "qaToDev";}
+  if (from === "po" && to === "qa") {return "poToQa";}
+  if (from === "po" && to === "dev") {return "poDev";}
   return null;
 }
 
@@ -41,9 +41,9 @@ export const handoffReworkMetric: Metric<HandoffReworkResult> = {
     };
 
     const getRole = (status: string): string | null => {
-      if (roles.dev.has(status)) return "dev";
-      if (roles.qa.has(status)) return "qa";
-      if (roles.po.has(status)) return "po";
+      if (roles.dev.has(status)) {return "dev";}
+      if (roles.qa.has(status)) {return "qa";}
+      if (roles.po.has(status)) {return "po";}
       return null;
     };
 

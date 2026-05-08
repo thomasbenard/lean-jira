@@ -59,14 +59,14 @@ export const stageTimeBreakdownMetric: Metric<StageTimeSummary> = {
     const rows = fetchDeliveredTransitions(db, config);
     const byIssue = groupByIssue(rows);
 
-    const rawIssues: Array<{
+    const rawIssues: {
       key: string;
       done_at: string;
       devDays: number;
       qaDays: number;
       poDays: number;
       cycleDays: number;
-    }> = [];
+    }[] = [];
 
     for (const [key, transitions] of byIssue) {
       const done_at = transitions[0].done_at;

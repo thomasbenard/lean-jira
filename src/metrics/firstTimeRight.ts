@@ -33,9 +33,9 @@ export const firstTimeRightMetric: Metric<FirstTimeRightResult> = {
     };
 
     const getRole = (status: string): RoleKey | null => {
-      if (roles.dev.has(status)) return "dev";
-      if (roles.qa.has(status)) return "qa";
-      if (roles.po.has(status)) return "po";
+      if (roles.dev.has(status)) {return "dev";}
+      if (roles.qa.has(status)) {return "qa";}
+      if (roles.po.has(status)) {return "po";}
       return null;
     };
 
@@ -70,7 +70,7 @@ export const firstTimeRightMetric: Metric<FirstTimeRightResult> = {
         if (passes[role] > 0) {
           acc[role].eligible++;
           acc[role].totalPasses += passes[role];
-          if (passes[role] === 1) acc[role].ftr++;
+          if (passes[role] === 1) {acc[role].ftr++;}
         }
       }
     }
