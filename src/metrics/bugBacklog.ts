@@ -1,6 +1,7 @@
 import type Database from "better-sqlite3";
 import { type Metric, type MetricConfig } from "./types";
 import { placeholders } from "./utils";
+import { now } from "../clock";
 
 export interface BugBacklogResult {
   openCount: number;
@@ -18,7 +19,7 @@ export const bugBacklogMetric: Metric<BugBacklogResult> = {
       return { openCount: 0, netFlow: 0, created: 0, closed: 0 };
     }
 
-    const endDate = config.windowEndDate ?? new Date().toISOString().slice(0, 10);
+    const endDate = config.windowEndDate ?? now().toISOString().slice(0, 10);
     const startDate = config.cutoffDate ?? endDate;
     const bugPh = placeholders(config.bugIssueTypes);
     const donePh = config.doneStatuses.length > 0 ? placeholders(config.doneStatuses) : "";

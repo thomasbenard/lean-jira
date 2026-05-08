@@ -1,6 +1,7 @@
 import type Database from "better-sqlite3";
 import { type Metric, type MetricConfig } from "./types";
 import { buildDeliveredCte, buildExcludeIssueTypesFragment, percentile } from "./utils";
+import { random } from "../random";
 
 export interface ForecastHorizon {
   weeks: number;
@@ -66,7 +67,7 @@ export const forecastMetric: Metric<ForecastSummary> = {
       for (let s = 0; s < SIM_COUNT; s++) {
         let total = 0;
         for (let w = 0; w < weeks; w++) {
-          total += samples[Math.floor(Math.random() * samples.length)];
+          total += samples[Math.floor(random() * samples.length)];
         }
         totals[s] = total;
       }

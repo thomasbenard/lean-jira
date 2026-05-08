@@ -1,0 +1,11 @@
+[
+  { "id": 1, "name": "Sprint 1", "state": "closed", "startDate": "2025-09-01T08:00:00.000Z", "endDate": "2025-09-14T18:00:00.000Z", "originBoardId": 1 },
+  { "id": 2, "name": "Sprint 2", "state": "closed", "startDate": "2025-09-15T08:00:00.000Z", "endDate": "2025-09-28T18:00:00.000Z", "originBoardId": 1 },
+  { "id": 3, "name": "Sprint 3", "state": "closed", "startDate": "2025-09-29T08:00:00.000Z", "endDate": "2025-10-12T18:00:00.000Z", "originBoardId": 1 },
+  { "id": 4, "name": "Sprint 4", "state": "closed", "startDate": "2025-10-13T08:00:00.000Z", "endDate": "2025-10-26T18:00:00.000Z", "originBoardId": 1 },
+  { "id": 5, "name": "Sprint 5", "state": "closed", "startDate": "2025-10-27T08:00:00.000Z", "endDate": "2025-11-09T18:00:00.000Z", "originBoardId": 1 },
+  { "id": 6, "name": "Sprint 6", "state": "closed", "startDate": "2025-11-10T08:00:00.000Z", "endDate": "2025-11-23T18:00:00.000Z", "originBoardId": 1 },
+  { "id": 7, "name": "Sprint 7", "state": "closed", "startDate": "2025-11-24T08:00:00.000Z", "endDate": "2025-12-07T18:00:00.000Z", "originBoardId": 1 },
+  { "id": 8, "name": "Sprint 8", "state": "closed", "startDate": "2025-12-08T08:00:00.000Z", "endDate": "2025-12-21T18:00:00.000Z", "originBoardId": 1 },
+  { "id": 9, "name": "Sprint 9", "state": "active", "startDate": "2026-01-05T08:00:00.000Z", "endDate": "2026-01-18T18:00:00.000Z", "originBoardId": 1 }
+]

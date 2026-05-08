@@ -13,6 +13,8 @@ import { type MetricConfig } from "./metrics/types";
 import { JiraClient } from "./jira/client";
 import { type JiraBoardConfig, type JiraStatus } from "./jira/types";
 import { type StageTimeSummary } from "./metrics/stageTimeBreakdown";
+import { initClock } from "./clock";
+import { initRandom } from "./random";
 
 type ColumnType = "todo" | "active" | "queue" | "done";
 export type RoleType = "dev" | "qa" | "po";
@@ -117,6 +119,9 @@ export interface JiraFileConfig {
     projectKey: string;
     boardId: number;
     name?: string;
+    mode?: "real" | "fake";
+    frozenNow?: string;
+    fixturesPath?: string;
   };
   db: { path: string };
 }
@@ -198,6 +203,16 @@ function buildMetricConfig(db: Database.Database, app: AppConfig, opts: { exclud
     excludeIssueTypes: app.metrics?.excludeIssueTypes ?? [],
     scopeChangeGracePeriodHours: app.metrics?.scopeChangeGracePeriodHours,
   };
+}
+
+function bootstrapFakeMode(jira: JiraFileConfig["jira"]): void {
+  if (jira.mode !== "fake") {return;}
+  if (!jira.frozenNow) {
+    console.error("Erreur : jira.frozenNow est requis en mode fake (nécessaire pour output déterministe).");
+    process.exit(1);
+  }
+  initClock(jira.frozenNow);
+  initRandom(jira.frozenNow);
 }
 
 const QUEUE_KEYWORDS = [
@@ -407,6 +422,7 @@ program
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
   .action(async (opts: SyncOpts) => {
     const config = loadJiraConfig(path.resolve(opts.config));
+    bootstrapFakeMode(config.jira);
     await sync(config);
   });
 
@@ -420,6 +436,7 @@ program
   .option("--include-outliers", "Inclure les outliers extrêmes (Tukey upper fence) dans les calculs")
   .action((opts: MetricsOpts) => {
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
+    bootstrapFakeMode(config.jira);
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config, { excludeOutliers: !opts.includeOutliers });
 
@@ -441,6 +458,7 @@ program
   .option("-b, --board-config <path>", "Chemin vers board.yaml", "./board.yaml")
   .action((opts: SnapshotsOpts) => {
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
+    bootstrapFakeMode(config.jira);
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config);
     const count = backfillSnapshots(db, metricConfig);
@@ -455,6 +473,7 @@ program
   .option("-o, --output <path>", "Chemin du fichier HTML de sortie", "./report.html")
   .action((opts: ReportOpts) => {
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
+    bootstrapFakeMode(config.jira);
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config);
     generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds, config.jira.name);
@@ -469,6 +488,7 @@ program
   .option("-o, --output <path>", "Chemin du fichier HTML de sortie", "./report.html")
   .action(async (opts: RefreshOpts) => {
     const jiraConfig = loadJiraConfig(path.resolve(opts.config));
+    bootstrapFakeMode(jiraConfig.jira);
     await sync(jiraConfig);
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     const db = openDb(config.db.path);

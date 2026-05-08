@@ -1,7 +1,10 @@
 config.yaml
 config.*.yaml
+!config.fake.yaml
 config.yaml.bak
 board.yaml
+board.*.yaml
+!board.fake.yaml
 board.yaml.bak
 .mcp.json
 *.db
@@ -14,4 +17,4 @@ dist/
 .claude/todo.json
 .idea/
 report*.html
-refresh-all.bat
+refresh-*.bat

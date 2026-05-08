@@ -1,6 +1,7 @@
 import type Database from "better-sqlite3";
 import { type Metric, type MetricConfig } from "./types";
 import { buildDeliveredCte, buildExcludeIssueTypesFragment, percentile, placeholders, removeUpperOutliers, workingDaysBetween } from "./utils";
+import { now } from "../clock";
 
 export type AgingRisk = "ok" | "watch" | "at-risk" | "critical";
 
@@ -31,7 +32,7 @@ export const agingWipMetric: Metric<AgingWipSummary> = {
   compute(db: Database.Database, config: MetricConfig): AgingWipSummary {
     const nowIso = config.windowEndDate
       ? config.windowEndDate + "T23:59:59Z"
-      : new Date().toISOString();
+      : now().toISOString();
     const asOf = nowIso.slice(0, 10);
 
     const inProgressPh = placeholders(config.inProgressStatuses);

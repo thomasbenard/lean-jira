@@ -1,0 +1,890 @@
+[
+  {
+    "id": "1",
+    "key": "DEMO-1",
+    "fields": {
+      "summary": "Implement user authentication flow",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-09-01T09:00:00.000Z",
+      "resolutiondate": "2025-09-10T16:00:00.000Z",
+      "updated": "2025-09-10T16:00:00.000Z",
+      "assignee": { "displayName": "Alice" },
+      "priority": { "name": "Medium" },
+      "customfield_10020": [{ "id": 1, "name": "Sprint 1", "state": "closed", "startDate": "2025-09-01T08:00:00.000Z", "endDate": "2025-09-14T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 57600
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO1-h1", "created": "2025-09-01T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO1-h2", "created": "2025-09-02T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO1-h3", "created": "2025-09-04T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In Review" }] },
+        { "id": "DEMO1-h4", "created": "2025-09-08T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Review", "toString": "In QA" }] },
+        { "id": "DEMO1-h5", "created": "2025-09-10T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In QA", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "2",
+    "key": "DEMO-2",
+    "fields": {
+      "summary": "Fix login button alignment",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-09-01T09:00:00.000Z",
+      "resolutiondate": "2025-09-05T16:00:00.000Z",
+      "updated": "2025-09-05T16:00:00.000Z",
+      "assignee": { "displayName": "Bob" },
+      "priority": { "name": "Low" },
+      "customfield_10020": [{ "id": 1, "name": "Sprint 1", "state": "closed", "startDate": "2025-09-01T08:00:00.000Z", "endDate": "2025-09-14T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 7200
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO2-h1", "created": "2025-09-01T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO2-h2", "created": "2025-09-03T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO2-h3", "created": "2025-09-05T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "3",
+    "key": "DEMO-3",
+    "fields": {
+      "summary": "Set up CI/CD pipeline",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-09-02T09:00:00.000Z",
+      "resolutiondate": "2025-09-12T16:00:00.000Z",
+      "updated": "2025-09-12T16:00:00.000Z",
+      "assignee": { "displayName": "Alice" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 1, "name": "Sprint 1", "state": "closed", "startDate": "2025-09-01T08:00:00.000Z", "endDate": "2025-09-14T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": null
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO3-h1", "created": "2025-09-02T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO3-h2", "created": "2025-09-04T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO3-h3", "created": "2025-09-12T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "4",
+    "key": "DEMO-4",
+    "fields": {
+      "summary": "Fix null pointer exception in user service",
+      "issuetype": { "name": "Bug" },
+      "status": { "name": "Done" },
+      "created": "2025-09-03T09:00:00.000Z",
+      "resolutiondate": "2025-09-09T16:00:00.000Z",
+      "updated": "2025-09-09T16:00:00.000Z",
+      "assignee": { "displayName": "Charlie" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 1, "name": "Sprint 1", "state": "closed", "startDate": "2025-09-01T08:00:00.000Z", "endDate": "2025-09-14T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 28800
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO4-h1", "created": "2025-09-03T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "In Progress" }] },
+        { "id": "DEMO4-h2", "created": "2025-09-09T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "5",
+    "key": "DEMO-5",
+    "fields": {
+      "summary": "Implement product search with filters",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-09-15T09:00:00.000Z",
+      "resolutiondate": "2025-09-26T16:00:00.000Z",
+      "updated": "2025-09-26T16:00:00.000Z",
+      "assignee": { "displayName": "Bob" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 2, "name": "Sprint 2", "state": "closed", "startDate": "2025-09-15T08:00:00.000Z", "endDate": "2025-09-28T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 115200
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO5-h1", "created": "2025-09-15T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO5-h2", "created": "2025-09-16T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO5-h3", "created": "2025-09-19T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In Review" }] },
+        { "id": "DEMO5-h4", "created": "2025-09-22T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Review", "toString": "In QA" }] },
+        { "id": "DEMO5-h5", "created": "2025-09-25T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In QA", "toString": "Awaiting PO" }] },
+        { "id": "DEMO5-h6", "created": "2025-09-26T16:00:00.000Z", "items": [{ "field": "status", "fromString": "Awaiting PO", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "6",
+    "key": "DEMO-6",
+    "fields": {
+      "summary": "Update footer links",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-09-15T09:00:00.000Z",
+      "resolutiondate": "2025-09-19T16:00:00.000Z",
+      "updated": "2025-09-19T16:00:00.000Z",
+      "assignee": { "displayName": "Alice" },
+      "priority": { "name": "Low" },
+      "customfield_10020": [{ "id": 2, "name": "Sprint 2", "state": "closed", "startDate": "2025-09-15T08:00:00.000Z", "endDate": "2025-09-28T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 21600
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO6-h1", "created": "2025-09-15T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO6-h2", "created": "2025-09-17T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO6-h3", "created": "2025-09-19T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "7",
+    "key": "DEMO-7",
+    "fields": {
+      "summary": "Redesign checkout flow",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-09-15T09:00:00.000Z",
+      "resolutiondate": "2025-09-26T16:00:00.000Z",
+      "updated": "2025-09-26T16:00:00.000Z",
+      "assignee": { "displayName": "Charlie" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 2, "name": "Sprint 2", "state": "closed", "startDate": "2025-09-15T08:00:00.000Z", "endDate": "2025-09-28T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 172800
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO7-h1", "created": "2025-09-15T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO7-h2", "created": "2025-09-16T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO7-h3", "created": "2025-09-22T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In Review" }] },
+        { "id": "DEMO7-h4", "created": "2025-09-26T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Review", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "8",
+    "key": "DEMO-8",
+    "fields": {
+      "summary": "Fix broken image uploads on mobile",
+      "issuetype": { "name": "Bug" },
+      "status": { "name": "Done" },
+      "created": "2025-09-17T09:00:00.000Z",
+      "resolutiondate": "2025-09-23T16:00:00.000Z",
+      "updated": "2025-09-23T16:00:00.000Z",
+      "assignee": { "displayName": "Bob" },
+      "priority": { "name": "Medium" },
+      "customfield_10020": [{ "id": 2, "name": "Sprint 2", "state": "closed", "startDate": "2025-09-15T08:00:00.000Z", "endDate": "2025-09-28T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 28800
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO8-h1", "created": "2025-09-17T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "In Progress" }] },
+        { "id": "DEMO8-h2", "created": "2025-09-23T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "9",
+    "key": "DEMO-9",
+    "fields": {
+      "summary": "Add pagination to product listing",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-09-29T09:00:00.000Z",
+      "resolutiondate": "2025-10-08T16:00:00.000Z",
+      "updated": "2025-10-08T16:00:00.000Z",
+      "assignee": { "displayName": "Alice" },
+      "priority": { "name": "Medium" },
+      "customfield_10020": [{ "id": 3, "name": "Sprint 3", "state": "closed", "startDate": "2025-09-29T08:00:00.000Z", "endDate": "2025-10-12T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 57600
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO9-h1", "created": "2025-09-29T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO9-h2", "created": "2025-09-30T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO9-h3", "created": "2025-10-06T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In QA" }] },
+        { "id": "DEMO9-h4", "created": "2025-10-08T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In QA", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "10",
+    "key": "DEMO-10",
+    "fields": {
+      "summary": "Update error message copy",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-09-29T09:00:00.000Z",
+      "resolutiondate": "2025-10-03T16:00:00.000Z",
+      "updated": "2025-10-03T16:00:00.000Z",
+      "assignee": { "displayName": "Bob" },
+      "priority": { "name": "Low" },
+      "customfield_10020": [{ "id": 3, "name": "Sprint 3", "state": "closed", "startDate": "2025-09-29T08:00:00.000Z", "endDate": "2025-10-12T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 7200
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO10-h1", "created": "2025-09-29T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO10-h2", "created": "2025-10-01T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO10-h3", "created": "2025-10-03T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "11",
+    "key": "DEMO-11",
+    "fields": {
+      "summary": "Implement order history page",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-09-29T09:00:00.000Z",
+      "resolutiondate": "2025-10-10T16:00:00.000Z",
+      "updated": "2025-10-10T16:00:00.000Z",
+      "assignee": { "displayName": "Charlie" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 3, "name": "Sprint 3", "state": "closed", "startDate": "2025-09-29T08:00:00.000Z", "endDate": "2025-10-12T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 115200
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO11-h1", "created": "2025-09-29T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO11-h2", "created": "2025-09-30T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO11-h3", "created": "2025-10-03T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In Review" }] },
+        { "id": "DEMO11-h4", "created": "2025-10-07T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Review", "toString": "In QA" }] },
+        { "id": "DEMO11-h5", "created": "2025-10-10T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In QA", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "12",
+    "key": "DEMO-12",
+    "fields": {
+      "summary": "Fix race condition in session handling",
+      "issuetype": { "name": "Bug" },
+      "status": { "name": "Done" },
+      "created": "2025-10-01T09:00:00.000Z",
+      "resolutiondate": "2025-10-07T16:00:00.000Z",
+      "updated": "2025-10-07T16:00:00.000Z",
+      "assignee": { "displayName": "Alice" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 3, "name": "Sprint 3", "state": "closed", "startDate": "2025-09-29T08:00:00.000Z", "endDate": "2025-10-12T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": null
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO12-h1", "created": "2025-10-01T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "In Progress" }] },
+        { "id": "DEMO12-h2", "created": "2025-10-07T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "13",
+    "key": "DEMO-13",
+    "fields": {
+      "summary": "Add email notification for order confirmation",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-10-13T09:00:00.000Z",
+      "resolutiondate": "2025-10-22T16:00:00.000Z",
+      "updated": "2025-10-22T16:00:00.000Z",
+      "assignee": { "displayName": "Bob" },
+      "priority": { "name": "Medium" },
+      "customfield_10020": [{ "id": 4, "name": "Sprint 4", "state": "closed", "startDate": "2025-10-13T08:00:00.000Z", "endDate": "2025-10-26T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 57600
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO13-h1", "created": "2025-10-13T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO13-h2", "created": "2025-10-14T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO13-h3", "created": "2025-10-17T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In Review" }] },
+        { "id": "DEMO13-h4", "created": "2025-10-22T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Review", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "14",
+    "key": "DEMO-14",
+    "fields": {
+      "summary": "Add tooltip to discount field",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-10-13T09:00:00.000Z",
+      "resolutiondate": "2025-10-17T16:00:00.000Z",
+      "updated": "2025-10-17T16:00:00.000Z",
+      "assignee": { "displayName": "Alice" },
+      "priority": { "name": "Low" },
+      "customfield_10020": [{ "id": 4, "name": "Sprint 4", "state": "closed", "startDate": "2025-10-13T08:00:00.000Z", "endDate": "2025-10-26T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 21600
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO14-h1", "created": "2025-10-13T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO14-h2", "created": "2025-10-15T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO14-h3", "created": "2025-10-17T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "15",
+    "key": "DEMO-15",
+    "fields": {
+      "summary": "Migrate database to new schema",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-10-13T09:00:00.000Z",
+      "resolutiondate": "2025-10-24T16:00:00.000Z",
+      "updated": "2025-10-24T16:00:00.000Z",
+      "assignee": { "displayName": "Charlie" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 4, "name": "Sprint 4", "state": "closed", "startDate": "2025-10-13T08:00:00.000Z", "endDate": "2025-10-26T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": null
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO15-h1", "created": "2025-10-13T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO15-h2", "created": "2025-10-14T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO15-h3", "created": "2025-10-24T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "16",
+    "key": "DEMO-16",
+    "fields": {
+      "summary": "Fix memory leak in background job processor",
+      "issuetype": { "name": "Bug" },
+      "status": { "name": "Done" },
+      "created": "2025-10-15T09:00:00.000Z",
+      "resolutiondate": "2025-10-21T16:00:00.000Z",
+      "updated": "2025-10-21T16:00:00.000Z",
+      "assignee": { "displayName": "Bob" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 4, "name": "Sprint 4", "state": "closed", "startDate": "2025-10-13T08:00:00.000Z", "endDate": "2025-10-26T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 57600
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO16-h1", "created": "2025-10-15T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "In Progress" }] },
+        { "id": "DEMO16-h2", "created": "2025-10-21T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "17",
+    "key": "DEMO-17",
+    "fields": {
+      "summary": "Build admin dashboard with analytics",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-10-27T09:00:00.000Z",
+      "resolutiondate": "2025-11-07T16:00:00.000Z",
+      "updated": "2025-11-07T16:00:00.000Z",
+      "assignee": { "displayName": "Alice" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 5, "name": "Sprint 5", "state": "closed", "startDate": "2025-10-27T08:00:00.000Z", "endDate": "2025-11-09T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 172800
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO17-h1", "created": "2025-10-27T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO17-h2", "created": "2025-10-28T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO17-h3", "created": "2025-11-03T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In Review" }] },
+        { "id": "DEMO17-h4", "created": "2025-11-06T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Review", "toString": "In QA" }] },
+        { "id": "DEMO17-h5", "created": "2025-11-07T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In QA", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "18",
+    "key": "DEMO-18",
+    "fields": {
+      "summary": "Implement CSV export for reports",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-10-27T09:00:00.000Z",
+      "resolutiondate": "2025-11-07T16:00:00.000Z",
+      "updated": "2025-11-07T16:00:00.000Z",
+      "assignee": { "displayName": "Charlie" },
+      "priority": { "name": "Medium" },
+      "customfield_10020": [{ "id": 5, "name": "Sprint 5", "state": "closed", "startDate": "2025-10-27T08:00:00.000Z", "endDate": "2025-11-09T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 115200
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO18-h1", "created": "2025-10-27T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO18-h2", "created": "2025-10-29T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO18-h3", "created": "2025-11-04T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In Review" }] },
+        { "id": "DEMO18-h4", "created": "2025-11-07T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Review", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "19",
+    "key": "DEMO-19",
+    "fields": {
+      "summary": "Add loading spinner to search results",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-10-27T09:00:00.000Z",
+      "resolutiondate": "2025-11-03T16:00:00.000Z",
+      "updated": "2025-11-03T16:00:00.000Z",
+      "assignee": { "displayName": "Bob" },
+      "priority": { "name": "Low" },
+      "customfield_10020": [{ "id": 5, "name": "Sprint 5", "state": "closed", "startDate": "2025-10-27T08:00:00.000Z", "endDate": "2025-11-09T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 7200
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO19-h1", "created": "2025-10-27T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO19-h2", "created": "2025-10-30T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO19-h3", "created": "2025-11-03T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "20",
+    "key": "DEMO-20",
+    "fields": {
+      "summary": "Fix incorrect total calculation in cart",
+      "issuetype": { "name": "Bug" },
+      "status": { "name": "Done" },
+      "created": "2025-10-29T09:00:00.000Z",
+      "resolutiondate": "2025-11-04T16:00:00.000Z",
+      "updated": "2025-11-04T16:00:00.000Z",
+      "assignee": { "displayName": "Alice" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 5, "name": "Sprint 5", "state": "closed", "startDate": "2025-10-27T08:00:00.000Z", "endDate": "2025-11-09T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 28800
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO20-h1", "created": "2025-10-29T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "In Progress" }] },
+        { "id": "DEMO20-h2", "created": "2025-11-04T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "21",
+    "key": "DEMO-21",
+    "fields": {
+      "summary": "Fix intermittent timeout in payment processing",
+      "issuetype": { "name": "Bug" },
+      "status": { "name": "Done" },
+      "created": "2025-10-28T09:00:00.000Z",
+      "resolutiondate": "2025-11-07T16:00:00.000Z",
+      "updated": "2025-11-07T16:00:00.000Z",
+      "assignee": { "displayName": "Charlie" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 5, "name": "Sprint 5", "state": "closed", "startDate": "2025-10-27T08:00:00.000Z", "endDate": "2025-11-09T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 28800
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO21-h1", "created": "2025-10-28T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "In Progress" }] },
+        { "id": "DEMO21-h2", "created": "2025-11-03T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In QA" }] },
+        { "id": "DEMO21-h3", "created": "2025-11-04T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In QA", "toString": "In Progress" }] },
+        { "id": "DEMO21-h4", "created": "2025-11-07T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "22",
+    "key": "DEMO-22",
+    "fields": {
+      "summary": "Implement user role management",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-11-10T09:00:00.000Z",
+      "resolutiondate": "2025-11-19T16:00:00.000Z",
+      "updated": "2025-11-19T16:00:00.000Z",
+      "assignee": { "displayName": "Bob" },
+      "priority": { "name": "Medium" },
+      "customfield_10020": [{ "id": 6, "name": "Sprint 6", "state": "closed", "startDate": "2025-11-10T08:00:00.000Z", "endDate": "2025-11-23T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 57600
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO22-h1", "created": "2025-11-10T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO22-h2", "created": "2025-11-11T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO22-h3", "created": "2025-11-14T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In Review" }] },
+        { "id": "DEMO22-h4", "created": "2025-11-19T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Review", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "23",
+    "key": "DEMO-23",
+    "fields": {
+      "summary": "Update password validation rules",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-11-10T09:00:00.000Z",
+      "resolutiondate": "2025-11-14T16:00:00.000Z",
+      "updated": "2025-11-14T16:00:00.000Z",
+      "assignee": { "displayName": "Alice" },
+      "priority": { "name": "Low" },
+      "customfield_10020": [{ "id": 6, "name": "Sprint 6", "state": "closed", "startDate": "2025-11-10T08:00:00.000Z", "endDate": "2025-11-23T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 21600
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO23-h1", "created": "2025-11-10T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO23-h2", "created": "2025-11-12T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO23-h3", "created": "2025-11-14T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "24",
+    "key": "DEMO-24",
+    "fields": {
+      "summary": "Fix data corruption on concurrent writes",
+      "issuetype": { "name": "Bug" },
+      "status": { "name": "Done" },
+      "created": "2025-11-11T09:00:00.000Z",
+      "resolutiondate": "2025-11-21T16:00:00.000Z",
+      "updated": "2025-11-21T16:00:00.000Z",
+      "assignee": { "displayName": "Charlie" },
+      "priority": { "name": "Critical" },
+      "customfield_10020": [{ "id": 6, "name": "Sprint 6", "state": "closed", "startDate": "2025-11-10T08:00:00.000Z", "endDate": "2025-11-23T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 57600
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO24-h1", "created": "2025-11-11T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "In Progress" }] },
+        { "id": "DEMO24-h2", "created": "2025-11-17T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In QA" }] },
+        { "id": "DEMO24-h3", "created": "2025-11-18T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In QA", "toString": "In Progress" }] },
+        { "id": "DEMO24-h4", "created": "2025-11-19T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In QA" }] },
+        { "id": "DEMO24-h5", "created": "2025-11-21T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In QA", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "25",
+    "key": "DEMO-25",
+    "fields": {
+      "summary": "Implement payment gateway integration",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-11-10T09:00:00.000Z",
+      "resolutiondate": "2025-11-21T16:00:00.000Z",
+      "updated": "2025-11-21T16:00:00.000Z",
+      "assignee": { "displayName": "Bob" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 6, "name": "Sprint 6", "state": "closed", "startDate": "2025-11-10T08:00:00.000Z", "endDate": "2025-11-23T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 172800
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO25-h1", "created": "2025-11-10T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO25-h2", "created": "2025-11-12T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO25-h3", "created": "2025-11-21T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] },
+        { "id": "DEMO25-fc1", "created": "2025-11-13T10:00:00.000Z", "items": [{ "field": "summary", "fromString": "Old summary DEMO-25", "toString": "Implement payment gateway integration" }] }
+      ]
+    }
+  },
+  {
+    "id": "26",
+    "key": "DEMO-26",
+    "fields": {
+      "summary": "Refactor authentication middleware",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-11-24T09:00:00.000Z",
+      "resolutiondate": "2025-12-03T16:00:00.000Z",
+      "updated": "2025-12-03T16:00:00.000Z",
+      "assignee": { "displayName": "Alice" },
+      "priority": { "name": "Medium" },
+      "customfield_10020": [{ "id": 7, "name": "Sprint 7", "state": "closed", "startDate": "2025-11-24T08:00:00.000Z", "endDate": "2025-12-07T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": null
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO26-h1", "created": "2025-11-24T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO26-h2", "created": "2025-11-25T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO26-h3", "created": "2025-12-03T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "27",
+    "key": "DEMO-27",
+    "fields": {
+      "summary": "Add multi-currency support to invoices",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-11-24T09:00:00.000Z",
+      "resolutiondate": "2025-12-05T16:00:00.000Z",
+      "updated": "2025-12-05T16:00:00.000Z",
+      "assignee": { "displayName": "Charlie" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 7, "name": "Sprint 7", "state": "closed", "startDate": "2025-11-24T08:00:00.000Z", "endDate": "2025-12-07T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 57600
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO27-h1", "created": "2025-11-24T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO27-h2", "created": "2025-11-25T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO27-h3", "created": "2025-12-01T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In QA" }] },
+        { "id": "DEMO27-h4", "created": "2025-12-03T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In QA", "toString": "Awaiting PO" }] },
+        { "id": "DEMO27-h5", "created": "2025-12-04T09:00:00.000Z", "items": [{ "field": "status", "fromString": "Awaiting PO", "toString": "In QA" }] },
+        { "id": "DEMO27-h6", "created": "2025-12-05T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In QA", "toString": "Done" }] },
+        { "id": "DEMO27-fc1", "created": "2025-11-27T10:00:00.000Z", "items": [{ "field": "description", "fromString": "Old desc", "toString": "Updated acceptance criteria with new edge cases" }] }
+      ]
+    }
+  },
+  {
+    "id": "28",
+    "key": "DEMO-28",
+    "fields": {
+      "summary": "Fix rounding error in tax calculation",
+      "issuetype": { "name": "Bug" },
+      "status": { "name": "Done" },
+      "created": "2025-11-26T09:00:00.000Z",
+      "resolutiondate": "2025-12-02T16:00:00.000Z",
+      "updated": "2025-12-02T16:00:00.000Z",
+      "assignee": { "displayName": "Bob" },
+      "priority": { "name": "Medium" },
+      "customfield_10020": [{ "id": 7, "name": "Sprint 7", "state": "closed", "startDate": "2025-11-24T08:00:00.000Z", "endDate": "2025-12-07T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 28800
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO28-h1", "created": "2025-11-26T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "In Progress" }] },
+        { "id": "DEMO28-h2", "created": "2025-12-02T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "29",
+    "key": "DEMO-29",
+    "fields": {
+      "summary": "Set up monitoring and alerting infrastructure",
+      "issuetype": { "name": "Task" },
+      "status": { "name": "Done" },
+      "created": "2025-11-24T09:00:00.000Z",
+      "resolutiondate": "2025-12-05T16:00:00.000Z",
+      "updated": "2025-12-05T16:00:00.000Z",
+      "assignee": { "displayName": "Alice" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 7, "name": "Sprint 7", "state": "closed", "startDate": "2025-11-24T08:00:00.000Z", "endDate": "2025-12-07T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 115200
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO29-h1", "created": "2025-11-24T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO29-h2", "created": "2025-11-25T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO29-h3", "created": "2025-12-01T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In Review" }] },
+        { "id": "DEMO29-h4", "created": "2025-12-05T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Review", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "30",
+    "key": "DEMO-30",
+    "fields": {
+      "summary": "Fix typo in onboarding email template",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-12-08T09:00:00.000Z",
+      "resolutiondate": "2025-12-11T16:00:00.000Z",
+      "updated": "2025-12-11T16:00:00.000Z",
+      "assignee": { "displayName": "Charlie" },
+      "priority": { "name": "Low" },
+      "customfield_10020": [{ "id": 8, "name": "Sprint 8", "state": "closed", "startDate": "2025-12-08T08:00:00.000Z", "endDate": "2025-12-21T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 7200
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO30-h1", "created": "2025-12-08T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO30-h2", "created": "2025-12-09T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO30-h3", "created": "2025-12-11T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "31",
+    "key": "DEMO-31",
+    "fields": {
+      "summary": "Add dark mode toggle",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-12-08T09:00:00.000Z",
+      "resolutiondate": "2025-12-12T16:00:00.000Z",
+      "updated": "2025-12-12T16:00:00.000Z",
+      "assignee": { "displayName": "Bob" },
+      "priority": { "name": "Low" },
+      "customfield_10020": [{ "id": 8, "name": "Sprint 8", "state": "closed", "startDate": "2025-12-08T08:00:00.000Z", "endDate": "2025-12-21T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 21600
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO31-h1", "created": "2025-12-08T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO31-h2", "created": "2025-12-10T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO31-h3", "created": "2025-12-12T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "32",
+    "key": "DEMO-32",
+    "fields": {
+      "summary": "Implement webhook delivery system",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Done" },
+      "created": "2025-12-08T09:00:00.000Z",
+      "resolutiondate": "2025-12-19T16:00:00.000Z",
+      "updated": "2025-12-19T16:00:00.000Z",
+      "assignee": { "displayName": "Alice" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 8, "name": "Sprint 8", "state": "closed", "startDate": "2025-12-08T08:00:00.000Z", "endDate": "2025-12-21T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 115200
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO32-h1", "created": "2025-12-08T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO32-h2", "created": "2025-12-09T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO32-h3", "created": "2025-12-12T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In Review" }] },
+        { "id": "DEMO32-h4", "created": "2025-12-15T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Review", "toString": "In QA" }] },
+        { "id": "DEMO32-h5", "created": "2025-12-19T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In QA", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "33",
+    "key": "DEMO-33",
+    "fields": {
+      "summary": "Fix broken pagination on mobile devices",
+      "issuetype": { "name": "Bug" },
+      "status": { "name": "Done" },
+      "created": "2025-12-10T09:00:00.000Z",
+      "resolutiondate": "2025-12-16T16:00:00.000Z",
+      "updated": "2025-12-16T16:00:00.000Z",
+      "assignee": { "displayName": "Charlie" },
+      "priority": { "name": "Medium" },
+      "customfield_10020": [{ "id": 8, "name": "Sprint 8", "state": "closed", "startDate": "2025-12-08T08:00:00.000Z", "endDate": "2025-12-21T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 28800
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO33-h1", "created": "2025-12-10T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "In Progress" }] },
+        { "id": "DEMO33-h2", "created": "2025-12-16T16:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "Done" }] }
+      ]
+    }
+  },
+  {
+    "id": "34",
+    "key": "DEMO-34",
+    "fields": {
+      "summary": "Implement real-time notifications",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "In Progress" },
+      "created": "2026-01-05T09:00:00.000Z",
+      "resolutiondate": null,
+      "updated": "2026-01-13T09:00:00.000Z",
+      "assignee": { "displayName": "Bob" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 9, "name": "Sprint 9", "state": "active", "startDate": "2026-01-05T08:00:00.000Z", "endDate": "2026-01-18T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 57600
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO34-h1", "created": "2026-01-05T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO34-h2", "created": "2026-01-13T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] }
+      ]
+    }
+  },
+  {
+    "id": "35",
+    "key": "DEMO-35",
+    "fields": {
+      "summary": "Add keyboard shortcuts to editor",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "In Review" },
+      "created": "2026-01-05T09:00:00.000Z",
+      "resolutiondate": null,
+      "updated": "2026-01-07T09:00:00.000Z",
+      "assignee": { "displayName": "Alice" },
+      "priority": { "name": "Medium" },
+      "customfield_10020": [{ "id": 9, "name": "Sprint 9", "state": "active", "startDate": "2026-01-05T08:00:00.000Z", "endDate": "2026-01-18T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": null
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO35-h1", "created": "2026-01-05T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "To Do" }] },
+        { "id": "DEMO35-h2", "created": "2026-01-06T09:00:00.000Z", "items": [{ "field": "status", "fromString": "To Do", "toString": "In Progress" }] },
+        { "id": "DEMO35-h3", "created": "2026-01-07T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In Review" }] }
+      ]
+    }
+  },
+  {
+    "id": "36",
+    "key": "DEMO-36",
+    "fields": {
+      "summary": "Migrate legacy API endpoints to v2",
+      "issuetype": { "name": "Task" },
+      "status": { "name": "In QA" },
+      "created": "2025-12-29T09:00:00.000Z",
+      "resolutiondate": null,
+      "updated": "2025-12-31T15:00:00.000Z",
+      "assignee": { "displayName": "Charlie" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 9, "name": "Sprint 9", "state": "active", "startDate": "2026-01-05T08:00:00.000Z", "endDate": "2026-01-18T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 28800
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO36-h1", "created": "2025-12-31T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "In Progress" }] },
+        { "id": "DEMO36-h2", "created": "2025-12-31T15:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In QA" }] }
+      ]
+    }
+  },
+  {
+    "id": "37",
+    "key": "DEMO-37",
+    "fields": {
+      "summary": "Implement GDPR data export feature",
+      "issuetype": { "name": "Story" },
+      "status": { "name": "Awaiting PO" },
+      "created": "2025-12-15T09:00:00.000Z",
+      "resolutiondate": null,
+      "updated": "2025-12-22T09:00:00.000Z",
+      "assignee": { "displayName": "Bob" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 9, "name": "Sprint 9", "state": "active", "startDate": "2026-01-05T08:00:00.000Z", "endDate": "2026-01-18T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": 115200
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO37-h1", "created": "2025-12-16T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "In Progress" }] },
+        { "id": "DEMO37-h2", "created": "2025-12-18T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In Progress", "toString": "In QA" }] },
+        { "id": "DEMO37-h3", "created": "2025-12-22T09:00:00.000Z", "items": [{ "field": "status", "fromString": "In QA", "toString": "Awaiting PO" }] }
+      ]
+    }
+  },
+  {
+    "id": "38",
+    "key": "DEMO-38",
+    "fields": {
+      "summary": "Fix login failure for SSO users on Safari",
+      "issuetype": { "name": "Bug" },
+      "status": { "name": "In Progress" },
+      "created": "2025-11-28T09:00:00.000Z",
+      "resolutiondate": null,
+      "updated": "2025-12-01T09:00:00.000Z",
+      "assignee": { "displayName": "Alice" },
+      "priority": { "name": "High" },
+      "customfield_10020": [{ "id": 9, "name": "Sprint 9", "state": "active", "startDate": "2026-01-05T08:00:00.000Z", "endDate": "2026-01-18T18:00:00.000Z", "originBoardId": 1 }],
+      "timeoriginalestimate": null
+    },
+    "changelog": {
+      "histories": [
+        { "id": "DEMO38-h1", "created": "2025-12-01T09:00:00.000Z", "items": [{ "field": "status", "fromString": null, "toString": "In Progress" }] }
+      ]
+    }
+  }
+]

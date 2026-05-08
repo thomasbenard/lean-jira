@@ -9,6 +9,7 @@ import { type WipPerRoleResult } from "../metrics/wipPerRole";
 import { type StageThroughputGapResult } from "../metrics/stageThroughputGap";
 import { type HandoffReworkResult } from "../metrics/handoffRework";
 import { type FirstTimeRightResult } from "../metrics/firstTimeRight";
+import { now } from "../clock";
 
 const ROLLING_WINDOW_DAYS = 30;
 const WEEK_DAYS = 7;
@@ -55,7 +56,7 @@ export function generateWeekEndings(cutoffISO: string): string[] {
   const daysToSunday = (7 - dayOfWeek) % 7;
   start.setUTCDate(start.getUTCDate() + daysToSunday);
 
-  const today = new Date();
+  const today = now();
   while (start <= today) {
     dates.push(start.toISOString().slice(0, 10));
     start.setUTCDate(start.getUTCDate() + 7);

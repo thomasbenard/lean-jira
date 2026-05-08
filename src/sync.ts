@@ -1,4 +1,4 @@
-import { JiraClient } from "./jira/client";
+import { createJiraClient } from "./jira/clientFactory";
 import { type FieldChange, type JiraIssue, type StoredIssue, type StoredSprint, type StoredStatus, type Transition } from "./jira/types";
 import { openDb, upsertIssues, upsertSprints, upsertStatuses, replaceAllTransitions, replaceAllFieldChanges, replaceAllIssueSprints, logSync, getLastSyncDate } from "./db/store";
 
@@ -9,13 +9,16 @@ interface SyncConfig {
     apiToken: string;
     projectKey: string;
     boardId: number;
+    mode?: "real" | "fake";
+    frozenNow?: string;
+    fixturesPath?: string;
   };
   db: { path: string };
 }
 
 export async function sync(config: SyncConfig): Promise<void> {
   const db = openDb(config.db.path);
-  const client = new JiraClient(config.jira);
+  const client = createJiraClient(config.jira);
 
   console.log(`Sync projet ${config.jira.projectKey}...`);
 

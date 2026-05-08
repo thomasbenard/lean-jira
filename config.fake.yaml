@@ -1,0 +1,15 @@
+# Configuration pour le mode fake (tests locaux sans accès Jira).
+# Copier ce fichier en config.yaml pour tester sans connexion Jira.
+jira:
+  mode: fake
+  frozenNow: "2026-01-15"
+  # fixturesPath: "./src/jira/fixtures"  # optionnel — par défaut: fixtures embarquées
+  baseUrl: "fake://local"           # ignoré en mode fake
+  email: "fake@example.com"         # ignoré en mode fake
+  apiToken: "fake"                  # ignoré en mode fake
+  projectKey: "DEMO"
+  boardId: 1
+  name: "Demo Squad"
+
+db:
+  path: "./lean-jira.fake.db"

@@ -1,3 +1,14 @@
+export interface JiraConfig {
+  baseUrl: string;
+  email: string;
+  apiToken: string;
+  projectKey: string;
+  boardId: number;
+  mode?: "real" | "fake";
+  frozenNow?: string;
+  fixturesPath?: string;
+}
+
 export interface JiraIssue {
   id: string;
   key: string;

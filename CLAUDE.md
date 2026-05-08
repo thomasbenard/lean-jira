@@ -61,6 +61,11 @@ npm start           # Run compiled build
 `autoconfig` options: `-c <path>` (config path, default `./config.yaml`), `-b <path>` (board config, default `./board.yaml`), `--apply` (destructive: creates/overwrites `board.yaml` after 3s delay; backs up existing to `board.yaml.bak`).
 `list-metrics` subcommand prints all registered metric names.
 
+**Mode fake (sans Jira)** : ajouter `jira.mode: fake` + `jira.frozenNow: "YYYY-MM-DD"` dans `config.yaml`. Les fixtures JSON embarquées (`src/jira/fixtures/`) remplacent l'API. Output déterministe : toutes les métriques utilisent `frozenNow` comme "aujourd'hui", le forecast Monte Carlo utilise un PRNG seedé. Exemple :
+```bash
+npm run refresh -- -c config.fake.yaml -b board.fake.yaml -o report.fake.html
+```
+
 No test or lint commands defined.
 
 ## Architecture
@@ -68,13 +73,17 @@ No test or lint commands defined.
 TypeScript CLI. Data flow:
 
 ```
-Jira REST API v2 → SQLite (WAL) → metric computations → stdout / HTML report
+Jira REST API v2 (ou fixtures JSON) → SQLite (WAL) → metric computations → stdout / HTML report
 ```
 
 **Layers** (`src/`):
-- `main.ts` — Commander.js CLI; routes `sync` / `metrics` / `snapshots` / `report` / `refresh` / `autoconfig` / `list-metrics`; exports `inferBoardColumns()`, `renderBoardColumnsYaml()`, `enrichWithLegacyStatuses()`, `mergeColumns()`, `buildUnresolvableComment()`, `loadJiraConfig()`, `loadBoardConfig()`, `loadConfigs()`, `InferredColumn`, `BoardColumn`, `RoleType`, `JiraFileConfig`, `BoardFileConfig`
+- `main.ts` — Commander.js CLI; routes `sync` / `metrics` / `snapshots` / `report` / `refresh` / `autoconfig` / `list-metrics`; exports `inferBoardColumns()`, `renderBoardColumnsYaml()`, `enrichWithLegacyStatuses()`, `mergeColumns()`, `buildUnresolvableComment()`, `loadJiraConfig()`, `loadBoardConfig()`, `loadConfigs()`, `InferredColumn`, `BoardColumn`, `RoleType`, `JiraFileConfig`, `BoardFileConfig`; bootstrap `initClock`/`initRandom` si `jira.mode=fake`
 - `sync.ts` — fetches sprints + issues (with changelog), upserts to DB; `replaceTransitions` per issue; incremental mode via `getLastSyncDate()` (JQL `updated >= "<date>"` filter when prior sync exists)
+- `jira/clientFactory.ts` — `JiraClientLike` interface + `createJiraClient(config)` factory; retourne `JiraClient` (real) ou `FakeJiraClient` (fake) selon `jira.mode`
 - `jira/client.ts` — Axios + 200ms sleep between pages
+- `jira/fakeClient.ts` — charge `statuses.json` / `sprints.json` / `issues.json` / `boardConfig.json` depuis `src/jira/fixtures/` (ou `jira.fixturesPath`)
+- `clock.ts` — `now()` injectable; figée à `jira.frozenNow` en mode fake; utilisée par toutes les métriques sensibles à "aujourd'hui"
+- `random.ts` — `random()` injectable; Mulberry32 seedé par `jira.frozenNow` en mode fake; utilisée par `forecast` Monte Carlo
 - `db/store.ts` — better-sqlite3; WAL; atomic transactions
 - `metrics/` — plugin registry: implement `Metric<T>`, register in `ALL_METRICS` (`index.ts`)
 - `snapshots/compute.ts` — backfills `metric_snapshots` weekly; used by report
@@ -111,6 +120,13 @@ Jira REST API v2 → SQLite (WAL) → metric computations → stdout / HTML repo
 ## Configuration (`config.yaml` + `board.yaml`)
 
 Config is split into two files: `config.yaml` (gitignored, secrets: `jira.*` + `db.*`) and `board.yaml` (commitable: `board.*` + `metrics.*`). `jira.name` (optional) sets the squad display name in the report header; falls back to `projectKey` if absent. Use `config.example.yaml` and `board.example.yaml` as templates. `autoconfig --apply` generates `board.yaml`.
+
+**Mode fake** : champs additionnels sous `jira:` dans `config.yaml` :
+- `mode: "fake"` — active le connecteur fake (default `"real"`)
+- `frozenNow: "2026-01-15"` — obligatoire si `mode: fake`; fige l'horloge pour output déterministe
+- `fixturesPath: "./src/jira/fixtures"` — optionnel; override le path des fixtures JSON embarquées
+
+Voir `config.fake.yaml` + `board.fake.yaml` comme exemples complets.
 
 Board is defined as an ordered list of columns under `board.columns`. Each column has a `type` (`todo` | `active` | `queue` | `done`), an optional `devStart: true` flag, an optional `role` (`"dev" | "qa" | "po"`) flag, and a list of `statuses`. Status lists for metrics are derived automatically by `deriveStatusConfig()` in `main.ts`:
 

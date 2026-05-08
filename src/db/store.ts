@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { type FieldChange, type StoredIssue, type StoredSprint, type StoredStatus, type Transition } from "../jira/types";
+import { now } from "../clock";
 
 export function openDb(dbPath: string): Database.Database {
   const db = new Database(dbPath);
@@ -161,5 +162,5 @@ export function getDistinctTransitionStatuses(db: Database.Database, since?: str
 export function logSync(db: Database.Database, projectKey: string, issuesCount: number): void {
   db.prepare(
     "INSERT INTO sync_log (synced_at, issues_count, project_key) VALUES (?, ?, ?)"
-  ).run(new Date().toISOString(), issuesCount, projectKey);
+  ).run(now().toISOString(), issuesCount, projectKey);
 }

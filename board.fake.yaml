@@ -1,0 +1,36 @@
+board:
+  columns:
+    - name: "Backlog"
+      type: todo
+      statuses:
+        - "To Do"
+    - name: "Development"
+      type: active
+      devStart: true
+      role: dev
+      statuses:
+        - "In Progress"
+    - name: "Code Review"
+      type: queue
+      role: dev
+      statuses:
+        - "In Review"
+    - name: "QA Testing"
+      type: queue
+      role: qa
+      statuses:
+        - "In QA"
+    - name: "PO Validation"
+      type: queue
+      role: po
+      statuses:
+        - "Awaiting PO"
+    - name: "Done"
+      type: done
+      statuses:
+        - "Done"
+
+metrics:
+  cutoffDate: "2025-09-01"
+  bugIssueTypes:
+    - "Bug"

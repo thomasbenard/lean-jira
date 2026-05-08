@@ -7,6 +7,7 @@ import { forecastMetric, type ForecastSummary } from "../metrics/forecast";
 import { cycleTimeMetric } from "../metrics/cycleTime";
 import { scopeChangeMetric, type ScopeChangeResult } from "../metrics/scopeChange";
 import { getLastSyncDate } from "../db/store";
+import { now } from "../clock";
 
 const STALE_THRESHOLD_DAYS = 7;
 
@@ -286,7 +287,7 @@ export function generateReport(
     projectKey,
     squadName,
     jiraBaseUrl,
-    generatedAt: new Date().toISOString().slice(0, 19).replace("T", " "),
+    generatedAt: now().toISOString().slice(0, 19).replace("T", " "),
     lastSnapshotDate: lastDate,
     lastSyncAt,
     isSyncStale,

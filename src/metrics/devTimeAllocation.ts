@@ -1,6 +1,7 @@
 import type Database from "better-sqlite3";
 import { type Metric, type MetricConfig } from "./types";
 import { buildDeliveredCte, buildExcludeIssueTypesFragment, buildWindowFragment, isoWeek, placeholders, workingDaysBetween } from "./utils";
+import { now } from "../clock";
 
 export interface DevTimeAllocationByWeek {
   week: string;
@@ -67,7 +68,7 @@ export const devTimeAllocationMetric: Metric<DevTimeAllocationSummary> = {
     const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes);
 
     // windowEndDate absent en mode live → date du jour réelle ; snapshot toujours fourni par compute.ts
-    const today = config.windowEndDate ?? new Date().toISOString().slice(0, 10);
+    const today = config.windowEndDate ?? now().toISOString().slice(0, 10);
 
     const rows = db.prepare(`
       WITH ${delivered.cte}

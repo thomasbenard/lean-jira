@@ -1,0 +1,14 @@
+{
+  "id": 1,
+  "name": "DEMO Board",
+  "columnConfig": {
+    "columns": [
+      { "name": "Backlog", "statuses": [{ "id": "1", "self": "fake://status/1" }] },
+      { "name": "Development", "statuses": [{ "id": "2", "self": "fake://status/2" }] },
+      { "name": "Code Review", "statuses": [{ "id": "3", "self": "fake://status/3" }] },
+      { "name": "QA Testing", "statuses": [{ "id": "4", "self": "fake://status/4" }] },
+      { "name": "PO Validation", "statuses": [{ "id": "5", "self": "fake://status/5" }] },
+      { "name": "Done", "statuses": [{ "id": "6", "self": "fake://status/6" }] }
+    ]
+  }
+}
