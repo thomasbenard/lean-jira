@@ -51,6 +51,8 @@ valeurs_retenues = sorted.filter(v => v <= upper)
 Actif par défaut (`excludeOutliers = true`). Désactivé avec `--include-outliers`.
 Ignoré si `n < 4` (pas assez de données pour estimer les quartiles).
 
+> **Référence** : Tukey, J. W. (1977). *Exploratory Data Analysis*. Addison-Wesley, §2C. Voir aussi [Outlier — Tukey's fences (Wikipedia)](https://en.wikipedia.org/wiki/Outlier#Tukey's_fences).
+
 ### Statistiques de synthèse (`DurationStats`)
 
 Calculées sur les valeurs retenues après filtre outliers :
@@ -144,7 +146,7 @@ Sinon :
 
 **Définition** : ratio lead time réel / estimation. Mesure la dérive côté demandeur.
 
-**Périmètre** : issues livrées, estimées (`original_estimate_seconds > 0`), **hors bugs**.
+**Périmètre** : issues livrées ayant transité par `todoStatuses` ET `devStartStatuses` (même population que `lead-time`), estimées (`original_estimate_seconds > 0`), **hors bugs**.
 
 **Algorithme** :
 ```
@@ -200,7 +202,7 @@ Bucketisation identique à `lead-time-by-size`.
 
 **Définition** : ratio cycle time réel / estimation. Mesure la dérive sur la phase dev seule.
 
-**Périmètre** : issues livrées, estimées, **hors bugs**.
+**Périmètre** : issues livrées ayant transité par `todoStatuses` ET `devStartStatuses` (même population que `cycle-time`), estimées (`original_estimate_seconds > 0`), **hors bugs**.
 
 **Algorithme** :
 ```
@@ -449,7 +451,7 @@ Pour chaque issue :
 changeRatio = changedIssues / totalIssues
 ```
 
-**Similarité textuelle** (Levenshtein normalisée) :
+**Similarité textuelle** ([distance de Levenshtein](https://en.wikipedia.org/wiki/Levenshtein_distance) normalisée) :
 ```
 similarityRatio(a, b) = 1 − levenshtein(normalize(a), normalize(b)) / max(|a|, |b|)
 normalize : lowercase, strip Markdown symbols, collapse whitespace
@@ -464,6 +466,8 @@ normalize : lowercase, strip Markdown symbols, collapse whitespace
 ---
 
 ## WIP (Work In Progress)
+
+> **Loi de Little** ([Little, 1961](https://doi.org/10.1287/opre.9.3.383)) : dans un système stable, `WIP = throughput × cycle_time`. Inversement, `cycle_time = WIP / throughput`. Les trois métriques `wip`, `throughput` et `cycle-time` ne sont pas indépendantes — réduire le WIP réduit mécaniquement le cycle time sans modifier le throughput.
 
 ### `wip` — snapshot courant
 
@@ -529,7 +533,7 @@ Pour chaque rôle R ∈ {dev, qa, po} configuré :
 
 ### `flow-efficiency`
 
-**Définition** : ratio temps actif / (temps actif + temps queue) sur la phase cycle-time. Mesure la santé du workflow indépendamment de la charge. Typique 5-15 % en flux non optimisé.
+**Définition** : ratio temps actif / (temps actif + temps queue) sur la phase cycle-time. Mesure la santé du workflow indépendamment de la charge. Typique 5–15 % en flux non optimisé ([Modig & Åhlström, 2012 — *This is Lean*](https://thisislean.com) ; [Reinertsen, 2009 — *The Principles of Product Development Flow*, §6](https://books.google.com/books?id=1HlPPgAACAAJ)).
 
 **Périmètre** : même population que `cycle-time` (issues livrées passées par TODO + dev start).
 
@@ -569,7 +573,7 @@ P15 (pire 15 %)         = percentile(flow_efficiency_issue, 15)
 
 ### `aging-wip`
 
-**Définition** : pour chaque ticket actuellement en cours, âge depuis le 1er passage en dev, comparé aux percentiles cycle-time historiques. Détecte les tickets en train de rater leur SLE — actionnable au stand-up.
+**Définition** : pour chaque ticket actuellement en cours, âge depuis le 1er passage en dev, comparé aux percentiles cycle-time historiques. Détecte les tickets en train de rater leur SLE (*Service Level Expectation*, [Kanban Guide 2020](https://kanbanguides.org/english/)) — actionnable au stand-up.
 
 **Périmètre** : issues actuellement en in-progress (filtre runtime contre done-category), peu importe le sprint. Pas de scoping sprint.
 
@@ -607,7 +611,7 @@ Classification :
 
 ### `forecast` — Monte Carlo
 
-**Définition** : forecast probabiliste de livraison sur horizons 1/2/4/8 semaines. Simule 10 000 scénarios par horizon en tirant avec remise dans les 12 dernières semaines de throughput.
+**Définition** : forecast probabiliste de livraison sur horizons 1/2/4/8 semaines. Simule 10 000 scénarios par horizon en tirant avec remise dans les 12 dernières semaines de throughput ([Vacanti, 2015 — *Actionable Agile Metrics for Predictability*](https://www.actionableagile.com)).
 
 **Périmètre** : 12 semaines de throughput précédant `windowEndDate` (ou maintenant). **Pas de filtre `cutoffDate`** : `LIMIT 12` borne déjà l'historique, pour éviter qu'un snapshot historique avec cutoff étroit (30j glissants) ne réduise le pool à 4 semaines.
 
@@ -629,7 +633,7 @@ Pour chaque horizon H ∈ {1, 2, 4, 8} :
 
 **Convention engagement** : `p15` correspond à « 85 % des simulations livrent au moins ce nombre » → c'est le chiffre à promettre quand on veut être fiable.
 
-**Non déterministe** : utilise `Math.random`. Skip dans `backfillSnapshots` (computé live à chaque `npm run report`).
+**Non déterministe en mode réel** : `random()` injectable retourne `Math.random()`. **Mode fake** : `random()` = PRNG Mulberry32 seedé par `frozenNow` — sortie déterministe. Skip dans `backfillSnapshots` (computé live à chaque `npm run report`).
 
 **Sortie** :
 ```

@@ -160,10 +160,10 @@ Basés sur l'estimation initiale (`originalEstimate`) de l'issue (1 jour = 8 h) 
 |---|---|---|
 | `lead-time` | Délai total : entrée backlog (todo) → livraison équipe | Issues avec transition todo ET transition devStart |
 | `lead-time-by-size` | Lead time agrégé par bucket de taille | Idem |
-| `lead-time-normalized` | Ratio lead time réel / estimation (détecte les dérives de chiffrage) | Issues estimées non-bug |
+| `lead-time-normalized` | Ratio lead time réel / estimation (détecte les dérives de chiffrage) | Idem lead-time, estimées, hors bugs |
 | `cycle-time` | Délai de dev : début dev actif → livraison équipe | Issues avec transition todo ET transition devStart |
 | `cycle-time-by-size` | Cycle time agrégé par bucket de taille | Idem |
-| `cycle-time-normalized` | Ratio cycle time réel / estimation | Issues estimées non-bug |
+| `cycle-time-normalized` | Ratio cycle time réel / estimation | Idem cycle-time, estimées, hors bugs |
 | `bug-cycle-time` | Cycle time des bugs uniquement (pas d'invariant todo requis) | Issues de type bug |
 | `throughput` | Nombre d'issues livrées par semaine | Toutes issues |
 | `bug-throughput` | Nombre de bugs livrés par semaine | Issues de type bug |
