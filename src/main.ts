@@ -160,7 +160,7 @@ export function loadConfigs(configPath: string, boardPath: string): AppConfig {
 // Tout statut dont category_key='done' est retiré des listes in-progress / active / queue
 // et ajouté à doneStatuses. Évite les biais quand un statut "done" du board est listé
 // dans inProgressStatuses du config (ex: "À valider" sur le board KECK).
-function buildMetricConfig(db: Database.Database, app: AppConfig, opts: { excludeOutliers?: boolean } = {}): MetricConfig {
+export function buildMetricConfig(db: Database.Database, app: AppConfig, opts: { excludeOutliers?: boolean } = {}): MetricConfig {
   const derived = deriveStatusConfig(app.board);
   // Source 1 : statusCategory.key='done' depuis l'API Jira (statuses table).
   // Source 2 : derived.doneStatuses pour les statuts historiques renommés
