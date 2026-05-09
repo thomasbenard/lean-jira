@@ -1,7 +1,8 @@
 export interface JiraConfig {
   baseUrl: string;
-  email: string;
-  apiToken: string;
+  email?: string;
+  apiToken?: string;
+  personalAccessToken?: string;
   projectKey: string;
   boardId: number;
   mode?: "real" | "fake";
