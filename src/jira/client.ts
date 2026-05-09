@@ -13,8 +13,9 @@ interface SprintPageResponse {
 
 interface JiraConfig {
   baseUrl: string;
-  email: string;
-  apiToken: string;
+  email?: string;
+  apiToken?: string;
+  personalAccessToken?: string;
   projectKey: string;
   boardId: number;
 }
@@ -25,10 +26,14 @@ export class JiraClient {
 
   constructor(config: JiraConfig) {
     this.boardId = config.boardId;
+
+    const usePat = !!config.personalAccessToken;
+    const headers = { "Content-Type": "application/json" };
+
     this.http = axios.create({
       baseURL: config.baseUrl,
-      auth: { username: config.email, password: config.apiToken },
-      headers: { "Content-Type": "application/json" },
+      headers: usePat ? { ...headers, Authorization: `Bearer ${config.personalAccessToken}` } : headers,
+      ...(usePat ? {} : { auth: { username: config.email ?? "", password: config.apiToken ?? "" } }),
     });
   }
 

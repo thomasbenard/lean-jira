@@ -40,6 +40,60 @@ describe("loadJiraConfig", () => {
     expect(config.db.path).toBe("./test.db");
   });
 
+  it("mode Basic complet (email + apiToken) → valide sans erreur", () => {
+    const file = writeTmpYaml(jiraPayload);
+    expect(() => loadJiraConfig(file)).not.toThrow();
+  });
+
+  it("mode PAT seul (sans email ni apiToken) → valide sans erreur", () => {
+    const payload = {
+      jira: { baseUrl: "https://jira.example.com", personalAccessToken: "mon-pat", projectKey: "PROJ", boardId: 42 },
+      db: { path: "./test.db" },
+    };
+    const file = writeTmpYaml(payload);
+    expect(() => loadJiraConfig(file)).not.toThrow();
+  });
+
+  it("ni PAT ni email+apiToken → exit(1) avec message explicite", () => {
+    const payload = {
+      jira: { baseUrl: "https://jira.example.com", projectKey: "PROJ", boardId: 42 },
+      db: { path: "./test.db" },
+    };
+    const file = writeTmpYaml(payload);
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation((code) => {
+      throw new Error(`process.exit:${code}`);
+    });
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    expect(() => loadJiraConfig(file)).toThrow("process.exit:1");
+    expect(exitSpy).toHaveBeenCalledWith(1);
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("personalAccessToken"));
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("email + apiToken"));
+  });
+
+  it("PAT vide (\"\") + sans email → exit(1)", () => {
+    const payload = {
+      jira: { baseUrl: "https://jira.example.com", personalAccessToken: "", projectKey: "PROJ", boardId: 42 },
+      db: { path: "./test.db" },
+    };
+    const file = writeTmpYaml(payload);
+    vi.spyOn(process, "exit").mockImplementation((code) => {
+      throw new Error(`process.exit:${code}`);
+    });
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    expect(() => loadJiraConfig(file)).toThrow("process.exit:1");
+  });
+
+  it("PAT + email + apiToken → PAT prioritaire, config retournée contient le PAT", () => {
+    const payload = {
+      jira: { ...jiraPayload.jira, personalAccessToken: "mon-pat" },
+      db: jiraPayload.db,
+    };
+    const file = writeTmpYaml(payload);
+    const config = loadJiraConfig(file);
+    expect(config.jira.personalAccessToken).toBe("mon-pat");
+  });
+
   it("frontendUrl optionnel : absent → undefined", () => {
     const file = writeTmpYaml(jiraPayload);
     const config = loadJiraConfig(file);

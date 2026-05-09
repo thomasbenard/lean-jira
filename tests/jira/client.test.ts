@@ -4,7 +4,7 @@ import axios from "axios";
 vi.mock("axios");
 
 const mockGet = vi.fn();
-vi.spyOn(axios, "create").mockReturnValue({
+const mockCreate = vi.spyOn(axios, "create").mockReturnValue({
   get: mockGet,
 } as unknown as ReturnType<typeof axios.create>);
 
@@ -20,6 +20,37 @@ const baseConfig = {
 
 beforeEach(() => {
   mockGet.mockReset();
+  mockCreate.mockClear();
+});
+
+describe("JiraClient — authentification", () => {
+  it("mode Basic : axios.create reçoit auth username/password", () => {
+    new JiraClient(baseConfig);
+    const createArgs = mockCreate.mock.calls[0][0];
+    expect(createArgs?.auth).toEqual({ username: "test@example.com", password: "token" });
+    expect((createArgs?.headers as Record<string, string>)?.["Authorization"]).toBeUndefined();
+  });
+
+  it("mode PAT : axios.create reçoit Authorization Bearer, pas de auth", () => {
+    new JiraClient({ ...baseConfig, personalAccessToken: "mon-pat-secret", email: undefined, apiToken: undefined });
+    const createArgs = mockCreate.mock.calls[0][0];
+    expect(createArgs?.auth).toBeUndefined();
+    expect((createArgs?.headers as Record<string, string>)?.["Authorization"]).toBe("Bearer mon-pat-secret");
+  });
+
+  it("PAT vide (\"\") → mode Basic utilisé (auth présent, pas de Bearer)", () => {
+    new JiraClient({ ...baseConfig, personalAccessToken: "" });
+    const createArgs = mockCreate.mock.calls[0][0];
+    expect(createArgs?.auth).toEqual({ username: "test@example.com", password: "token" });
+    expect((createArgs?.headers as Record<string, string>)?.["Authorization"]).toBeUndefined();
+  });
+
+  it("PAT + email/apiToken présents → PAT prioritaire", () => {
+    new JiraClient({ ...baseConfig, personalAccessToken: "mon-pat" });
+    const createArgs = mockCreate.mock.calls[0][0];
+    expect(createArgs?.auth).toBeUndefined();
+    expect((createArgs?.headers as Record<string, string>)?.["Authorization"]).toBe("Bearer mon-pat");
+  });
 });
 
 describe("fetchAllIssues — paramètre updatedSince", () => {

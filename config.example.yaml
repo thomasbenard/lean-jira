@@ -6,8 +6,11 @@ jira:
   # frontendUrl : URL de l'interface Jira (pour les liens du rapport).
   # Obligatoire si baseUrl pointe vers le gateway Atlassian (api.atlassian.com).
   # frontendUrl: "https://jira.your-company.com"
+  # Mode Basic (Jira Cloud ou Server avec basic auth) :
   email: "your.email@company.com"
   apiToken: "YOUR_API_TOKEN"
+  # Mode PAT — Jira Server ≥ 8.14 / Data Center (remplacer les deux lignes ci-dessus par) :
+  # personalAccessToken: "votre-PAT-server"
   projectKey: "YOUR_PROJECT_KEY"
   boardId: 1
   # name : nom affiché dans le rapport (optionnel, sinon projectKey utilisé)

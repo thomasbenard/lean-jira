@@ -20,4 +20,4 @@ L'API REST Jira (v2 + Agile v1) est identique entre Cloud et Server/DC — seul 
 
 ## Statut
 
-**à faire**
+**livré**

@@ -114,8 +114,9 @@ export interface JiraFileConfig {
   jira: {
     baseUrl: string;
     frontendUrl?: string;
-    email: string;
-    apiToken: string;
+    email?: string;
+    apiToken?: string;
+    personalAccessToken?: string;
     projectKey: string;
     boardId: number;
     name?: string;
@@ -143,7 +144,15 @@ export type { ReportPersonalization };
 type AppConfig = JiraFileConfig & BoardFileConfig;
 
 export function loadJiraConfig(configPath: string): JiraFileConfig {
-  return yaml.parse(fs.readFileSync(configPath, "utf-8")) as JiraFileConfig;
+  const cfg = yaml.parse(fs.readFileSync(configPath, "utf-8")) as JiraFileConfig;
+  const j = cfg.jira;
+  const hasPat = !!j.personalAccessToken;
+  const hasBasic = j.email && j.apiToken;
+  if (!hasPat && !hasBasic) {
+    console.error("config.yaml : fournir soit personalAccessToken, soit email + apiToken");
+    process.exit(1);
+  }
+  return cfg;
 }
 
 export function loadBoardConfig(boardPath: string): BoardFileConfig {

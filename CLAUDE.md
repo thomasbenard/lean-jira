@@ -121,6 +121,11 @@ Jira REST API v2 (ou fixtures JSON) → SQLite (WAL) → metric computations →
 
 Config is split into two files: `config.yaml` (gitignored, secrets: `jira.*` + `db.*`) and `board.yaml` (commitable: `board.*` + `metrics.*`). `jira.name` (optional) sets the squad display name in the report header; falls back to `projectKey` if absent. Use `config.example.yaml` and `board.example.yaml` as templates. `autoconfig --apply` generates `board.yaml`.
 
+**Auth** : deux modes mutuellement exclusifs dans `config.yaml` :
+- **Basic** (Cloud ou Server) : `jira.email` + `jira.apiToken` requis → `Authorization: Basic`
+- **PAT** (Server ≥ 8.14 ou Data Center) : `jira.personalAccessToken` présent et non vide → `Authorization: Bearer`; `email`/`apiToken` ignorés
+- Si ni PAT ni Basic complet → `loadJiraConfig` affiche une erreur et fait `process.exit(1)`
+
 **Mode fake** : champs additionnels sous `jira:` dans `config.yaml` :
 - `mode: "fake"` — active le connecteur fake (default `"real"`)
 - `frozenNow: "2026-01-15"` — obligatoire si `mode: fake`; fige l'horloge pour output déterministe
