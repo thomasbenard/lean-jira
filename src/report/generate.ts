@@ -576,10 +576,11 @@ export function renderHtml(input: RenderInput): string {
     </div>`;
 
   const p = input.personalization;
+  const excludedTabs = p?.excludedTabs ?? new Set<string>();
   const ALL_TABS = ["delivery", "quality", "roles", "forecast", "advanced"] as const;
-  const visibleTabs = ALL_TABS.filter((t) => !p?.excludedTabs?.has(t));
+  const visibleTabs = ALL_TABS.filter((t) => !excludedTabs.has(t));
   const firstTab = visibleTabs[0] ?? "delivery";
-  const show = (tab: string): boolean => !p?.excludedTabs?.has(tab);
+  const show = (tab: string): boolean => !excludedTabs.has(tab);
   const reportTitle = escapeHtml(p?.title ?? `Rapport Lean — ${input.projectKey}`);
   const headerLabel = escapeHtml(p?.title ?? (input.squadName ? `${input.squadName} (${input.projectKey})` : input.projectKey));
   const fontLink = p?.fontLinkHtml
