@@ -132,6 +132,7 @@ metrics:
 #   excludeTabs:                           # Onglets à masquer : delivery, quality, roles, forecast, advanced
 #     - roles
 #     - forecast
+#   templatePath: "./report.hbs"           # Template Handlebars custom (remplace le rendu HTML intégral)
 ```
 
 #### Types de colonnes
@@ -188,6 +189,7 @@ npx ts-node src/main.ts list-metrics
 # Rapport HTML
 npm run report                           # Sortie : ./report.html
 npm run report -- -o /tmp/rapport.html   # Chemin personnalisé
+npm run report -- --export-template ./my-template  # Exporte le template Handlebars par défaut dans ./my-template/
 
 # Validation de la config
 npm run validate    # Vérifie que les statuts du board.yaml existent en base
@@ -200,6 +202,7 @@ npm run validate    # Vérifie que les statuts du board.yaml existent en base
 | `-c, --config <path>` | Chemin vers `config.yaml` (défaut : `./config.yaml`) | Toutes les commandes |
 | `-b, --board-config <path>` | Chemin vers `board.yaml` (défaut : `./board.yaml`) | `metrics`, `snapshots`, `report`, `refresh`, `validate-config`, `autoconfig` |
 | `-o, --output <path>` | Fichier HTML de sortie (défaut : `./report.html`) | `report`, `refresh` |
+| `--export-template <dir>` | Exporte `report.hbs` + `context.schema.json` dans `<dir>` et quitte | `report` |
 
 ---
 

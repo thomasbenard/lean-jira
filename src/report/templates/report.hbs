@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>{{escapeHtml title}}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+{{{fontLinkHtml}}}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  :root {
+    --bg: #08090c;
+    --panel: #11131a;
+    --panel-2: #181b25;
+    --line: #1f2330;
+    --line-2: #2a2f40;
+    --text: #d7dbe6;
+    --text-dim: #7a8194;
+    --text-faint: #4a5063;
+    --cyan: #00e0d4;
+    --orange: #ff8a3d;
+    --red: #ff4d6a;
+    --amber: #ffc24a;
+    --green: #4dd697;
+    --violet: #a78bff;
+    --grid: rgba(255,255,255,0.04);
+    --stale-bg: #3d2a00; --stale-border: #f59e0b; --stale-text: #fcd34d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "IBM Plex Sans", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 32px 32px;
+    background-position: -1px -1px;
+    min-height: 100vh;
+  }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-feature-settings: "tnum" 1; }
+  header.bar {
+    border-bottom: 1px solid var(--line);
+    padding: 0.85rem 2rem;
+    display: flex; align-items: center; gap: 1.5rem;
+    background: rgba(8,9,12,0.85);
+    backdrop-filter: blur(8px);
+    position: sticky; top: 0; z-index: 50;
+  }
+  .logo {
+    font-family: "IBM Plex Mono"; font-weight: 600; font-size: 0.85rem;
+    color: var(--cyan); letter-spacing: 0.2em;
+  }
+  .logo::before { content: "▮ "; color: var(--orange); }
+  header.bar .meta { color: var(--text-faint); font-size: 0.78rem; font-family: "IBM Plex Mono"; margin-left: auto; }
+  main { max-width: 1400px; margin: 0 auto; padding: 1.5rem 2rem 5rem; }
+
+  .stale-warning {
+    background: var(--stale-bg); border: 1px solid var(--stale-border); color: var(--stale-text);
+    padding: 0.6rem 1rem; border-radius: 6px; margin-bottom: 1.5rem; font-size: 0.9rem;
+  }
+
+  .alert-orange {
+    background: rgba(255,138,61,0.12); border: 1px solid var(--orange); color: var(--orange);
+    padding: 0.7rem 1.2rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem;
+  }
+  .alert-orange .alert-detail { color: var(--text-dim); margin-left: 0.4rem; }
+
+  .scope-section { margin: 2rem 0; }
+  .scope-help { color: var(--text-dim); font-size: 0.85rem; margin: 0.5rem 0 1rem; }
+  .scope-issues-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 1rem; }
+  .scope-issues-table th { text-align: left; color: var(--text-faint); font-weight: 500; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--line); cursor: pointer; user-select: none; white-space: nowrap; }
+  .scope-issues-table th::after { content: ' ⇅'; font-size: 0.7em; opacity: 0.4; }
+  .scope-issues-table th.sort-asc::after { content: ' ↑'; opacity: 1; }
+  .scope-issues-table th.sort-desc::after { content: ' ↓'; opacity: 1; }
+  .scope-issues-table td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--line); }
+  .text-dim { color: var(--text-dim); font-size: 0.9rem; }
+
+  .verdict {
+    border: 1px solid var(--line-2);
+    background: linear-gradient(135deg, rgba(255,77,106,0.08), rgba(255,138,61,0.04));
+    border-left: 3px solid var(--red);
+    padding: 1.2rem 1.5rem;
+    display: grid; grid-template-columns: auto 1fr auto; gap: 1.5rem; align-items: center;
+  }
+  .verdict.alert { border-left-color: var(--red); background: linear-gradient(135deg, rgba(255,77,106,0.08), rgba(255,138,61,0.04)); }
+  .verdict.watch { border-left-color: var(--amber); background: linear-gradient(135deg, rgba(255,194,74,0.08), rgba(255,138,61,0.03)); }
+  .verdict.ok { border-left-color: var(--green); background: linear-gradient(135deg, rgba(77,214,151,0.08), transparent); }
+  .verdict-status {
+    font-family: "IBM Plex Mono"; font-weight: 600; font-size: 1.1rem;
+    color: var(--red); letter-spacing: 0.06em;
+  }
+  .verdict.watch .verdict-status { color: var(--amber); }
+  .verdict.ok .verdict-status { color: var(--green); }
+  .verdict-text { font-size: 0.95rem; color: var(--text); }
+  .verdict-text strong { color: #fff; }
+  .verdict-time { font-family: "IBM Plex Mono"; font-size: 0.75rem; color: var(--text-faint); }
+
+  section.actions { margin: 1.5rem 0; }
+  .actions-head { display: flex; align-items: baseline; gap: 1rem; margin-bottom: 0.75rem; }
+  .actions-head h2 { margin: 0; font-size: 0.85rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--orange); font-weight: 500; }
+  .actions-head .sep { flex: 1; height: 1px; background: var(--line); }
+  .actions-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  .action {
+    border: 1px solid var(--line); background: var(--panel); padding: 1rem 1.1rem;
+    position: relative; overflow: hidden;
+  }
+  .action::before {
+    content: ""; position: absolute; top: 0; left: 0; width: 3px; height: 100%;
+    background: var(--orange);
+  }
+  .action.crit::before { background: var(--red); }
+  .action.warn::before { background: var(--amber); }
+  .action.ok::before { background: var(--green); }
+  .action-num { font-family: "IBM Plex Mono"; font-size: 0.7rem; color: var(--text-faint); }
+  .action-title { font-weight: 600; font-size: 1rem; margin: 0.25rem 0 0.4rem; color: var(--text); }
+  .action-detail { font-size: 0.83rem; color: var(--text-dim); }
+  .action a { color: var(--cyan); text-decoration: none; font-family: "IBM Plex Mono"; }
+  .action a:hover { text-decoration: underline; }
+
+  section.kpi-section { margin: 2rem 0; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid var(--line); }
+  .kpi-cell {
+    padding: 1.1rem 1.2rem;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+    position: relative;
+    min-height: 130px;
+  }
+  .kpi-cell:nth-child(4n) { border-right: none; }
+  .kpi-grid > .kpi-cell:nth-last-child(-n+4) { border-bottom: none; }
+  .kpi-label { font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-dim); display: flex; align-items: center; gap: 0.5rem; }
+  .kpi-label::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); flex-shrink: 0; }
+  .kpi-cell.red .kpi-label::before { background: var(--red); box-shadow: 0 0 6px var(--red); }
+  .kpi-cell.amber .kpi-label::before { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+  .kpi-cell.green .kpi-label::before { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .kpi-value {
+    font-family: "IBM Plex Mono"; font-weight: 500; font-size: 2.2rem;
+    line-height: 1.1; margin-top: 0.4rem; color: #fff; letter-spacing: -0.02em;
+  }
+  .kpi-value .unit { font-size: 0.95rem; color: var(--text-dim); margin-left: 0.2rem; font-weight: 400; }
+  .kpi-delta { font-family: "IBM Plex Mono"; font-size: 0.78rem; margin-top: 0.3rem; display: inline-block; }
+  .kpi-delta.up.bad, .kpi-delta.down.bad { color: var(--red); }
+  .kpi-delta.up.good, .kpi-delta.down.good { color: var(--green); }
+  .kpi-delta.flat { color: var(--text-dim); }
+  canvas.spark { position: absolute; right: 0.8rem; bottom: 0.8rem; width: 90px; height: 26px; opacity: 0.85; max-width: 90px; max-height: 26px; }
+
+  .tabs { display: flex; gap: 0; margin: 2rem 0 1rem; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .tab {
+    padding: 0.65rem 1.1rem; cursor: pointer; border: none; background: transparent;
+    color: var(--text-dim); font-family: "IBM Plex Mono"; font-size: 0.78rem; letter-spacing: 0.12em;
+    text-transform: uppercase; font-weight: 500; position: relative; border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .panel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .panel-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+  .chart-card {
+    background: var(--panel); border: 1px solid var(--line); padding: 1rem 1.2rem;
+    position: relative; border-radius: 0;
+  }
+  .chart-card h3 {
+    margin: 0 0 0.8rem 0; font-size: 0.78rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--text-dim); font-weight: 500;
+  }
+  .chart-card canvas { max-height: 220px; }
+  .chart-card.wide { grid-column: 1 / -1; }
+  .chart-card.wide canvas { max-height: 320px; }
+  .meta-line { font-size: 0.8rem; color: var(--text-dim); margin: 0.5rem 0 1rem; font-family: "IBM Plex Mono"; }
+
+  table { width: 100%; border-collapse: collapse; font-family: "IBM Plex Mono"; font-size: 0.82rem; background: var(--panel); }
+  th, td { text-align: left; padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--line); }
+  th { color: var(--text-dim); font-weight: 500; text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.14em; background: var(--panel-2); }
+  td a { color: var(--cyan); text-decoration: none; }
+  td a:hover { text-decoration: underline; }
+  td.risk-critical, .risk-critical { color: var(--red); font-weight: 600; }
+  td.risk-at-risk, .risk-at-risk  { color: var(--orange); font-weight: 600; }
+  td.risk-watch, .risk-watch    { color: var(--amber); font-weight: 600; }
+  td.risk-ok, .risk-ok       { color: var(--green); font-weight: 600; }
+
+  .role-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1rem; }
+  .role { background: var(--panel); border: 1px solid var(--line); padding: 1rem 1.1rem; border-top: 2px solid var(--cyan); }
+  .role.dev { border-top-color: var(--violet); }
+  .role.qa  { border-top-color: var(--green); }
+  .role.po  { border-top-color: var(--orange); }
+  .role h4 { margin: 0; font-size: 0.7rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-dim); }
+  .role-stats { display: flex; gap: 1.2rem; margin-top: 0.5rem; }
+  .role-stat .v { font-family: "IBM Plex Mono"; font-size: 1.4rem; font-weight: 500; color: #fff; }
+  .role-stat .l { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; }
+
+  .bucket-selector { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
+  .bucket-btn { padding: 0.25rem 0.6rem; border-radius: 2px; border: 1px solid var(--line); background: var(--panel-2); cursor: pointer; font-size: 0.75rem; color: var(--text-dim); font-family: "IBM Plex Mono"; }
+  .bucket-btn.active { background: var(--cyan); color: var(--bg); border-color: var(--cyan); }
+  .bucket-btn:disabled { opacity: 0.5; cursor: default; }
+
+  .help-wrap { position: relative; display: inline-block; }
+  .help-btn {
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--text-dim); cursor: pointer;
+    width: 18px; height: 18px; border-radius: 50%; font-size: 11px; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center;
+    margin-left: 0.4rem; vertical-align: middle; padding: 0; line-height: 1;
+  }
+  .help-wrap:hover .help-btn, .help-btn:focus { background: var(--cyan); color: var(--bg); border-color: var(--cyan); }
+  .help-popover {
+    display: none;
+    position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%);
+    background: #0c0d12; color: var(--text); padding: 0.7rem 0.9rem; border-radius: 4px;
+    border: 1px solid var(--line-2);
+    width: 280px; font-size: 0.82rem; line-height: 1.45; z-index: 100;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.6); text-align: left; font-weight: normal;
+    text-transform: none; letter-spacing: 0;
+  }
+  .help-popover strong { display: block; margin-bottom: 0.35rem; color: var(--cyan); font-size: 0.9rem; font-family: "IBM Plex Mono"; }
+  .help-popover::after {
+    content: ""; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+    border: 6px solid transparent; border-top-color: #0c0d12;
+  }
+  .help-wrap:hover .help-popover, .help-wrap:focus-within .help-popover { display: block; }
+
+  .zoom-btn {
+    position: absolute; top: 0.55rem; right: 0.55rem;
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--text-dim);
+    cursor: pointer; border-radius: 2px; padding: 0.15rem 0.4rem; font-size: 0.85rem;
+    line-height: 1.4; opacity: 0.55; z-index: 1;
+  }
+  .zoom-btn:hover { opacity: 1; background: var(--cyan); color: var(--bg); border-color: var(--cyan); }
+  .chart-modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.78);
+    z-index: 2000; align-items: center; justify-content: center;
+  }
+  .chart-modal-overlay.open { display: flex; }
+  .chart-modal {
+    background: var(--panel); border: 1px solid var(--line-2); border-radius: 4px; padding: 1.25rem 1.5rem 1.5rem;
+    width: 92vw; max-width: 1300px; max-height: 92vh;
+    display: flex; flex-direction: column; gap: 0.75rem;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+  .chart-modal-header { display: flex; justify-content: space-between; align-items: center; min-height: 1.8rem; }
+  .chart-modal-title { font-weight: 600; font-size: 1rem; color: var(--text); font-family: "IBM Plex Mono"; }
+  .chart-modal-close {
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--text-dim);
+    cursor: pointer; border-radius: 2px; padding: 0.25rem 0.6rem; font-size: 1rem; line-height: 1.2;
+    flex-shrink: 0;
+  }
+  .chart-modal-close:hover { background: var(--red); color: #fff; border-color: var(--red); }
+  .chart-modal-canvas-wrap { flex: 1; min-height: 0; height: 75vh; position: relative; }
+  .chart-modal-canvas-wrap canvas { max-height: none !important; width: 100% !important; height: 100% !important; }
+  .chart-modal-desc { font-size: 0.82rem; color: var(--text-dim); line-height: 1.45; margin: 0; padding-bottom: 0.25rem; border-bottom: 1px solid var(--line); }
+
+  @media (max-width: 1100px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .kpi-cell { border-right: 1px solid var(--line); }
+    .kpi-cell:nth-child(2n) { border-right: none; }
+    .kpi-grid > .kpi-cell:nth-last-child(-n+4) { border-bottom: 1px solid var(--line); }
+    .kpi-grid > .kpi-cell:nth-last-child(-n+2) { border-bottom: none; }
+    .actions-grid, .role-grid, .panel-grid, .panel-grid.three { grid-template-columns: 1fr; }
+    main { padding: 1rem 1rem 4rem; }
+  }
+</style>
+{{{customStyleHtml}}}
+</head>
+<body>
+<header class="bar">
+  <span class="logo">{{{headerLogoHtml}}}{{escapeHtml title}} // FLOW.OPS</span>
+  <span class="meta">GEN {{escapeHtml generatedAt}} · SNAPSHOT {{escapeHtml lastSnapshotDate}}</span>
+</header>
+<main>
+{{{verdictHtml}}}
+
+{{{staleBannerHtml}}}
+{{{scopeAlertHtml}}}
+
+<section class="actions">
+  <div class="actions-head"><h2>À traiter // top 3</h2><div class="sep"></div></div>
+  <div class="actions-grid">{{{top3Html}}}</div>
+</section>
+
+<section class="kpi-section">
+  <div class="actions-head"><h2>Indicateurs clés</h2><div class="sep"></div></div>
+  <div class="kpi-grid">{{{kpiGridHtml}}}</div>
+</section>
+
+{{#if tabs}}
+<div class="tabs" id="tabs">
+  {{#each tabs}}
+  <button class="tab{{#if active}} active{{/if}}" data-tab="{{id}}">{{label}}</button>
+  {{/each}}
+</div>
+{{/if}}
+
+{{#each tabs}}
+<div class="tab-panel{{#if active}} active{{/if}}" id="tab-{{id}}">{{{html}}}</div>
+{{/each}}
+
+</main>
+
+<script>
+Chart.defaults.color = '#7a8194';
+Chart.defaults.borderColor = '#1f2330';
+Chart.defaults.font.family = "'IBM Plex Mono', ui-monospace, monospace";
+Chart.defaults.font.size = 11;
+Chart.defaults.plugins.tooltip.backgroundColor = '#0c0d12';
+Chart.defaults.plugins.tooltip.titleColor = '#ffffff';
+Chart.defaults.plugins.tooltip.bodyColor = '#d7dbe6';
+Chart.defaults.plugins.tooltip.borderColor = '#2a2f40';
+Chart.defaults.plugins.tooltip.borderWidth = 1;
+Chart.defaults.plugins.tooltip.padding = 8;
+
+(function renderSparklines() {
+  document.querySelectorAll('canvas.spark').forEach(function(canvas) {
+    const raw = canvas.getAttribute('data-values');
+    if (!raw) return;
+    let values;
+    try { values = JSON.parse(raw); } catch (_) { return; }
+    if (!Array.isArray(values) || values.length === 0) return;
+    const color = canvas.getAttribute('data-color') || '#7a8194';
+    new Chart(canvas, {
+      type: 'line',
+      data: { labels: values.map(function(_, i) { return i; }), datasets: [{
+        data: values, borderColor: color, backgroundColor: color + '22',
+        borderWidth: 1.4, pointRadius: 0, fill: true, tension: 0.35,
+      }] },
+      options: {
+        responsive: false, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: { enabled: false } },
+        scales: { x: { display: false }, y: { display: false } },
+      },
+    });
+  });
+})();
+
+(function initTabs() {
+  const tabs = document.getElementById('tabs');
+  if (!tabs) return;
+  tabs.addEventListener('click', function(e) {
+    const btn = e.target.closest('.tab');
+    if (!btn) return;
+    const id = btn.dataset.tab;
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.toggle('active', t === btn); });
+    document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.toggle('active', p.id === 'tab-' + id); });
+  });
+})();
+
+const _D = {{{chartDataJson}}};
+const CHARTS = _D.charts;
+const HISTOGRAM = _D.histogram;
+const CYCLE_STATS = _D.cycleStats;
+const AGING = _D.aging;
+const LEAD_BY_SIZE = _D.leadBySize;
+const CYCLE_BY_SIZE = _D.cycleBySize;
+const BUCKET_LABELS_MAP = {"XS":"XS (<0.5j)","S":"S (0.5-1j)","M":"M (1-3j)","L":"L (3-5j)","XL":"XL (≥5j)","BUG":"BUG","UNESTIMATED":"UNESTIMATED"};
+
+const COLOR_MEDIAN = "#00e0d4";
+const COLOR_P85 = "#ff8a3d";
+const COLOR_P95 = "#ff4d6a";
+const COLOR_COUNT = "#4dd697";
+const COLOR_DAYS = "#a78bff";
+
+const _gridColor = 'rgba(255,255,255,0.04)';
+const _tickColor = '#7a8194';
+const baseOpts = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { position: "bottom", labels: { boxWidth: 12 } } },
+  scales: { y: { beginAtZero: true, grid: { color: _gridColor }, ticks: { color: _tickColor } } },
+};
+
+function computeMovingAvg(values, windowSize) {
+  windowSize = windowSize || 4;
+  return values.map(function(_, i) {
+    if (i < windowSize - 1) return null;
+    const slice = values.slice(i - windowSize + 1, i + 1);
+    return Math.round(slice.reduce(function(a, b) { return a + b; }, 0) / windowSize * 100) / 100;
+  });
+}
+
+function buildTrendDataset(trendData) {
+  if (!trendData.some(function(v) { return v !== null; })) return null;
+  return {
+    label: "Tendance",
+    data: trendData,
+    borderColor: "#64748b88",
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+    borderDash: [6, 4],
+    tension: 0,
+    pointRadius: 0,
+    fill: false,
+  };
+}
+
+function lineChart(canvasId, series, datasets, withTrend) {
+  const ctx = document.getElementById(canvasId);
+  if (!ctx || !series || series.dates.length === 0) return;
+  const builtDatasets = datasets.map(function(d) {
+    return { label: d.label, data: series.series[d.key], borderColor: d.color, backgroundColor: d.color + "22", tension: 0.2, pointRadius: 2 };
+  });
+  if (withTrend) {
+    const trend = buildTrendDataset(computeMovingAvg(series.series[datasets[0].key] || []));
+    if (trend) builtDatasets.push(trend);
+  }
+  new Chart(ctx, {
+    type: "line",
+    data: { labels: series.dates, datasets: builtDatasets },
+    options: baseOpts,
+  });
+}
+
+lineChart("leadTimeChart", CHARTS.leadTime, [
+  { key: "median", label: "Médiane", color: COLOR_MEDIAN },
+  { key: "p85", label: "P85", color: COLOR_P85 },
+], true);
+lineChart("cycleTimeChart", CHARTS.cycleTime, [
+  { key: "median", label: "Médiane", color: COLOR_MEDIAN },
+  { key: "p85", label: "P85", color: COLOR_P85 },
+], true);
+lineChart("throughputChart", CHARTS.throughput, [
+  { key: "count", label: "Issues livrées", color: COLOR_COUNT },
+], true);
+lineChart("throughputWeightedChart", CHARTS.throughputWeighted, [
+  { key: "estimatedDays", label: "Jours-personnes", color: COLOR_DAYS },
+], true);
+lineChart("wipChart", CHARTS.wip, [
+  { key: "count", label: "WIP", color: COLOR_DAYS },
+], true);
+lineChart("bugThroughputChart", CHARTS.bugThroughput, [
+  { key: "count", label: "Bugs", color: "#ef4444" },
+], true);
+lineChart("bugCycleTimeChart", CHARTS.bugCycleTime, [
+  { key: "median", label: "Médiane", color: COLOR_MEDIAN },
+  { key: "p85", label: "P85", color: COLOR_P85 },
+], true);
+lineChart("cycleNormalizedChart", CHARTS.cycleTimeNormalized, [
+  { key: "median", label: "Médiane (ratio)", color: COLOR_MEDIAN },
+  { key: "p85", label: "P85 (ratio)", color: COLOR_P85 },
+], true);
+lineChart("leadNormalizedChart", CHARTS.leadTimeNormalized, [
+  { key: "median", label: "Médiane (ratio)", color: COLOR_MEDIAN },
+  { key: "p85", label: "P85 (ratio)", color: COLOR_P85 },
+], true);
+lineChart("flowEfficiencyChart", CHARTS.flowEfficiency, [
+  { key: "aggregate", label: "Agrégat (pondéré durée)", color: COLOR_MEDIAN },
+  { key: "median", label: "Médiane (par issue)", color: COLOR_P85 },
+], true);
+
+(function renderDevTimeAllocation() {
+  const series = CHARTS.devTimeAllocation;
+  const ctx = document.getElementById("devTimeAllocationChart");
+  if (!ctx || !series || series.dates.length === 0) return;
+  new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: series.dates,
+      datasets: [
+        { label: "Features (j ouvrés)", data: series.series["featureDays"], backgroundColor: "#2563eb88", borderColor: "#2563eb", borderWidth: 1, stack: "days", yAxisID: "y" },
+        { label: "Bugs (j ouvrés)", data: series.series["bugDays"], backgroundColor: "#ef444488", borderColor: "#ef4444", borderWidth: 1, stack: "days", yAxisID: "y" },
+        { type: "line", label: "Bug ratio (%)", data: (series.series["bugRatio"] || []).map(function(v) { return v * 100; }), borderColor: "#f97316", backgroundColor: "transparent", tension: 0.2, pointRadius: 2, yAxisID: "y2" },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: { legend: { position: "bottom" } },
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true, beginAtZero: true, title: { display: true, text: "Jours ouvrés" } },
+        y2: { position: "right", beginAtZero: true, max: 100, title: { display: true, text: "Bug ratio (%)" }, grid: { drawOnChartArea: false } },
+      },
+    },
+  });
+})();
+
+(function renderHistogram() {
+  const ctx = document.getElementById("cycleHistogramChart");
+  if (!ctx || !HISTOGRAM || HISTOGRAM.length === 0) return;
+  const labels = HISTOGRAM.map(function(b) { return (b.start % 1 ? b.start.toFixed(1) : b.start.toFixed(0)) + "-" + (b.end % 1 ? b.end.toFixed(1) : b.end.toFixed(0)); });
+  const counts = HISTOGRAM.map(function(b) { return b.count; });
+  new Chart(ctx, {
+    type: "bar",
+    data: { labels: labels, datasets: [{ label: "Issues", data: counts, backgroundColor: "#2563eb88", borderColor: "#2563eb", borderWidth: 1 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { title: { display: true, text: "Cycle time (j ouvrés)" } },
+        y: { beginAtZero: true, title: { display: true, text: "Nombre d'issues" } },
+      },
+    },
+    plugins: [{
+      id: "pctLines",
+      afterDraw: function(chart) {
+        const ctx2 = chart.ctx, chartArea = chart.chartArea, scales = chart.scales;
+        const lines = [
+          { v: CYCLE_STATS.median, label: "P50", color: "#10b981" },
+          { v: CYCLE_STATS.p85, label: "P85", color: "#f59e0b" },
+          { v: CYCLE_STATS.p95, label: "P95", color: "#ef4444" },
+        ];
+        const binWidth = HISTOGRAM[0].end - HISTOGRAM[0].start;
+        ctx2.save();
+        ctx2.setLineDash([4, 4]);
+        ctx2.font = "11px sans-serif";
+        for (const l of lines) {
+          const idx = l.v / binWidth - 0.5;
+          if (idx < 0 || idx > HISTOGRAM.length) continue;
+          const x = scales.x.getPixelForValue(idx);
+          ctx2.strokeStyle = l.color;
+          ctx2.beginPath();
+          ctx2.moveTo(x, chartArea.top);
+          ctx2.lineTo(x, chartArea.bottom);
+          ctx2.stroke();
+          ctx2.fillStyle = l.color;
+          ctx2.fillText(l.label + " " + l.v.toFixed(1) + "j", x + 4, chartArea.top + 12);
+        }
+        ctx2.restore();
+      },
+    }],
+  });
+})();
+
+(function renderAging() {
+  const ctx = document.getElementById("agingScatter");
+  if (!ctx || !AGING || AGING.issues.length === 0) return;
+  const colors = { ok: "#10b981", watch: "#f59e0b", "at-risk": "#f97316", critical: "#ef4444" };
+  const statuses = [...new Set(AGING.issues.map(function(i) { return i.status; }))];
+  const datasets = ["ok", "watch", "at-risk", "critical"].map(function(risk) {
+    return {
+      label: risk,
+      data: AGING.issues.filter(function(i) { return i.riskLevel === risk; }).map(function(i) { return { x: statuses.indexOf(i.status), y: i.ageDays, key: i.issueKey }; }),
+      backgroundColor: colors[risk],
+      pointRadius: 5,
+    };
+  });
+  const xMax = Math.max(0, statuses.length - 1);
+  new Chart(ctx, {
+    type: "scatter",
+    data: { datasets: datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: "bottom" },
+        tooltip: { callbacks: { label: function(c) { return c.raw.key + " : " + c.raw.y.toFixed(1) + "j (" + statuses[c.raw.x] + ")"; } } },
+        annotation: {},
+      },
+      scales: {
+        x: { type: "linear", min: -0.5, max: xMax + 0.5, ticks: { stepSize: 1, callback: function(v) { return statuses[v] || ""; } }, title: { display: true, text: "Statut" } },
+        y: { beginAtZero: true, title: { display: true, text: "Âge (j ouvrés)" } },
+      },
+    },
+    plugins: [{
+      id: "ageLines",
+      afterDraw: function(chart) {
+        const ctx2 = chart.ctx, chartArea = chart.chartArea, scales = chart.scales;
+        const lines = [
+          { v: AGING.percentiles.p50, label: "P50", color: "#10b981" },
+          { v: AGING.percentiles.p85, label: "P85", color: "#f59e0b" },
+          { v: AGING.percentiles.p95, label: "P95", color: "#ef4444" },
+        ];
+        ctx2.save();
+        ctx2.setLineDash([4, 4]);
+        ctx2.font = "11px sans-serif";
+        for (const l of lines) {
+          const y = scales.y.getPixelForValue(l.v);
+          if (y < chartArea.top || y > chartArea.bottom) continue;
+          ctx2.strokeStyle = l.color;
+          ctx2.beginPath();
+          ctx2.moveTo(chartArea.left, y);
+          ctx2.lineTo(chartArea.right, y);
+          ctx2.stroke();
+          ctx2.fillStyle = l.color;
+          ctx2.fillText(l.label + " " + l.v.toFixed(1) + "j", chartArea.right - 70, y - 4);
+        }
+        ctx2.restore();
+      },
+    }],
+  });
+})();
+
+function initBucketSelector(dataByBucket, canvasId, selectorId) {
+  const buckets = Object.keys(dataByBucket);
+  if (buckets.length === 0) return;
+  const lastCount = function(bkt) { const c = dataByBucket[bkt].series.count; return c[c.length - 1] || 0; };
+  let activeBucket = buckets.reduce(function(a, b) { return lastCount(a) >= lastCount(b) ? a : b; });
+  const selectorEl = document.getElementById(selectorId);
+  const canvasEl = document.getElementById(canvasId);
+  let chart = null;
+  const singleBucket = buckets.length === 1;
+  selectorEl.innerHTML = buckets.map(function(b) {
+    return '<button class="bucket-btn' + (b === activeBucket ? ' active' : '') + '"' + (singleBucket ? ' disabled' : '') + ' data-bucket="' + b + '">' + (BUCKET_LABELS_MAP[b] || b) + '</button>';
+  }).join('');
+  selectorEl.addEventListener('click', function(e) {
+    const btn = e.target.closest('.bucket-btn');
+    if (!btn || btn.disabled) return;
+    activeBucket = btn.dataset.bucket;
+    selectorEl.querySelectorAll('.bucket-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.bucket === activeBucket); });
+    renderChart();
+  });
+  function renderChart() {
+    const data = dataByBucket[activeBucket];
+    if (chart) chart.destroy();
+    const trend = buildTrendDataset(computeMovingAvg(data.series.median || []));
+    chart = new Chart(canvasEl, {
+      type: 'line',
+      data: {
+        labels: data.dates,
+        datasets: [
+          { label: 'P50', data: data.series.median, borderColor: COLOR_MEDIAN, backgroundColor: COLOR_MEDIAN + '22', tension: 0.2, pointRadius: 2 },
+          { label: 'P85', data: data.series.p85,    borderColor: COLOR_P85,    backgroundColor: COLOR_P85    + '22', tension: 0.2, pointRadius: 2 },
+          { label: 'P95', data: data.series.p95,    borderColor: COLOR_P95,    backgroundColor: COLOR_P95    + '22', tension: 0.2, pointRadius: 2 },
+        ].concat(trend ? [trend] : []),
+      },
+      options: baseOpts,
+    });
+  }
+  renderChart();
+}
+
+initBucketSelector(LEAD_BY_SIZE,  'leadBySizeChart',  'leadBySizeBuckets');
+initBucketSelector(CYCLE_BY_SIZE, 'cycleBySizeChart', 'cycleBySizeBuckets');
+
+(function renderBugBacklog() {
+  const series = CHARTS.bugBacklog;
+  const ctx = document.getElementById("bugBacklogChart");
+  if (!ctx || !series || series.dates.length === 0) return;
+  const netFlows = series.series["netFlow"] || [];
+  new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: series.dates,
+      datasets: [
+        { type: "bar", label: "Flux net (fermés − créés)", data: netFlows, backgroundColor: netFlows.map(function(v) { return v >= 0 ? "#10b98188" : "#ef444488"; }), borderColor: netFlows.map(function(v) { return v >= 0 ? "#10b981" : "#ef4444"; }), borderWidth: 1, yAxisID: "y2" },
+        { type: "line", label: "Bugs ouverts", data: series.series["openCount"] || [], borderColor: "#2563eb", backgroundColor: "#2563eb22", tension: 0.2, pointRadius: 2, yAxisID: "y" },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: { legend: { position: "bottom" } },
+      scales: {
+        y: { beginAtZero: true, title: { display: true, text: "Bugs ouverts" } },
+        y2: { position: "right", title: { display: true, text: "Flux net" }, grid: { drawOnChartArea: false } },
+      },
+    },
+  });
+})();
+
+const COLOR_DEV = "#2563eb";
+const COLOR_QA  = "#10b981";
+const COLOR_PO  = "#f59e0b";
+
+lineChart("wipPerRoleChart", CHARTS.wipPerRole, [
+  { key: "dev", label: "WIP dev", color: COLOR_DEV },
+  { key: "qa",  label: "WIP qa",  color: COLOR_QA  },
+  { key: "po",  label: "WIP po",  color: COLOR_PO  },
+]);
+
+lineChart("ftrByRoleChart", CHARTS.ftrByRole, [
+  { key: "dev", label: "FTR dev", color: COLOR_DEV },
+  { key: "qa",  label: "FTR qa",  color: COLOR_QA  },
+  { key: "po",  label: "FTR po",  color: COLOR_PO  },
+]);
+
+lineChart("reworkRatioChart", CHARTS.handoffReworkRatio, [
+  { key: "reworkRatio", label: "Taux de rework", color: "#ef4444" },
+], true);
+
+(function renderStageTimeByRole() {
+  const ctx = document.getElementById("stageTimeByRoleChart");
+  if (!ctx || !CHARTS.stageTimeByRole || CHARTS.stageTimeByRole.dates.length === 0) return;
+  const dates = CHARTS.stageTimeByRole.dates;
+  new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: dates,
+      datasets: [
+        { label: "Dev P50", data: CHARTS.stageTimeByRole.series["dev"],    backgroundColor: COLOR_DEV + "88", borderColor: COLOR_DEV, borderWidth: 1 },
+        { label: "Dev P85", data: CHARTS.stageTimeByRoleP85.series["dev"], backgroundColor: COLOR_DEV + "44", borderColor: COLOR_DEV, borderWidth: 1 },
+        { label: "QA P50",  data: CHARTS.stageTimeByRole.series["qa"],     backgroundColor: COLOR_QA  + "88", borderColor: COLOR_QA,  borderWidth: 1 },
+        { label: "QA P85",  data: CHARTS.stageTimeByRoleP85.series["qa"],  backgroundColor: COLOR_QA  + "44", borderColor: COLOR_QA,  borderWidth: 1 },
+        { label: "PO P50",  data: CHARTS.stageTimeByRole.series["po"],     backgroundColor: COLOR_PO  + "88", borderColor: COLOR_PO,  borderWidth: 1 },
+        { label: "PO P85",  data: CHARTS.stageTimeByRoleP85.series["po"],  backgroundColor: COLOR_PO  + "44", borderColor: COLOR_PO,  borderWidth: 1 },
+      ],
+    },
+    options: Object.assign({}, baseOpts, { scales: Object.assign({}, baseOpts.scales, { y: Object.assign({}, baseOpts.scales.y, { title: { display: true, text: "Jours ouvrés" } }) }) }),
+  });
+})();
+
+(function renderStageTimeShare() {
+  const ctx = document.getElementById("stageTimeShareChart");
+  const share = CHARTS.stageTimeShare;
+  if (!ctx || !share || share.dates.length === 0) return;
+  const lastIdx = share.dates.length - 1;
+  const devShare = share.series["dev"][lastIdx] || 0;
+  const qaShare  = share.series["qa"][lastIdx]  || 0;
+  const poShare  = share.series["po"][lastIdx]  || 0;
+  if (devShare + qaShare + poShare === 0) return;
+  new Chart(ctx, {
+    type: "doughnut",
+    data: { labels: ["Dev", "QA", "PO"], datasets: [{ data: [devShare, qaShare, poShare], backgroundColor: [COLOR_DEV, COLOR_QA, COLOR_PO] }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: "bottom" } } },
+  });
+})();
+
+(function renderStageThroughputGap() {
+  const ctx = document.getElementById("stageThroughputGapChart");
+  if (!ctx || !CHARTS.stageThroughputNet || CHARTS.stageThroughputNet.dates.length === 0) return;
+  new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: CHARTS.stageThroughputNet.dates,
+      datasets: [
+        { label: "Dev net", data: CHARTS.stageThroughputNet.series["dev"], backgroundColor: COLOR_DEV + "88", borderColor: COLOR_DEV, borderWidth: 1 },
+        { label: "QA net",  data: CHARTS.stageThroughputNet.series["qa"],  backgroundColor: COLOR_QA  + "88", borderColor: COLOR_QA,  borderWidth: 1 },
+        { label: "PO net",  data: CHARTS.stageThroughputNet.series["po"],  backgroundColor: COLOR_PO  + "88", borderColor: COLOR_PO,  borderWidth: 1 },
+      ],
+    },
+    options: Object.assign({}, baseOpts, { scales: Object.assign({}, baseOpts.scales, { y: { beginAtZero: false, grid: { color: _gridColor }, ticks: { color: _tickColor } } }) }),
+  });
+})();
+
+(function renderReworkByType() {
+  const ctx = document.getElementById("reworkByTypeChart");
+  const series = CHARTS.handoffReworkByType;
+  if (!ctx || !series || series.dates.length === 0) return;
+  new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: series.dates,
+      datasets: [
+        { label: "QA→Dev", data: series.series["qaToDev"] || [], backgroundColor: "#ef444488", borderColor: "#ef4444", borderWidth: 1 },
+        { label: "PO→QA",  data: series.series["poToQa"]  || [], backgroundColor: "#f9731688", borderColor: "#f97316", borderWidth: 1 },
+        { label: "PO→Dev", data: series.series["poDev"]   || [], backgroundColor: "#a855f788", borderColor: "#a855f7", borderWidth: 1 },
+      ],
+    },
+    options: baseOpts,
+  });
+})();
+
+(function initZoom() {
+  const HELP_BODIES = {"leadTime":"Délai total entre l'entrée du ticket en colonne TODO du board (engagement de l'équipe) et sa résolution. Inclut l'attente backlog, le design et le dev. Indicateur de prévisibilité côté demandeur. Outliers extrêmes retirés (Tukey upper fence).","cycleTime":"Durée du dev actif: première transition vers une colonne 'Développement en cours' jusqu'à la livraison. Exclut l'attente backlog et le design. Mesure l'efficacité de l'équipe en boucle dev pure.","throughput":"Nombre brut d'issues livrées par fenêtre de 7 jours. Mesure la capacité de débit sans pondération de taille. À combiner avec le throughput pondéré pour distinguer 'beaucoup de petits tickets' vs 'gros chantiers'.","throughputWeighted":"Somme des jours-personnes estimés des issues livrées dans la fenêtre. Bugs exclus (non estimés par nature). Compense le biais 'beaucoup de petits tickets gonflent le throughput brut'.","wip":"Nombre d'issues simultanément en cours à la fin de chaque semaine. Loi de Little: cycle_time = WIP / throughput. Limiter le WIP réduit le cycle time. Reconstitué historiquement à partir des transitions, sans scoping sprint.","bugThroughput":"Bugs livrés par fenêtre de 7j. Indicateur de charge incidents, à comparer avec le throughput de features. Une hausse signale soit une dette qualité qui remonte, soit une équipe en mode pompier.","bugCycleTime":"Cycle time des issues type Bug uniquement (non estimés par nature). Mesure la réactivité aux incidents (vs cycle time global qui mélange features + bugs).","devTimeAllocation":"Somme des cycle times livrés par semaine, split features (US/TS) vs bugs. bugRatio = bugDays / totalDays. Hausse du ratio = dérive vers mode pompier.","bugBacklog":"Nombre de bugs ouverts à la fin de chaque semaine (courbe, axe gauche) et flux net hebdomadaire fermés − créés (barres, axe droit). netFlow > 0 = backlog réduit. netFlow < 0 = backlog grossit.","leadTimeNormalized":"Lead time réel divisé par l'estimation originale. 1 = on time, 2 = 2× plus long que prévu. Indicateur de dérive d'estimation côté demandeur. Bugs exclus (pas d'estimation).","cycleTimeNormalized":"Cycle time réel divisé par l'estimation originale. Idem normalized lead, mais sur la phase dev seule. Si médiane > 1 = équipe sous-estime systématiquement.","leadTimeBySize":"Lead time agrégé par bucket de taille (estimation originale): XS <0.5j, S 0.5-1j, M 1-3j, L 3-5j, XL ≥5j. BUG = bugs (non estimés). UNESTIMATED = vrais oublis d'estimation.","cycleTimeBySize":"Idem lead-time-by-size mais sur la phase dev. Sert à valider la cohérence: un L doit avoir un cycle médian > qu'un M. Une inversion révèle un problème (sous-estimation, refactoring caché).","flowEfficiency":"Ratio temps actif / (actif + queue) sur la phase cycle-time. 'Actif' = Dev/Design/QA in progress. 'Queue' = review, validation, ready-for-X. Typique 5-15% : la majorité du temps est de l'attente, pas du travail. Si la médiane chute, le workflow a un goulot (handoffs, WIP non limité).","agingWip":"Pour chaque ticket en cours : âge (jours ouvrés depuis le 1er passage en dev) comparé aux percentiles cycle-time historiques. Risque OK ≤ P50, watch ≤ P85, at-risk ≤ P95, critical > P95. Métrique actionnable : un ticket 'critical' va presque sûrement rater son SLE — agir maintenant.","cycleHistogram":"Histogramme des cycle times des issues résolues (depuis cutoff). La moyenne ment quand la distribution est asymétrique (queue droite typique). Lire la médiane (P50), P85 (engagement raisonnable) et la longueur de la queue.","forecast":"Simule 10 000 scénarios de livraison à partir des throughput hebdo des 12 dernières semaines. P15 = engagement à 85% de confiance. P50 = livraison médiane attendue. P85/P95 = optimiste.","stageTimeBreakdown":"Temps médian passé par chaque rôle (dev/qa/po) sur les tickets cycle-time. Révèle où le temps est consommé dans le flux.","wipPerRole":"Nombre de tickets en cours par rôle à chaque fin de semaine. Identifier quel rôle accumule du WIP non limité.","stageThroughputGap":"Flux net (entrées − sorties) par rôle sur la période. Positif = le rôle reçoit plus qu'il ne livre (backlog grossit). Négatif = le rôle écoule son backlog.","handoffRework":"% tickets avec au moins un retour arrière (qa→dev, po→qa, po→dev) et nombre moyen de reworks. Indicateur de qualité au passage de rôle.","firstTimeRight":"% tickets ayant traversé chaque rôle en un seul passage (sans retour). FTR 100% = aucun rework. Complément lisible du handoff-rework."};
+  const CANVAS_KEY = {
+    leadTimeChart: "leadTime", cycleTimeChart: "cycleTime",
+    throughputChart: "throughput", throughputWeightedChart: "throughputWeighted",
+    wipChart: "wip", bugThroughputChart: "bugThroughput",
+    bugCycleTimeChart: "bugCycleTime", cycleHistogramChart: "cycleHistogram",
+    leadNormalizedChart: "leadTimeNormalized", cycleNormalizedChart: "cycleTimeNormalized",
+    flowEfficiencyChart: "flowEfficiency", leadBySizeChart: "leadTimeBySize",
+    cycleBySizeChart: "cycleTimeBySize", agingScatter: "agingWip",
+    devTimeAllocationChart: "devTimeAllocation", bugBacklogChart: "bugBacklog",
+    stageTimeByRoleChart: "stageTimeBreakdown", stageTimeShareChart: "stageTimeBreakdown",
+    wipPerRoleChart: "wipPerRole", stageThroughputGapChart: "stageThroughputGap",
+    reworkRatioChart: "handoffRework", reworkByTypeChart: "handoffRework",
+    ftrByRoleChart: "firstTimeRight",
+  };
+
+  document.body.insertAdjacentHTML('beforeend', [
+    '<div class="chart-modal-overlay" id="chartModal" role="dialog" aria-modal="true">',
+    '<div class="chart-modal">',
+    '<div class="chart-modal-header">',
+    '<span class="chart-modal-title" id="chartModalTitle"></span>',
+    '<button class="chart-modal-close" id="chartModalClose" aria-label="Fermer">✕</button>',
+    '</div>',
+    '<p class="chart-modal-desc" id="chartModalDesc"></p>',
+    '<div class="chart-modal-canvas-wrap"><canvas id="chartModalCanvas"></canvas></div>',
+    '</div></div>',
+  ].join(''));
+
+  let modalChart = null;
+  const overlay = document.getElementById('chartModal');
+  const modalTitle = document.getElementById('chartModalTitle');
+  const modalDesc = document.getElementById('chartModalDesc');
+  const modalClose = document.getElementById('chartModalClose');
+  const modalCanvas = document.getElementById('chartModalCanvas');
+
+  function openModal(sourceCanvasId, title) {
+    const src = Chart.getChart(sourceCanvasId);
+    if (!src) return;
+    modalTitle.textContent = title;
+    const desc = HELP_BODIES[CANVAS_KEY[sourceCanvasId] || ''] || '';
+    modalDesc.textContent = desc;
+    modalDesc.style.display = desc ? '' : 'none';
+    overlay.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    if (modalChart) { modalChart.destroy(); modalChart = null; }
+    const cfg = src.config._config;
+    modalChart = new Chart(modalCanvas, {
+      type: cfg.type,
+      data: JSON.parse(JSON.stringify(cfg.data)),
+      options: Object.assign(JSON.parse(JSON.stringify(cfg.options || {})), { responsive: true, maintainAspectRatio: false }),
+      plugins: cfg.plugins,
+    });
+  }
+
+  function closeModal() {
+    overlay.classList.remove('open');
+    document.body.style.overflow = '';
+    if (modalChart) { modalChart.destroy(); modalChart = null; }
+  }
+
+  modalClose.addEventListener('click', closeModal);
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) closeModal(); });
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape' && overlay.classList.contains('open')) closeModal(); });
+
+  document.querySelectorAll('.chart-card').forEach(function(card) {
+    const canvas = card.querySelector('canvas');
+    if (!canvas || !canvas.id) return;
+    const h3 = card.querySelector('h3');
+    const title = h3 ? Array.from(h3.childNodes).filter(function(n) { return n.nodeType === Node.TEXT_NODE; }).map(function(n) { return n.textContent; }).join('').trim() : '';
+    const btn = document.createElement('button');
+    btn.className = 'zoom-btn';
+    btn.title = 'Agrandir';
+    btn.textContent = '⤢';
+    btn.setAttribute('aria-label', 'Agrandir ce graphe');
+    btn.addEventListener('click', function() { openModal(canvas.id, title); });
+    card.appendChild(btn);
+  });
+})();
+</script>
+</body>
+</html>

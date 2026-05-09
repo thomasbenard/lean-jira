@@ -30,7 +30,7 @@
 | [026](026-rapport-metriques-role-aware/description.md) | Rapport : métriques role-aware | livré |
 | [027](027-rapport-cockpit-refonte/description.md) | Refonte rapport HTML vers design Cockpit | livré |
 | [028](028-rapport-personnalisation-config/description.md) | Rapport HTML personnalisable via config YAML | livré |
-| [029](029-rapport-template-handlebars/description.md) | Template Handlebars pour override HTML complet du rapport | à faire |
+| [029](029-rapport-template-handlebars/description.md) | Template Handlebars pour override HTML complet du rapport | livré |
 | [030](030-support-jira-server-pat/description.md) | Support Jira Server / Data Center (PAT auth) | à faire |
 | [031](031-scope-change-db-sync/description.md) | Infra DB + sync : changements de champs Jira | livré |
 | [032](032-scope-change-metric/description.md) | Métrique : détection de changement de périmètre | livré |

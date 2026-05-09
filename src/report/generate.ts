@@ -1,6 +1,7 @@
 import type Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
+import Handlebars from "handlebars";
 import { BUCKET_LABELS, BUCKET_ORDER, placeholders } from "../metrics/utils";
 import { type MetricConfig } from "../metrics/types";
 import { agingWipMetric, type AgingWipSummary, type AgingWipIssue, type AgingRisk } from "../metrics/agingWip";
@@ -18,6 +19,7 @@ export interface ReportPersonalization {
   fontUrl?: string;
   customCssPath?: string;
   excludeTabs?: string[];
+  templatePath?: string;
 }
 
 export interface ResolvedPersonalization {
@@ -363,7 +365,7 @@ export function generateReport(
 
   const resolvedPersonalization = resolvePersonalization(personalization, boardDir ?? process.cwd());
 
-  const html = renderHtml({
+  const renderInput: RenderInput = {
     projectKey,
     squadName,
     jiraBaseUrl,
@@ -391,7 +393,15 @@ export function generateReport(
     scopeAlertHtml,
     scopeSectionHtml,
     personalization: resolvedPersonalization,
-  });
+  };
+
+  const resolvedTemplatePath = personalization?.templatePath
+    ? path.resolve(boardDir ?? process.cwd(), personalization.templatePath)
+    : undefined;
+
+  const html = resolvedTemplatePath
+    ? renderWithHandlebars(renderInput, resolvedTemplatePath)
+    : renderHtml(renderInput);
 
   fs.writeFileSync(outputPath, html);
 }
@@ -509,71 +519,11 @@ function buildHistogram(values: number[]): HistogramBin[] {
 }
 
 export function renderHtml(input: RenderInput): string {
-  const fmtInt = (v: number | null): string => (v === null ? "—" : String(Math.round(v)));
-
-  const bySizeRows = (data: Partial<Record<string, BucketStats>>): string =>
-    BUCKET_ORDER.map((b) => {
-      const s = data[b];
-      if (!s || s.count === 0) {return "";}
-      return `<tr><td>${escapeHtml(BUCKET_LABELS[b])}</td><td>${s.count}</td><td>${s.median.toFixed(1)}j</td><td>${s.p85.toFixed(1)}j</td></tr>`;
-    }).join("");
-
-  const forecastTableRows = (data: ForecastSummary): string => {
-    if (data.byHorizon.length === 0) {
-      return `<tr><td colspan="5">Pas de throughput récent.</td></tr>`;
-    }
-    return data.byHorizon
-      .map(
-        (h) =>
-          `<tr><td>${h.weeks} sem.</td><td><strong>${h.p15.toFixed(0)}</strong></td><td>${h.p50.toFixed(0)}</td><td>${h.p85.toFixed(0)}</td><td>${h.p95.toFixed(0)}</td></tr>`,
-      )
-      .join("");
-  };
-
-  const helpBtn = (key: string): string => {
-    const h = HELP_TEXTS[key];
-    if (!h) {return "";}
-    return `<span class="help-wrap"><button class="help-btn" aria-label="Aide">?</button><span class="help-popover" role="tooltip"><strong>${escapeHtml(h.title)}</strong>${escapeHtml(h.body)}</span></span>`;
-  };
-
-  const thresholds = input.healthThresholds;
-  const rawSignals: KpiSignals = {
-    leadTime: evalLowerBetter(input.kpis.leadTimeMedian, thresholds?.leadTimeMedianDays),
-    cycleTime: evalLowerBetter(input.kpis.cycleTimeMedian, thresholds?.cycleTimeMedianDays),
-    throughput: evalHigherBetter(input.kpis.throughputCount, thresholds?.throughputWeekly),
-    wip: evalLowerBetter(input.kpis.wipCount, thresholds?.wipCount),
-    bugCycle: evalLowerBetter(input.kpis.bugCycleTimeMedian, thresholds?.bugCycleTimeMedianDays),
-    bugRatio: evalLowerBetter(input.kpis.devTimeAvgBugRatio, thresholds?.bugRatio),
-  };
-  const kpiCells = buildKpiCells(input.charts, input.agingWip, rawSignals);
+  const kpiCells = buildKpiCellsFromInput(input);
   const verdict = computeVerdict(kpiCells);
   const top3Html = buildTop3Actions(input.agingWip, input.jiraBaseUrl);
 
-  const kpiCellHtml = (c: KpiCell, idx: number): string => {
-    const help = c.helpKey ? helpBtn(c.helpKey) : "";
-    const unit = c.value !== null && c.unit ? `<span class="unit">${escapeHtml(c.unit)}</span>` : "";
-    // pourquoi: data-values est lu côté client par renderSparklines() ; JSON est ASCII-safe pour des nombres,
-    // escapeHtml encode les guillemets pour rester valide dans un attribut entre apostrophes.
-    const sparkData = JSON.stringify(c.spark);
-    return `<div class="kpi-cell ${SIGNAL_CLS[c.signal]}">
-      <div class="kpi-label">${escapeHtml(c.label)}${help}</div>
-      <div class="kpi-value">${escapeHtml(formatKpiNumber(c.value))}${unit}</div>
-      ${fmtDelta(c)}
-      <canvas class="spark" id="kpi-spark-${idx}" width="180" height="52" data-values='${escapeHtml(sparkData)}' data-color="${SIGNAL_COLOR[c.signal]}"></canvas>
-    </div>`;
-  };
-
-  const kpiGridHtml = kpiCells.map(kpiCellHtml).join("");
-
-  const roleCardHtml = (r: { cls: string; name: string; wip: number | null; med: number | null; ftr: number | null }): string =>
-    `<div class="role ${r.cls}">
-      <h4>${escapeHtml(r.name)}</h4>
-      <div class="role-stats">
-        <div class="role-stat"><div class="v">${fmtInt(r.wip)}</div><div class="l">WIP</div></div>
-        <div class="role-stat"><div class="v">${r.med === null ? "—" : `${r.med.toFixed(1)}j`}</div><div class="l">médiane</div></div>
-        <div class="role-stat"><div class="v">${r.ftr === null ? "—" : `${(r.ftr * 100).toFixed(0)}%`}</div><div class="l">FTR</div></div>
-      </div>
-    </div>`;
+  const kpiGridHtml = kpiCells.map(renderKpiCellHtml).join("");
 
   const p = input.personalization;
   const excludedTabs = p?.excludedTabs ?? new Set<string>();
@@ -583,8 +533,7 @@ export function renderHtml(input: RenderInput): string {
   const show = (tab: string): boolean => !excludedTabs.has(tab);
   const reportTitle = escapeHtml(p?.title ?? `Rapport Lean — ${input.projectKey}`);
   const headerLabel = escapeHtml(p?.title ?? (input.squadName ? `${input.squadName} (${input.projectKey})` : input.projectKey));
-  const fontLink = p?.fontLinkHtml
-    ?? `<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">`;
+  const fontLink = p?.fontLinkHtml ?? DEFAULT_FONT_LINK;
 
   return `<!DOCTYPE html>
 <html lang="fr">
@@ -927,9 +876,9 @@ ${show("quality") ? `<div class="tab-panel${firstTab === "quality" ? " active" :
 
 ${show("roles") ? `<div class="tab-panel${firstTab === "roles" ? " active" : ""}" id="tab-roles">
   <div class="role-grid">
-    ${roleCardHtml({ cls: "dev", name: "Dev", wip: input.kpis.wipDev, med: input.kpis.stageTimeDevMedian, ftr: input.kpis.ftrDev })}
-    ${roleCardHtml({ cls: "qa",  name: "QA",  wip: input.kpis.wipQa, med: input.kpis.stageTimeQaMedian, ftr: input.kpis.ftrQa })}
-    ${roleCardHtml({ cls: "po",  name: "PO",  wip: input.kpis.wipPo, med: input.kpis.stageTimePoMedian, ftr: input.kpis.ftrPo })}
+    ${renderRoleCardHtml({ cls: "dev", name: "Dev", wip: input.kpis.wipDev, med: input.kpis.stageTimeDevMedian, ftr: input.kpis.ftrDev })}
+    ${renderRoleCardHtml({ cls: "qa",  name: "QA",  wip: input.kpis.wipQa, med: input.kpis.stageTimeQaMedian, ftr: input.kpis.ftrQa })}
+    ${renderRoleCardHtml({ cls: "po",  name: "PO",  wip: input.kpis.wipPo, med: input.kpis.stageTimePoMedian, ftr: input.kpis.ftrPo })}
   </div>
   <div class="panel-grid">
     <div class="chart-card"><h3>Temps médian par rôle${helpBtn("stageTimeBreakdown")}</h3><canvas id="stageTimeByRoleChart"></canvas></div>
@@ -1596,6 +1545,341 @@ lineChart("reworkRatioChart", CHARTS.handoffReworkRatio, [
 </html>`;
 }
 
+// ─── Helpers HTML extraits de renderHtml() ────────────────────────────────────
+
+function fmtInt(v: number | null): string {
+  return v === null ? "—" : String(Math.round(v));
+}
+
+function bySizeRows(data: Partial<Record<string, BucketStats>>): string {
+  return BUCKET_ORDER.map((b) => {
+    const s = data[b];
+    if (!s || s.count === 0) {return "";}
+    return `<tr><td>${escapeHtml(BUCKET_LABELS[b])}</td><td>${s.count}</td><td>${s.median.toFixed(1)}j</td><td>${s.p85.toFixed(1)}j</td></tr>`;
+  }).join("");
+}
+
+function forecastTableRows(data: ForecastSummary): string {
+  if (data.byHorizon.length === 0) {
+    return `<tr><td colspan="5">Pas de throughput récent.</td></tr>`;
+  }
+  return data.byHorizon
+    .map(
+      (h) =>
+        `<tr><td>${h.weeks} sem.</td><td><strong>${h.p15.toFixed(0)}</strong></td><td>${h.p50.toFixed(0)}</td><td>${h.p85.toFixed(0)}</td><td>${h.p95.toFixed(0)}</td></tr>`,
+    )
+    .join("");
+}
+
+function helpBtn(key: string): string {
+  const h = HELP_TEXTS[key];
+  if (!h) {return "";}
+  return `<span class="help-wrap"><button class="help-btn" aria-label="Aide">?</button><span class="help-popover" role="tooltip"><strong>${escapeHtml(h.title)}</strong>${escapeHtml(h.body)}</span></span>`;
+}
+
+// pourquoi: data-values est lu côté client par renderSparklines() ; JSON est ASCII-safe pour des nombres,
+// escapeHtml encode les guillemets pour rester valide dans un attribut entre apostrophes.
+function renderKpiCellHtml(c: KpiCell, idx: number): string {
+  const help = c.helpKey ? helpBtn(c.helpKey) : "";
+  const unit = c.value !== null && c.unit ? `<span class="unit">${escapeHtml(c.unit)}</span>` : "";
+  const sparkData = JSON.stringify(c.spark);
+  return `<div class="kpi-cell ${SIGNAL_CLS[c.signal]}">
+      <div class="kpi-label">${escapeHtml(c.label)}${help}</div>
+      <div class="kpi-value">${escapeHtml(formatKpiNumber(c.value))}${unit}</div>
+      ${fmtDelta(c)}
+      <canvas class="spark" id="kpi-spark-${idx}" width="180" height="52" data-values='${escapeHtml(sparkData)}' data-color="${SIGNAL_COLOR[c.signal]}"></canvas>
+    </div>`;
+}
+
+function renderRoleCardHtml(r: { cls: string; name: string; wip: number | null; med: number | null; ftr: number | null }): string {
+  return `<div class="role ${r.cls}">
+      <h4>${escapeHtml(r.name)}</h4>
+      <div class="role-stats">
+        <div class="role-stat"><div class="v">${fmtInt(r.wip)}</div><div class="l">WIP</div></div>
+        <div class="role-stat"><div class="v">${r.med === null ? "—" : `${r.med.toFixed(1)}j`}</div><div class="l">médiane</div></div>
+        <div class="role-stat"><div class="v">${r.ftr === null ? "—" : `${(r.ftr * 100).toFixed(0)}%`}</div><div class="l">FTR</div></div>
+      </div>
+    </div>`;
+}
+
+// ─── Fonctions Handlebars / buildTemplateContext ───────────────────────────────
+
+function buildKpiCellsFromInput(input: RenderInput): KpiCell[] {
+  const thresholds = input.healthThresholds;
+  const rawSignals: KpiSignals = {
+    leadTime: evalLowerBetter(input.kpis.leadTimeMedian, thresholds?.leadTimeMedianDays),
+    cycleTime: evalLowerBetter(input.kpis.cycleTimeMedian, thresholds?.cycleTimeMedianDays),
+    throughput: evalHigherBetter(input.kpis.throughputCount, thresholds?.throughputWeekly),
+    wip: evalLowerBetter(input.kpis.wipCount, thresholds?.wipCount),
+    bugCycle: evalLowerBetter(input.kpis.bugCycleTimeMedian, thresholds?.bugCycleTimeMedianDays),
+    bugRatio: evalLowerBetter(input.kpis.devTimeAvgBugRatio, thresholds?.bugRatio),
+  };
+  return buildKpiCells(input.charts, input.agingWip, rawSignals);
+}
+
+function buildVerdictHtml(input: RenderInput): string {
+  const verdict = computeVerdict(buildKpiCellsFromInput(input));
+  return `<div class="verdict ${verdict.status}">
+  <span class="verdict-status">${escapeHtml(VERDICT_LABELS[verdict.status])}</span>
+  <span class="verdict-text">${verdict.phrase}</span>
+  <span class="verdict-time mono">${escapeHtml(syncMetaLabel(input.lastSyncAt))} · Snapshot ${escapeHtml(input.lastSnapshotDate)}</span>
+</div>`;
+}
+
+export function buildKpiGridHtml(input: RenderInput): string {
+  return buildKpiCellsFromInput(input).map(renderKpiCellHtml).join("");
+}
+
+export function buildRenderedTabs(input: RenderInput): { id: string; label: string; html: string }[] {
+  const tabs: { id: string; label: string; html: string }[] = [];
+
+  tabs.push({
+    id: "delivery",
+    label: "Livraison",
+    html: `<div class="panel-grid">
+    <div class="chart-card"><h3>Lead time (jours)${helpBtn("leadTime")}</h3><canvas id="leadTimeChart"></canvas></div>
+    <div class="chart-card"><h3>Cycle time (jours)${helpBtn("cycleTime")}</h3><canvas id="cycleTimeChart"></canvas></div>
+    <div class="chart-card"><h3>Throughput (issues / 7j)${helpBtn("throughput")}</h3><canvas id="throughputChart"></canvas></div>
+    <div class="chart-card"><h3>Throughput pondéré (j-h estimés)${helpBtn("throughputWeighted")}</h3><canvas id="throughputWeightedChart"></canvas></div>
+    <div class="chart-card"><h3>WIP (fin de semaine)${helpBtn("wip")}</h3><canvas id="wipChart"></canvas></div>
+    <div class="chart-card wide">
+      <h3>Distribution cycle time${helpBtn("cycleHistogram")}</h3>
+      <p class="meta-line">${input.cycleStats.count} issues · médiane ${input.cycleStats.median.toFixed(1)}j · P85 ${input.cycleStats.p85.toFixed(1)}j · P95 ${input.cycleStats.p95.toFixed(1)}j · moyenne ${input.cycleStats.avg.toFixed(1)}j</p>
+      <canvas id="cycleHistogramChart"></canvas>
+    </div>
+  </div>
+  <div class="panel-grid" style="margin-top: 1rem">
+    <div class="chart-card">
+      <h3>Lead time par taille — fenêtre du ${escapeHtml(input.lastSnapshotDate)}${helpBtn("leadTimeBySize")}</h3>
+      <table><thead><tr><th>Taille</th><th>Count</th><th>Médiane</th><th>P85</th></tr></thead>
+      <tbody>${bySizeRows(input.leadBySize)}</tbody></table>
+    </div>
+    <div class="chart-card">
+      <h3>Cycle time par taille${helpBtn("cycleTimeBySize")}</h3>
+      <table><thead><tr><th>Taille</th><th>Count</th><th>Médiane</th><th>P85</th></tr></thead>
+      <tbody>${bySizeRows(input.cycleBySize)}</tbody></table>
+    </div>
+  </div>`,
+  });
+
+  tabs.push({
+    id: "quality",
+    label: "Qualité &amp; bugs",
+    html: `<div class="panel-grid">
+    <div class="chart-card"><h3>Bugs livrés (issues / 7j)${helpBtn("bugThroughput")}</h3><canvas id="bugThroughputChart"></canvas></div>
+    <div class="chart-card"><h3>Bug cycle time (jours)${helpBtn("bugCycleTime")}</h3><canvas id="bugCycleTimeChart"></canvas></div>
+    <div class="chart-card"><h3>Allocation dev : features vs bugs${helpBtn("devTimeAllocation")}</h3><canvas id="devTimeAllocationChart"></canvas></div>
+    <div class="chart-card"><h3>Bug backlog${helpBtn("bugBacklog")}</h3><canvas id="bugBacklogChart"></canvas></div>
+  </div>`,
+  });
+
+  tabs.push({
+    id: "roles",
+    label: "Flux par rôle",
+    html: `<div class="role-grid">
+    ${renderRoleCardHtml({ cls: "dev", name: "Dev", wip: input.kpis.wipDev, med: input.kpis.stageTimeDevMedian, ftr: input.kpis.ftrDev })}
+    ${renderRoleCardHtml({ cls: "qa",  name: "QA",  wip: input.kpis.wipQa, med: input.kpis.stageTimeQaMedian, ftr: input.kpis.ftrQa })}
+    ${renderRoleCardHtml({ cls: "po",  name: "PO",  wip: input.kpis.wipPo, med: input.kpis.stageTimePoMedian, ftr: input.kpis.ftrPo })}
+  </div>
+  <div class="panel-grid">
+    <div class="chart-card"><h3>Temps médian par rôle${helpBtn("stageTimeBreakdown")}</h3><canvas id="stageTimeByRoleChart"></canvas></div>
+    <div class="chart-card"><h3>Répartition cycle time${helpBtn("stageTimeBreakdown")}</h3><canvas id="stageTimeShareChart"></canvas></div>
+    <div class="chart-card"><h3>WIP par rôle${helpBtn("wipPerRole")}</h3><canvas id="wipPerRoleChart"></canvas></div>
+    <div class="chart-card"><h3>Throughput net par rôle${helpBtn("stageThroughputGap")}</h3><canvas id="stageThroughputGapChart"></canvas></div>
+    <div class="chart-card"><h3>FTR par rôle${helpBtn("firstTimeRight")}</h3><canvas id="ftrByRoleChart"></canvas></div>
+    <div class="chart-card"><h3>Taux de rework${helpBtn("handoffRework")}</h3><canvas id="reworkRatioChart"></canvas></div>
+    <div class="chart-card wide"><h3>Reworks par type${helpBtn("handoffRework")}</h3><canvas id="reworkByTypeChart"></canvas></div>
+  </div>`,
+  });
+
+  tabs.push({
+    id: "forecast",
+    label: "Forecast &amp; aging",
+    html: `<div class="panel-grid">
+    <div class="chart-card">
+      <h3>Forecast Monte Carlo${helpBtn("forecast")}</h3>
+      <p class="meta-line">Pool : ${input.forecast.weeksUsed} semaines · ${input.forecast.simulations} simulations</p>
+      <table>
+        <thead><tr><th>Horizon</th><th>P15<br><small>(85% conf.)</small></th><th>P50</th><th>P85</th><th>P95</th></tr></thead>
+        <tbody>${forecastTableRows(input.forecast)}</tbody>
+      </table>
+    </div>
+    <div class="chart-card">
+      <h3>Aging WIP — au ${escapeHtml(input.agingWip.asOf)}${helpBtn("agingWip")}</h3>
+      <p class="meta-line">P50 ${input.agingWip.percentiles.p50.toFixed(1)}j · P85 ${input.agingWip.percentiles.p85.toFixed(1)}j · P95 ${input.agingWip.percentiles.p95.toFixed(1)}j · ${input.agingWip.count} en cours</p>
+      <canvas id="agingScatter"></canvas>
+    </div>
+    <div class="chart-card wide">
+      <h3>Top items par âge${helpBtn("agingWip")}</h3>
+      <table>
+        <thead><tr><th>Issue</th><th>Statut</th><th>Âge</th><th>Risque</th></tr></thead>
+        <tbody>${agingRowsHtml(input.agingWip, input.jiraBaseUrl)}</tbody>
+      </table>
+    </div>
+  </div>`,
+  });
+
+  if (input.scopeSectionHtml) {
+    tabs.push({ id: "scope", label: "Dérive de périmètre", html: input.scopeSectionHtml });
+  }
+
+  tabs.push({
+    id: "advanced",
+    label: "Avancé",
+    html: `<div class="panel-grid three">
+    <div class="chart-card"><h3>Lead normalisé (réel / estimé)${helpBtn("leadTimeNormalized")}</h3><canvas id="leadNormalizedChart"></canvas></div>
+    <div class="chart-card"><h3>Cycle normalisé (réel / estimé)${helpBtn("cycleTimeNormalized")}</h3><canvas id="cycleNormalizedChart"></canvas></div>
+    <div class="chart-card"><h3>Flow efficiency (ratio)${helpBtn("flowEfficiency")}</h3><canvas id="flowEfficiencyChart"></canvas></div>
+  </div>
+  <div class="panel-grid" style="margin-top: 1rem">
+    <div class="chart-card">
+      <h3>Lead time par taille (jours)${helpBtn("leadTimeBySize")}</h3>
+      <div class="bucket-selector" id="leadBySizeBuckets"></div>
+      <canvas id="leadBySizeChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Cycle time par taille (jours)${helpBtn("cycleTimeBySize")}</h3>
+      <div class="bucket-selector" id="cycleBySizeBuckets"></div>
+      <canvas id="cycleBySizeChart"></canvas>
+    </div>
+  </div>`,
+  });
+
+  return tabs;
+}
+
+export function buildChartDataJson(input: RenderInput): string {
+  return JSON.stringify({
+    charts: input.charts,
+    histogram: input.histogram,
+    cycleStats: input.cycleStats,
+    aging: { issues: input.agingWip.issues, percentiles: input.agingWip.percentiles },
+    leadBySize: input.leadTimeBySizeCharts,
+    cycleBySize: input.cycleTimeBySizeCharts,
+  });
+}
+
+export interface TemplateContext {
+  projectKey: string;
+  title: string;
+  generatedAt: string;
+  lastSnapshotDate: string;
+  isSyncStale: boolean;
+  lastSyncAt: string | null;
+  staleBannerHtml: string;
+  scopeAlertHtml: string;
+  verdictHtml: string;
+  top3Html: string;
+  kpiGridHtml: string;
+  headerLogoHtml: string;
+  fontLinkHtml: string;
+  customStyleHtml: string;
+  tabs: { id: string; label: string; html: string; active: boolean }[];
+  kpis: Record<string, number | null>;
+  chartDataJson: string;
+  agingWip: AgingWipSummary;
+  forecast: ForecastSummary;
+  cycleStats: { median: number; p85: number; p95: number; avg: number; count: number };
+}
+
+const DEFAULT_FONT_LINK = `<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">`;
+
+export function buildTemplateContext(
+  input: RenderInput,
+  renderedTabs: { id: string; label: string; html: string }[],
+  chartDataJson: string,
+): TemplateContext {
+  const p = input.personalization;
+  const excludedTabs = p?.excludedTabs ?? new Set<string>();
+  const filteredTabs = renderedTabs.filter((t) => !excludedTabs.has(t.id));
+  const firstId = filteredTabs[0]?.id ?? "";
+  return {
+    projectKey: input.projectKey,
+    title: p?.title ?? `Rapport Lean — ${input.projectKey}`,
+    generatedAt: input.generatedAt,
+    lastSnapshotDate: input.lastSnapshotDate,
+    isSyncStale: input.isSyncStale,
+    lastSyncAt: input.lastSyncAt,
+    staleBannerHtml: staleBannerHtml(input.isSyncStale, input.lastSyncAt),
+    scopeAlertHtml: input.scopeAlertHtml ?? "",
+    verdictHtml: buildVerdictHtml(input),
+    top3Html: buildTop3Actions(input.agingWip, input.jiraBaseUrl),
+    kpiGridHtml: buildKpiGridHtml(input),
+    headerLogoHtml: p?.logoDataUri
+      ? `<img src="${p.logoDataUri}" alt="logo" style="height:28px;vertical-align:middle;margin-right:.5rem;">`
+      : "",
+    fontLinkHtml: p?.fontLinkHtml ?? DEFAULT_FONT_LINK,
+    customStyleHtml: p?.customCss ? `<style>\n${p.customCss}\n</style>` : "",
+    tabs: filteredTabs.map((t) => ({ ...t, active: t.id === firstId })),
+    kpis: input.kpis,
+    chartDataJson,
+    agingWip: input.agingWip,
+    forecast: input.forecast,
+    cycleStats: input.cycleStats,
+  };
+}
+
+let _helpersRegistered = false;
+function registerHelpers(): void {
+  if (_helpersRegistered) {return;}
+  _helpersRegistered = true;
+  Handlebars.registerHelper("escapeHtml", (s: unknown) => escapeHtml((s as string | null | undefined) ?? ""));
+  Handlebars.registerHelper("json", (v: unknown) => new Handlebars.SafeString(JSON.stringify(v)));
+  Handlebars.registerHelper("fmt_float", (v: unknown, d: unknown) => {
+    const num = v as number | null;
+    if (num == null) {return "—";}
+    return num.toFixed(typeof d === "number" ? d : 1);
+  });
+  Handlebars.registerHelper("if_includes", function(
+    this: unknown,
+    arr: string[],
+    val: string,
+    options: Handlebars.HelperOptions,
+  ) {
+    return arr.includes(val) ? options.fn(this) : options.inverse(this);
+  });
+}
+
+export function renderWithHandlebars(input: RenderInput, templatePath: string): string {
+  registerHelpers();
+  let src: string;
+  try {
+    src = fs.readFileSync(templatePath, "utf-8");
+  } catch {
+    throw new Error(`[report] Template Handlebars introuvable : ${templatePath}`);
+  }
+  let compiled: Handlebars.TemplateDelegate;
+  try {
+    compiled = Handlebars.compile(src, { strict: false });
+  } catch (e) {
+    throw new Error(`[report] Erreur de compilation du template Handlebars : ${(e as Error).message}`);
+  }
+  const renderedTabs = buildRenderedTabs(input);
+  const chartDataJson = buildChartDataJson(input);
+  const context = buildTemplateContext(input, renderedTabs, chartDataJson);
+  try {
+    return compiled(context);
+  } catch (e) {
+    throw new Error(`[report] Erreur de rendu du template Handlebars : ${(e as Error).message}`);
+  }
+}
+
+export function exportDefaultTemplate(dir: string): void {
+  if (!fs.existsSync(dir)) { fs.mkdirSync(dir, { recursive: true }); }
+  const target = path.join(dir, "report.hbs");
+  if (fs.existsSync(target)) {
+    throw new Error(`[export-template] ${target} existe déjà. Supprimer manuellement avant d'exporter.`);
+  }
+  const templateSrc = path.join(__dirname, "templates", "report.hbs");
+  fs.copyFileSync(templateSrc, target);
+  const schemaSrc = path.join(__dirname, "templates", "context.schema.json");
+  fs.copyFileSync(schemaSrc, path.join(dir, "context.schema.json"));
+  console.log(`Template exporté dans ${dir}/`);
+  console.log(`  report.hbs          ← template principal (Handlebars)`);
+  console.log(`  context.schema.json ← documentation des variables disponibles`);
+}
+
+// ─── Dupliqué depuis le bloc <script> embarqué ────────────────────────────────
 // Dupliqué depuis le bloc <script> embarqué : les fonctions JS du template ne peuvent pas être importées
 // directement par Vitest — cette version TypeScript est la seule surface testable unitairement.
 export function computeMovingAvg(values: number[], windowSize = 4): (number | null)[] {

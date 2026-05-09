@@ -8,7 +8,7 @@ import { openDb, getDoneStatusNames, getAllStatuses, getDistinctTransitionStatus
 import { runAllMetrics, runMetric, ALL_METRICS } from "./metrics/index";
 import { BUCKET_LABELS, BUCKET_ORDER } from "./metrics/utils";
 import { backfillSnapshots } from "./snapshots/compute";
-import { generateReport, type HealthThresholds, type ReportPersonalization } from "./report/generate";
+import { generateReport, exportDefaultTemplate, type HealthThresholds, type ReportPersonalization } from "./report/generate";
 import { type MetricConfig } from "./metrics/types";
 import { JiraClient } from "./jira/client";
 import { type JiraBoardConfig, type JiraStatus } from "./jira/types";
@@ -407,7 +407,7 @@ export function mergeColumns(
 interface SyncOpts { config: string }
 interface MetricsOpts { config: string; boardConfig: string; metric?: string; json?: boolean; includeOutliers?: boolean }
 interface SnapshotsOpts { config: string; boardConfig: string }
-interface ReportOpts { config: string; boardConfig: string; output: string }
+interface ReportOpts { config: string; boardConfig: string; output: string; exportTemplate?: string }
 interface RefreshOpts { config: string; boardConfig: string; output: string }
 interface ValidateConfigOpts { config: string; boardConfig: string }
 interface AutoconfigOpts { config: string; boardConfig: string; apply?: boolean }
@@ -474,7 +474,12 @@ program
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
   .option("-b, --board-config <path>", "Chemin vers board.yaml", "./board.yaml")
   .option("-o, --output <path>", "Chemin du fichier HTML de sortie", "./report.html")
+  .option("--export-template <dir>", "Exporte le template Handlebars par défaut dans <dir> et quitte")
   .action((opts: ReportOpts) => {
+    if (opts.exportTemplate) {
+      exportDefaultTemplate(path.resolve(opts.exportTemplate));
+      return;
+    }
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     bootstrapFakeMode(config.jira);
     const db = openDb(config.db.path);

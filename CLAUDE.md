@@ -145,6 +145,7 @@ Board is defined as an ordered list of columns under `board.columns`. Each colum
 - `report.fontUrl` → replaces IBM Plex Google Fonts `<link>` (Chart.js font unchanged)
 - `report.customCssPath` → path to `.css` file (resolved from `board.yaml` dir), injected in a second `<style>` block after the default styles (normal cascade, no `!important` needed); missing file throws error
 - `report.excludeTabs` → list of tabs to hide from nav + content; valid values: `delivery`, `quality`, `roles`, `forecast`, `advanced`; unknown values warn and are ignored; KPIs and "À traiter" sections always present
+- `report.templatePath` → path to a custom Handlebars `.hbs` template (resolved from `board.yaml` dir); replaces the built-in HTML renderer entirely; use `npm run report -- --export-template <dir>` to export the default template as a starting point; template receives a `TemplateContext` object documented in `context.schema.json`
 
 ## Metric catalog
 

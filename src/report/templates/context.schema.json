@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TemplateContext",
+  "description": "Contexte passé au template Handlebars du rapport lean-jira",
+  "type": "object",
+  "properties": {
+    "projectKey": {
+      "type": "string",
+      "description": "Clé Jira du projet (ex: KECK)"
+    },
+    "title": {
+      "type": "string",
+      "description": "Titre résolu du rapport (report.title de board.yaml ou 'Rapport Lean — {projectKey}')"
+    },
+    "generatedAt": {
+      "type": "string",
+      "description": "Horodatage de génération du rapport (format: 'YYYY-MM-DD HH:mm:ss')"
+    },
+    "lastSnapshotDate": {
+      "type": "string",
+      "description": "Date du dernier snapshot disponible (format: 'YYYY-MM-DD')"
+    },
+    "isSyncStale": {
+      "type": "boolean",
+      "description": "Vrai si le dernier sync Jira date de plus de 7 jours"
+    },
+    "lastSyncAt": {
+      "type": ["string", "null"],
+      "description": "ISO timestamp du dernier sync Jira, ou null si jamais synchronisé"
+    },
+    "staleBannerHtml": {
+      "type": "string",
+      "description": "Fragment HTML de la bannière 'données périmées'. Vide si données fraîches. Injecter via {{{staleBannerHtml}}}."
+    },
+    "top3Html": {
+      "type": "string",
+      "description": "Fragment HTML de la section 'À traiter // top 3' (aging WIP critique). Injecter via {{{top3Html}}}."
+    },
+    "kpiGridHtml": {
+      "type": "string",
+      "description": "Fragment HTML de la grille de KPI cells (lead time, cycle time, throughput, WIP…). Injecter via {{{kpiGridHtml}}}."
+    },
+    "headerLogoHtml": {
+      "type": "string",
+      "description": "Balise <img> du logo si report.logoUrl est configuré, sinon chaîne vide. Injecter via {{{headerLogoHtml}}}."
+    },
+    "fontLinkHtml": {
+      "type": "string",
+      "description": "Balise <link> de la police (IBM Plex Google Fonts par défaut, ou report.fontUrl). Injecter via {{{fontLinkHtml}}}."
+    },
+    "customStyleHtml": {
+      "type": "string",
+      "description": "Bloc <style>...</style> du CSS custom si report.customCssPath est configuré, sinon chaîne vide. Injecter via {{{customStyleHtml}}}."
+    },
+    "tabs": {
+      "type": "array",
+      "description": "Onglets du rapport filtrés selon report.excludeTabs. Chaque onglet est prêt à injecter.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Identifiant de l'onglet (delivery|quality|roles|forecast|scope|advanced)" },
+          "label": { "type": "string", "description": "Libellé du bouton de navigation" },
+          "html": { "type": "string", "description": "Contenu HTML complet du panneau. Injecter via {{{html}}}." },
+          "active": { "type": "boolean", "description": "Vrai pour le premier onglet visible" }
+        }
+      }
+    },
+    "kpis": {
+      "type": "object",
+      "description": "Valeurs KPI du dernier snapshot. Clés: leadTimeMedian, cycleTimeMedian, throughputCount, wipCount, bugThroughputCount, bugCycleTimeMedian, flowEfficiencyAggregate, devTimeAvgBugRatio, stageTimeDevMedian, stageTimeQaMedian, stageTimePoMedian, wipDev, wipQa, wipPo, reworkRatio, avgReworks, ftrDev, ftrQa, ftrPo. Valeurs: number | null.",
+      "additionalProperties": { "type": ["number", "null"] }
+    },
+    "chartDataJson": {
+      "type": "string",
+      "description": "JSON.stringify de toutes les séries Chart.js. Injecter dans un <script> via {{{chartDataJson}}}. Contient toutes les séries temporelles pour initialiser les charts."
+    },
+    "agingWip": {
+      "type": "object",
+      "description": "Données Aging WIP structurées. Propriétés: asOf (string), count (number), percentiles ({p50,p85,p95}), riskCounts ({ok,watch,atRisk,critical}), issues (array)."
+    },
+    "forecast": {
+      "type": "object",
+      "description": "Données Forecast Monte Carlo. Propriétés: recentWeeks (array), weeksUsed (number), byHorizon (array de {weeks,p15,p50,p85,p95}), simulations (number), unit (string)."
+    },
+    "cycleStats": {
+      "type": "object",
+      "description": "Statistiques cycle time globales. Propriétés: median (number), p85 (number), p95 (number), avg (number), count (number)."
+    }
+  },
+  "required": ["projectKey", "title", "generatedAt", "lastSnapshotDate", "isSyncStale", "lastSyncAt", "staleBannerHtml", "top3Html", "kpiGridHtml", "headerLogoHtml", "fontLinkHtml", "customStyleHtml", "tabs", "kpis", "chartDataJson", "agingWip", "forecast", "cycleStats"],
+  "additionalProperties": false,
+  "_helpers": {
+    "description": "Helpers Handlebars enregistrés disponibles dans le template",
+    "escapeHtml": "{{escapeHtml value}} — échappe les caractères HTML spéciaux",
+    "json": "{{json value}} — JSON.stringify la valeur",
+    "fmt_float": "{{fmt_float value decimals}} — formate un nombre décimal (ex: {{fmt_float cycleStats.median 1}} → '3.5')",
+    "if_includes": "{{#if_includes array value}}...{{/if_includes}} — vrai si le tableau contient la valeur"
+  }
+}
