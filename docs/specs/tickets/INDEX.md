@@ -29,7 +29,7 @@
 | [025](025-first-time-right-rate/description.md) | First-Time-Right Rate | livré |
 | [026](026-rapport-metriques-role-aware/description.md) | Rapport : métriques role-aware | livré |
 | [027](027-rapport-cockpit-refonte/description.md) | Refonte rapport HTML vers design Cockpit | livré |
-| [028](028-rapport-personnalisation-config/description.md) | Rapport HTML personnalisable via config YAML | à faire |
+| [028](028-rapport-personnalisation-config/description.md) | Rapport HTML personnalisable via config YAML | livré |
 | [029](029-rapport-template-handlebars/description.md) | Template Handlebars pour override HTML complet du rapport | à faire |
 | [030](030-support-jira-server-pat/description.md) | Support Jira Server / Data Center (PAT auth) | à faire |
 | [031](031-scope-change-db-sync/description.md) | Infra DB + sync : changements de champs Jira | livré |

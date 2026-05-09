@@ -140,6 +140,11 @@ Board is defined as an ordered list of columns under `board.columns`. Each colum
 - `metrics.cutoffDate` → global lower bound (issues delivered before are ignored)
 - `metrics.bugIssueTypes` → routed to BUG bucket; excluded from normalized/weighted metrics
 - `metrics.healthThresholds` → optional KPI health signals in the report; each key maps to `{ warn, crit }` pair; absent = no signal; keys: `leadTimeMedianDays`, `cycleTimeMedianDays`, `throughputWeekly` (higher=better), `wipCount`, `bugCycleTimeMedianDays`, `bugRatio`
+- `report.title` → replaces "Rapport Lean — {projectKey}" in HTML `<title>` and header
+- `report.logoUrl` → local path (resolved from `board.yaml` dir, embedded as base64 data URI) or http(s) URL; supported extensions: `.png`, `.jpg`, `.jpeg`, `.svg`, `.webp`; missing file throws error; unknown extension warns and ignores
+- `report.fontUrl` → replaces IBM Plex Google Fonts `<link>` (Chart.js font unchanged)
+- `report.customCssPath` → path to `.css` file (resolved from `board.yaml` dir), injected in a second `<style>` block after the default styles (normal cascade, no `!important` needed); missing file throws error
+- `report.excludeTabs` → list of tabs to hide from nav + content; valid values: `delivery`, `quality`, `roles`, `forecast`, `advanced`; unknown values warn and are ignored; KPIs and "À traiter" sections always present
 
 ## Metric catalog
 

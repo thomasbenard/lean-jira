@@ -47,3 +47,7 @@ metrics:
     wipCount: { warn: 8, crit: 12 }
     bugCycleTimeMedianDays: { warn: 3, crit: 7 }
     bugRatio: { warn: 0.2, crit: 0.35 }
+
+report:
+  title: "Équipe Demo"
+  logoUrl: "https://placehold.co/120x28/0052cc/ffffff?text=DEMO"

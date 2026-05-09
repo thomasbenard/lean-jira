@@ -8,7 +8,7 @@ import { openDb, getDoneStatusNames, getAllStatuses, getDistinctTransitionStatus
 import { runAllMetrics, runMetric, ALL_METRICS } from "./metrics/index";
 import { BUCKET_LABELS, BUCKET_ORDER } from "./metrics/utils";
 import { backfillSnapshots } from "./snapshots/compute";
-import { generateReport, type HealthThresholds } from "./report/generate";
+import { generateReport, type HealthThresholds, type ReportPersonalization } from "./report/generate";
 import { type MetricConfig } from "./metrics/types";
 import { JiraClient } from "./jira/client";
 import { type JiraBoardConfig, type JiraStatus } from "./jira/types";
@@ -135,7 +135,10 @@ export interface BoardFileConfig {
     healthThresholds?: HealthThresholds;
     scopeChangeGracePeriodHours?: number;
   };
+  report?: ReportPersonalization;
 }
+
+export type { ReportPersonalization };
 
 type AppConfig = JiraFileConfig & BoardFileConfig;
 
@@ -476,7 +479,7 @@ program
     bootstrapFakeMode(config.jira);
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config);
-    generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds, config.jira.name);
+    generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds, config.jira.name, config.report, path.dirname(path.resolve(opts.boardConfig)));
     console.log(`Rapport généré : ${path.resolve(opts.output)}`);
   });
 
@@ -495,7 +498,7 @@ program
     const metricConfig = buildMetricConfig(db, config);
     const count = backfillSnapshots(db, metricConfig);
     console.log(`Snapshots recalculés : ${count} dates hebdomadaires.`);
-    generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds, config.jira.name);
+    generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds, config.jira.name, config.report, path.dirname(path.resolve(opts.boardConfig)));
     console.log(`Rapport généré : ${path.resolve(opts.output)}`);
   });
 

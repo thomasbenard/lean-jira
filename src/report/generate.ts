@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import fs from "fs";
+import path from "path";
 import { BUCKET_LABELS, BUCKET_ORDER, placeholders } from "../metrics/utils";
 import { type MetricConfig } from "../metrics/types";
 import { agingWipMetric, type AgingWipSummary, type AgingWipIssue, type AgingRisk } from "../metrics/agingWip";
@@ -10,6 +11,81 @@ import { getLastSyncDate } from "../db/store";
 import { now } from "../clock";
 
 const STALE_THRESHOLD_DAYS = 7;
+
+export interface ReportPersonalization {
+  title?: string;
+  logoUrl?: string;
+  fontUrl?: string;
+  customCssPath?: string;
+  excludeTabs?: string[];
+}
+
+export interface ResolvedPersonalization {
+  title?: string;
+  logoDataUri?: string;
+  fontLinkHtml?: string;
+  customCss?: string;
+  excludedTabs: Set<string>;
+}
+
+const VALID_TABS = new Set(["delivery", "quality", "roles", "forecast", "advanced"]);
+const LOGO_MIME: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+};
+
+export function resolvePersonalization(
+  p: ReportPersonalization | undefined,
+  boardDir: string,
+): ResolvedPersonalization {
+  if (!p) { return { excludedTabs: new Set() }; }
+
+  let logoDataUri: string | undefined;
+  if (p.logoUrl) {
+    if (p.logoUrl.startsWith("data:")) {
+      throw new Error(`[report] logoUrl ne peut pas commencer par "data:" — utiliser un chemin ou une URL http(s).`);
+    }
+    const isRemote = p.logoUrl.startsWith("http://") || p.logoUrl.startsWith("https://");
+    if (isRemote) {
+      logoDataUri = p.logoUrl;
+    } else {
+      const abs = path.resolve(boardDir, p.logoUrl);
+      const ext = path.extname(abs).toLowerCase();
+      const mime = LOGO_MIME[ext];
+      if (!mime) {
+        console.warn(`[report] Extension logo non reconnue : ${ext} — logo ignoré.`);
+      } else if (!fs.existsSync(abs)) {
+        throw new Error(`[report] logoUrl introuvable : ${abs}`);
+      } else {
+        logoDataUri = `data:${mime};base64,${fs.readFileSync(abs).toString("base64")}`;
+      }
+    }
+  }
+
+  let customCss: string | undefined;
+  if (p.customCssPath) {
+    const abs = path.resolve(boardDir, p.customCssPath);
+    if (!fs.existsSync(abs)) {
+      throw new Error(`[report] customCssPath introuvable : ${abs}`);
+    }
+    customCss = fs.readFileSync(abs, "utf-8");
+  }
+
+  const fontLinkHtml = p.fontUrl
+    ? `<link href="${p.fontUrl}" rel="stylesheet">`
+    : undefined;
+
+  const excludedTabs = new Set<string>();
+  for (const t of p.excludeTabs ?? []) {
+    if (VALID_TABS.has(t)) { excludedTabs.add(t); }
+    else { console.warn(`[report] excludeTabs: onglet inconnu "${t}" ignoré.`); }
+  }
+
+  return { title: p.title, logoDataUri, fontLinkHtml, customCss, excludedTabs };
+}
 
 export interface ThresholdPair {
   warn: number;
@@ -186,6 +262,8 @@ export function generateReport(
   config: MetricConfig,
   healthThresholds?: HealthThresholds,
   squadName?: string,
+  personalization?: ReportPersonalization,
+  boardDir?: string,
 ): void {
   const snapshots = db.prepare(
     "SELECT snapshot_date, metric_name, bucket, stat, value FROM metric_snapshots ORDER BY snapshot_date ASC"
@@ -283,6 +361,8 @@ export function generateReport(
     scopeSectionHtml = buildScopeSection(scopeData, db, jiraBaseUrl);
   }
 
+  const resolvedPersonalization = resolvePersonalization(personalization, boardDir ?? process.cwd());
+
   const html = renderHtml({
     projectKey,
     squadName,
@@ -310,6 +390,7 @@ export function generateReport(
     healthThresholds,
     scopeAlertHtml,
     scopeSectionHtml,
+    personalization: resolvedPersonalization,
   });
 
   fs.writeFileSync(outputPath, html);
@@ -405,6 +486,7 @@ interface RenderInput {
   healthThresholds?: HealthThresholds;
   scopeAlertHtml?: string;
   scopeSectionHtml?: string;
+  personalization?: ResolvedPersonalization;
 }
 
 function buildHistogram(values: number[]): HistogramBin[] {
@@ -493,14 +575,24 @@ export function renderHtml(input: RenderInput): string {
       </div>
     </div>`;
 
+  const p = input.personalization;
+  const ALL_TABS = ["delivery", "quality", "roles", "forecast", "advanced"] as const;
+  const visibleTabs = ALL_TABS.filter((t) => !p?.excludedTabs?.has(t));
+  const firstTab = visibleTabs[0] ?? "delivery";
+  const show = (tab: string): boolean => !p?.excludedTabs?.has(tab);
+  const reportTitle = escapeHtml(p?.title ?? `Rapport Lean — ${input.projectKey}`);
+  const headerLabel = escapeHtml(p?.title ?? (input.squadName ? `${input.squadName} (${input.projectKey})` : input.projectKey));
+  const fontLink = p?.fontLinkHtml
+    ?? `<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">`;
+
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<title>Rapport Lean — ${escapeHtml(input.squadName ?? input.projectKey)}</title>
+<title>${reportTitle}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+${fontLink}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
   :root {
@@ -760,10 +852,11 @@ export function renderHtml(input: RenderInput): string {
     main { padding: 1rem 1rem 4rem; }
   }
 </style>
+${p?.customCss ? `<style>\n${p.customCss}\n</style>` : ""}
 </head>
 <body>
 <header class="bar">
-  <span class="logo">${escapeHtml(input.squadName ? `${input.squadName} (${input.projectKey})` : input.projectKey)} // FLOW.OPS</span>
+  <span class="logo">${p?.logoDataUri ? `<img src="${p.logoDataUri}" alt="logo" style="height:28px;vertical-align:middle;margin-right:.5rem;">` : ""}${headerLabel} // FLOW.OPS</span>
   <span class="meta">GEN ${escapeHtml(input.generatedAt)} · SNAPSHOT ${escapeHtml(input.lastSnapshotDate)} · ${escapeHtml(syncMetaLabel(input.lastSyncAt))}</span>
 </header>
 <main>
@@ -786,16 +879,16 @@ ${input.scopeAlertHtml ?? ""}
   <div class="kpi-grid">${kpiGridHtml}</div>
 </section>
 
-<div class="tabs" id="tabs">
-  <button class="tab active" data-tab="delivery">Livraison</button>
-  <button class="tab" data-tab="quality">Qualité &amp; bugs</button>
-  <button class="tab" data-tab="roles">Flux par rôle</button>
-  <button class="tab" data-tab="forecast">Forecast &amp; aging</button>
+${(visibleTabs.length > 0 || !!input.scopeSectionHtml) ? `<div class="tabs" id="tabs">
+  ${show("delivery") ? `<button class="tab${firstTab === "delivery" ? " active" : ""}" data-tab="delivery">Livraison</button>` : ""}
+  ${show("quality") ? `<button class="tab${firstTab === "quality" ? " active" : ""}" data-tab="quality">Qualité &amp; bugs</button>` : ""}
+  ${show("roles") ? `<button class="tab${firstTab === "roles" ? " active" : ""}" data-tab="roles">Flux par rôle</button>` : ""}
+  ${show("forecast") ? `<button class="tab${firstTab === "forecast" ? " active" : ""}" data-tab="forecast">Forecast &amp; aging</button>` : ""}
   ${input.scopeSectionHtml ? `<button class="tab" data-tab="scope">Dérive de périmètre</button>` : ""}
-  <button class="tab" data-tab="advanced">Avancé</button>
-</div>
+  ${show("advanced") ? `<button class="tab${firstTab === "advanced" ? " active" : ""}" data-tab="advanced">Avancé</button>` : ""}
+</div>` : ""}
 
-<div class="tab-panel active" id="tab-delivery">
+${show("delivery") ? `<div class="tab-panel${firstTab === "delivery" ? " active" : ""}" id="tab-delivery">
   <div class="panel-grid">
     <div class="chart-card"><h3>Lead time (jours)${helpBtn("leadTime")}</h3><canvas id="leadTimeChart"></canvas></div>
     <div class="chart-card"><h3>Cycle time (jours)${helpBtn("cycleTime")}</h3><canvas id="cycleTimeChart"></canvas></div>
@@ -820,18 +913,18 @@ ${input.scopeAlertHtml ?? ""}
       <tbody>${bySizeRows(input.cycleBySize)}</tbody></table>
     </div>
   </div>
-</div>
+</div>` : ""}
 
-<div class="tab-panel" id="tab-quality">
+${show("quality") ? `<div class="tab-panel${firstTab === "quality" ? " active" : ""}" id="tab-quality">
   <div class="panel-grid">
     <div class="chart-card"><h3>Bugs livrés (issues / 7j)${helpBtn("bugThroughput")}</h3><canvas id="bugThroughputChart"></canvas></div>
     <div class="chart-card"><h3>Bug cycle time (jours)${helpBtn("bugCycleTime")}</h3><canvas id="bugCycleTimeChart"></canvas></div>
     <div class="chart-card"><h3>Allocation dev : features vs bugs${helpBtn("devTimeAllocation")}</h3><canvas id="devTimeAllocationChart"></canvas></div>
     <div class="chart-card"><h3>Bug backlog${helpBtn("bugBacklog")}</h3><canvas id="bugBacklogChart"></canvas></div>
   </div>
-</div>
+</div>` : ""}
 
-<div class="tab-panel" id="tab-roles">
+${show("roles") ? `<div class="tab-panel${firstTab === "roles" ? " active" : ""}" id="tab-roles">
   <div class="role-grid">
     ${roleCardHtml({ cls: "dev", name: "Dev", wip: input.kpis.wipDev, med: input.kpis.stageTimeDevMedian, ftr: input.kpis.ftrDev })}
     ${roleCardHtml({ cls: "qa",  name: "QA",  wip: input.kpis.wipQa, med: input.kpis.stageTimeQaMedian, ftr: input.kpis.ftrQa })}
@@ -846,9 +939,9 @@ ${input.scopeAlertHtml ?? ""}
     <div class="chart-card"><h3>Taux de rework${helpBtn("handoffRework")}</h3><canvas id="reworkRatioChart"></canvas></div>
     <div class="chart-card wide"><h3>Reworks par type${helpBtn("handoffRework")}</h3><canvas id="reworkByTypeChart"></canvas></div>
   </div>
-</div>
+</div>` : ""}
 
-<div class="tab-panel" id="tab-forecast">
+${show("forecast") ? `<div class="tab-panel${firstTab === "forecast" ? " active" : ""}" id="tab-forecast">
   <div class="panel-grid">
     <div class="chart-card">
       <h3>Forecast Monte Carlo${helpBtn("forecast")}</h3>
@@ -871,11 +964,11 @@ ${input.scopeAlertHtml ?? ""}
       </table>
     </div>
   </div>
-</div>
+</div>` : ""}
 
 ${input.scopeSectionHtml ? `<div class="tab-panel" id="tab-scope">${input.scopeSectionHtml}</div>` : ""}
 
-<div class="tab-panel" id="tab-advanced">
+${show("advanced") ? `<div class="tab-panel${firstTab === "advanced" ? " active" : ""}" id="tab-advanced">
   <div class="panel-grid three">
     <div class="chart-card"><h3>Lead normalisé (réel / estimé)${helpBtn("leadTimeNormalized")}</h3><canvas id="leadNormalizedChart"></canvas></div>
     <div class="chart-card"><h3>Cycle normalisé (réel / estimé)${helpBtn("cycleTimeNormalized")}</h3><canvas id="cycleNormalizedChart"></canvas></div>
@@ -893,7 +986,7 @@ ${input.scopeSectionHtml ? `<div class="tab-panel" id="tab-scope">${input.scopeS
       <canvas id="cycleBySizeChart"></canvas>
     </div>
   </div>
-</div>
+</div>` : ""}
 
 </main>
 

@@ -257,7 +257,7 @@ Champs récupérés par issue : `summary`, `issuetype`, `status`, `created`, `re
 
 ## Rapport HTML (`report/generate.ts`)
 
-`generateReport(db, projectKey, jiraBaseUrl, outputPath, config, healthThresholds?)` lit `metric_snapshots` et produit un fichier HTML autonome (Chart.js via CDN, CSS inline).
+`generateReport(db, projectKey, jiraBaseUrl, outputPath, config, healthThresholds?, squadName?, personalization?, boardDir?)` lit `metric_snapshots` et produit un fichier HTML autonome (Chart.js via CDN, CSS inline).
 
 ### Signaux de santé (`healthThresholds`)
 
@@ -280,6 +280,16 @@ Helpers d'évaluation (exportés, fonctions pures) :
 - `evalHigherBetter(value, t)` : vert si `value >= t.warn`, orange si `>= t.crit`, rouge sinon. Utilisé pour `throughputWeekly`.
 
 Rendu : `<span class="health-dot health-{green|orange|red}">●</span>` inséré avant la valeur dans la card KPI. Champ `metrics.healthThresholds` dans `board.yaml` → passé par `main.ts` à `generateReport()`.
+
+### Personnalisation du rapport (`report:` dans `board.yaml`)
+
+Section optionnelle `report:` dans `BoardFileConfig` (interface `ReportPersonalization` exportée depuis `generate.ts`). Résolue par `resolvePersonalization(p, boardDir)` avant le rendu :
+
+- `title` : remplace `"Rapport Lean — {projectKey}"` dans `<title>` et l'en-tête
+- `logoUrl` : chemin local (résolu depuis `boardDir`, embarqué en base64 `data:mime;base64,...`) ou URL http(s) directe ; extensions : `.png`, `.jpg`, `.jpeg`, `.svg`, `.webp` ; fichier absent → throw ; extension inconnue → warn + ignore
+- `fontUrl` : remplace le `<link>` IBM Plex (police Chart.js non affectée)
+- `customCssPath` : chemin local, contenu injecté dans un second `<style>` après le bloc défaut ; fichier absent → throw
+- `excludeTabs` : onglets valides `delivery`, `quality`, `roles`, `forecast`, `advanced` ; valeur inconnue → warn + ignore ; `scope` hors système d'exclusion
 
 ---
 

@@ -122,6 +122,16 @@ metrics:
   #   wipCount:               { warn: 5,    crit: 8    }
   #   bugCycleTimeMedianDays: { warn: 3,    crit: 7    }
   #   bugRatio:               { warn: 0.20, crit: 0.40 }
+
+# Personnalisation du rapport HTML (optionnel)
+# report:
+#   title: "Équipe Plateforme"             # Remplace "Rapport Lean — {projectKey}" dans le titre et l'en-tête
+#   logoUrl: "./assets/logo.png"           # Chemin local (embarqué en base64) ou URL http(s)
+#   fontUrl: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"  # Remplace IBM Plex
+#   customCssPath: "./my-report.css"       # CSS injecté après le style défaut (priorité cascade)
+#   excludeTabs:                           # Onglets à masquer : delivery, quality, roles, forecast, advanced
+#     - roles
+#     - forecast
 ```
 
 #### Types de colonnes
