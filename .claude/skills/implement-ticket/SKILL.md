@@ -17,7 +17,7 @@ Implémente un ticket spécifié dans `docs/specs/tickets/<NNN>-<slug>/`. Garant
 - **Si nouvelle métrique** → `docs/specs/system/spec-fonctionnelle.md` + `metrics-formulas.md` + `CLAUDE.md` (section "Metric catalog") mis à jour
 - **Si autre invariant modifié** (DB schema, CLI, config, export API) → sections concernées dans `docs/specs/system/` + `CLAUDE.md` mis à jour
 - **Si surface publique modifiée** (nouvelle commande, option, comportement observable) → `README.md` mis à jour
-- `description.md` du ticket → `Statut: **livré**`
+- `description.md` du ticket + `docs/specs/tickets/INDEX.md` → statut `livré` (via `bash scripts/update-ticket.sh status <NNN> livré`, cf. Phase 8)
 
 Ces 6 points sont non-négociables. Les phases ci-dessous décrivent comment y arriver.
 
@@ -132,7 +132,11 @@ Voir la **Definition of Done** en tête de document pour les critères de décle
 
 ### Phase 8 — Clôture
 
-1. Mettre à jour `description.md` du ticket : `Statut: **livré**`
+1. Appeler le script de clôture (met à jour `description.md` ET `docs/specs/tickets/INDEX.md` atomiquement) :
+   ```bash
+   bash scripts/update-ticket.sh status <NNN> livré
+   ```
+   où `<NNN>` est le numéro du ticket (ex: `028`, `039a`).
 2. `git status` + `git diff` → présenter résumé des changements à l'utilisateur
 3. **Ne pas commit sans demande explicite**
 

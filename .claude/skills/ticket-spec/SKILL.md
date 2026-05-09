@@ -316,3 +316,17 @@ Created: docs/specs/tickets/<NNN>-<slug>/
 
 Si plusieurs sous-tickets ont été générés suite à un découpage XL, afficher chaque ticket sur
 sa propre ligne avec son bucket.
+
+## Step 7 — Enregistrer dans INDEX.md
+
+Après l'output confirmation, appeler le script pour ajouter le ticket à l'index :
+
+```bash
+bash scripts/update-ticket.sh add <NNN> <slug> "<description one-line>"
+```
+
+- `<NNN>` : numéro zero-paddé (ex: `042`, `039e`)
+- `<slug>` : même slug que le dossier créé (kebab-case, sans accents)
+- `<description one-line>` : première phrase de la user story condensée (max 80 chars)
+
+Si découpage XL → plusieurs sous-tickets : appeler `add` pour chaque sous-ticket généré.
