@@ -98,58 +98,61 @@ describe("percentile", () => {
   });
 });
 
-describe("bucketize", () => {
+describe("bucketize — méthode time (seuils par défaut)", () => {
+  const TIME = { method: "time" as const };
+  const e = (s: number | null) => ({ originalEstimateSeconds: s, storyPoints: null, sizeLabel: null });
+
   it("isBug=true → BUG quelle que soit l'estimation", () => {
-    expect(bucketize(99999, true)).toBe("BUG");
-    expect(bucketize(null, true)).toBe("BUG");
+    expect(bucketize(e(99999), true, TIME)).toBe("BUG");
+    expect(bucketize(e(null), true, TIME)).toBe("BUG");
   });
 
   it("null → UNESTIMATED", () => {
-    expect(bucketize(null)).toBe("UNESTIMATED");
+    expect(bucketize(e(null), false, TIME)).toBe("UNESTIMATED");
   });
 
   it("0 → UNESTIMATED", () => {
-    expect(bucketize(0)).toBe("UNESTIMATED");
+    expect(bucketize(e(0), false, TIME)).toBe("UNESTIMATED");
   });
 
   it("negatif → UNESTIMATED", () => {
-    expect(bucketize(-100)).toBe("UNESTIMATED");
+    expect(bucketize(e(-100), false, TIME)).toBe("UNESTIMATED");
   });
 
   it("< 0.5j → XS", () => {
-    expect(bucketize(SECONDS_PER_DAY * 0.4)).toBe("XS");
+    expect(bucketize(e(SECONDS_PER_DAY * 0.4), false, TIME)).toBe("XS");
   });
 
   it("seuil XS/S : 0.5j exactement → S", () => {
-    expect(bucketize(SECONDS_PER_DAY * 0.5)).toBe("S");
+    expect(bucketize(e(SECONDS_PER_DAY * 0.5), false, TIME)).toBe("S");
   });
 
   it("< 1j → S", () => {
-    expect(bucketize(SECONDS_PER_DAY * 0.8)).toBe("S");
+    expect(bucketize(e(SECONDS_PER_DAY * 0.8), false, TIME)).toBe("S");
   });
 
   it("seuil S/M : 1j exactement → M", () => {
-    expect(bucketize(SECONDS_PER_DAY * 1)).toBe("M");
+    expect(bucketize(e(SECONDS_PER_DAY * 1), false, TIME)).toBe("M");
   });
 
   it("< 3j → M", () => {
-    expect(bucketize(SECONDS_PER_DAY * 2)).toBe("M");
+    expect(bucketize(e(SECONDS_PER_DAY * 2), false, TIME)).toBe("M");
   });
 
   it("seuil M/L : 3j exactement → L", () => {
-    expect(bucketize(SECONDS_PER_DAY * 3)).toBe("L");
+    expect(bucketize(e(SECONDS_PER_DAY * 3), false, TIME)).toBe("L");
   });
 
   it("< 5j → L", () => {
-    expect(bucketize(SECONDS_PER_DAY * 4)).toBe("L");
+    expect(bucketize(e(SECONDS_PER_DAY * 4), false, TIME)).toBe("L");
   });
 
   it("seuil L/XL : 5j exactement → XL", () => {
-    expect(bucketize(SECONDS_PER_DAY * 5)).toBe("XL");
+    expect(bucketize(e(SECONDS_PER_DAY * 5), false, TIME)).toBe("XL");
   });
 
   it(">= 5j → XL", () => {
-    expect(bucketize(SECONDS_PER_DAY * 10)).toBe("XL");
+    expect(bucketize(e(SECONDS_PER_DAY * 10), false, TIME)).toBe("XL");
   });
 });
 

@@ -32,7 +32,7 @@ export const leadTimeBySizeMetric: Metric<LeadTimeBySizeResult> = {
     const rows = db.prepare(`
       WITH ${delivered.cte}
       SELECT t.issue_key, MIN(t.transitioned_at) AS todo_at, d.done_at,
-             i.original_estimate_seconds, i.issue_type
+             i.original_estimate_seconds, i.story_points, i.size_label, i.issue_type
       FROM transitions t
       JOIN issues i ON i.key = t.issue_key
       JOIN delivered d ON d.issue_key = t.issue_key
@@ -52,6 +52,8 @@ export const leadTimeBySizeMetric: Metric<LeadTimeBySizeResult> = {
       todo_at: string;
       done_at: string;
       original_estimate_seconds: number | null;
+      story_points: number | null;
+      size_label: string | null;
       issue_type: string;
     }[];
 
@@ -60,7 +62,11 @@ export const leadTimeBySizeMetric: Metric<LeadTimeBySizeResult> = {
     for (const r of rows) {
       const days = workingDaysBetween(r.todo_at, r.done_at);
       if (days < 0) {continue;}
-      const bucket = bucketize(r.original_estimate_seconds, bugTypes.has(r.issue_type));
+      const bucket = bucketize(
+        { originalEstimateSeconds: r.original_estimate_seconds, storyPoints: r.story_points, sizeLabel: r.size_label },
+        bugTypes.has(r.issue_type),
+        config.estimation,
+      );
       const list = daysByBucket.get(bucket) ?? [];
       list.push(days);
       daysByBucket.set(bucket, list);

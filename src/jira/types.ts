@@ -23,6 +23,8 @@ export interface JiraIssue {
     priority: { name: string } | null;
     customfield_10020?: JiraSprint[] | null;
     timeoriginalestimate?: number | null;
+    customfield_10016?: number | null;
+    [key: string]: unknown;
   };
   changelog?: {
     histories: ChangelogHistory[];
@@ -101,6 +103,8 @@ export interface StoredIssue {
   priority: string | null;
   currentSprintId: number | null;
   originalEstimateSeconds: number | null;
+  storyPoints: number | null;
+  sizeLabel: string | null;
 }
 
 export interface StoredSprint {

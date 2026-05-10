@@ -40,8 +40,8 @@
 | [036](036-scope-change-reduce-false-positives/description.md) | scope-change-rate : réduire les faux positifs | livré |
 | [037](037-bottleneck-analysis/description.md) | Bottleneck Analysis | livré |
 | [038](038-fake-jira-connector/description.md) | Connecteur Jira fake (mode local sans accès Jira) | livré |
-| [039a](039a-estimation-data-model/description.md) | Modèle de données estimation brute | à faire |
-| [039b](039b-estimation-bucketize/description.md) | Bucketize par méthode d'estimation | à faire |
+| [039a](039a-estimation-data-model/description.md) | Modèle de données estimation brute | livré |
+| [039b](039b-estimation-bucketize/description.md) | Bucketize par méthode d'estimation | livré |
 | [039c](039c-estimation-throughput-weighted/description.md) | Throughput pondéré adapté à la méthode d'estimation | à faire |
 | [039d](039d-estimation-rapport-adaptatif/description.md) | Rapport adaptatif selon méthode d'estimation | à faire |
 | [040](040-autoconfig-estimation/description.md) | Autoconfig détection de la méthode d'estimation | à faire |

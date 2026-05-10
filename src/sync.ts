@@ -1,6 +1,7 @@
 import { createJiraClient } from "./jira/clientFactory";
 import { type FieldChange, type JiraIssue, type StoredIssue, type StoredSprint, type StoredStatus, type Transition } from "./jira/types";
-import { openDb, upsertIssues, upsertSprints, upsertStatuses, replaceAllTransitions, replaceAllFieldChanges, replaceAllIssueSprints, logSync, getLastSyncDate } from "./db/store";
+import { openDb, upsertIssues, upsertSprints, upsertStatuses, replaceAllTransitions, replaceAllFieldChanges, replaceAllIssueSprints, logSync, getLastSyncDate, getStoredEstimationMethod, persistEstimationMethod } from "./db/store";
+import { type EstimationConfig, resolveEstimationField } from "./metrics/types";
 
 interface SyncConfig {
   jira: {
@@ -15,6 +16,7 @@ interface SyncConfig {
     fixturesPath?: string;
   };
   db: { path: string };
+  estimation?: EstimationConfig;
 }
 
 export async function sync(config: SyncConfig): Promise<void> {
@@ -46,7 +48,18 @@ export async function sync(config: SyncConfig): Promise<void> {
   const activeSprintIds = new Set(rawSprints.filter((s) => s.state === "active").map((s) => s.id));
   console.log(`  ${sprints.length} sprints récupérés (${activeSprintIds.size} actif(s))`);
 
-  const lastSyncDate = getLastSyncDate(db, config.jira.projectKey);
+  const currentMethod = config.estimation?.method ?? "time";
+  const storedMethod = getStoredEstimationMethod(db);
+
+  let lastSyncDate = getLastSyncDate(db, config.jira.projectKey);
+  if (storedMethod !== currentMethod && lastSyncDate !== null) {
+    console.warn(
+      `  ⚠ Méthode d'estimation changée (${storedMethod} → ${currentMethod})` +
+      ` — sync complet forcé pour remplir story_points/size_label sur l'historique`,
+    );
+    lastSyncDate = null;
+  }
+
   if (lastSyncDate) {
     console.log(`  Sync incrémental depuis ${lastSyncDate}`);
   } else {
@@ -63,7 +76,7 @@ export async function sync(config: SyncConfig): Promise<void> {
   const allFieldChanges: { key: string; changes: FieldChange[] }[] = [];
   const allIssueSprints: { key: string; sprintIds: number[] }[] = [];
   for (const issue of rawIssues) {
-    issues.push(mapIssue(issue, activeSprintIds));
+    issues.push(mapIssue(issue, activeSprintIds, config.estimation));
     allTransitions.push({ key: issue.key, transitions: extractTransitions(issue) });
     allFieldChanges.push({ key: issue.key, changes: extractFieldChanges(issue) });
     allIssueSprints.push({ key: issue.key, sprintIds: (issue.fields.customfield_10020 ?? []).map((s) => s.id) });
@@ -75,14 +88,45 @@ export async function sync(config: SyncConfig): Promise<void> {
   replaceAllIssueSprints(db, allIssueSprints);
 
   logSync(db, config.jira.projectKey, rawIssues.length);
+  persistEstimationMethod(db, currentMethod);
   console.log(`Sync terminé. ${rawIssues.length} issues stockées.`);
 }
 
-function mapIssue(issue: JiraIssue, activeSprintIds: Set<number>): StoredIssue {
+const VALID_SIZE_LABELS = new Set(["XS", "S", "M", "L", "XL"]);
+
+function extractEstimation(
+  fields: JiraIssue["fields"],
+  cfg: EstimationConfig | undefined,
+): { storyPoints: number | null; sizeLabel: string | null } {
+  if (!cfg || cfg.method === "time" || cfg.method === "none") {
+    return { storyPoints: null, sizeLabel: null };
+  }
+
+  const fieldName = resolveEstimationField(cfg);
+  if (!fieldName) { return { storyPoints: null, sizeLabel: null }; }
+  const raw = fields[fieldName];
+
+  if (cfg.method === "story-points" || cfg.method === "numeric") {
+    const v = typeof raw === "number" ? raw : null;
+    return { storyPoints: v != null && v > 0 ? v : null, sizeLabel: null };
+  }
+
+  // cfg.method === "t-shirt" (seul cas restant après narrowing)
+  const str = typeof raw === "string" ? raw
+    : (raw as { value?: string } | null)?.value ?? null;
+  const label = str?.toUpperCase().trim() ?? null;
+  if (label && !VALID_SIZE_LABELS.has(label)) {
+    console.warn(`  ⚠ size_label non reconnu : "${str}" — issue sans bucket taille`);
+  }
+  return { storyPoints: null, sizeLabel: VALID_SIZE_LABELS.has(label ?? "") ? label : null };
+}
+
+function mapIssue(issue: JiraIssue, activeSprintIds: Set<number>, estimationCfg?: EstimationConfig): StoredIssue {
   // Une issue peut référencer plusieurs sprints historiques (closed/active/future).
   // On retient uniquement le sprint actif courant si l'issue y est encore rattachée.
   const sprintField = issue.fields.customfield_10020 ?? null;
   const activeSprint = sprintField?.find((s) => activeSprintIds.has(s.id));
+  const { storyPoints, sizeLabel } = extractEstimation(issue.fields, estimationCfg);
 
   return {
     key: issue.key,
@@ -95,6 +139,8 @@ function mapIssue(issue: JiraIssue, activeSprintIds: Set<number>): StoredIssue {
     priority: issue.fields.priority?.name ?? null,
     currentSprintId: activeSprint?.id ?? null,
     originalEstimateSeconds: issue.fields.timeoriginalestimate ?? null,
+    storyPoints,
+    sizeLabel,
   };
 }
 

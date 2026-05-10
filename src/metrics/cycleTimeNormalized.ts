@@ -12,6 +12,10 @@ export const cycleTimeNormalizedMetric: Metric<CycleTimeNormalizedResult> = {
     "Cycle-time team (1er 'Développement en cours' -> 1er statut team-done) divisé par l'estimation. 1 = conforme, 2 = 2× plus long.",
 
   compute(db: Database.Database, config: MetricConfig): CycleTimeNormalizedResult {
+    if (config.estimation.method !== "time") {
+      return { count: 0, avgDays: 0, medianDays: 0, p85Days: 0, p95Days: 0,
+        excludedOutliers: 0, unit: "ratio (cycle réel / estimé)", disabled: true } as CycleTimeNormalizedResult & { disabled: true };
+    }
     const todoPh = placeholders(config.todoStatuses);
     const devStartPh = placeholders(config.devStartStatuses);
     const delivered = buildDeliveredCte(config.doneStatuses);

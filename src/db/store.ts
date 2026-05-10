@@ -24,12 +24,18 @@ function migrate(db: Database.Database): void {
   if (!cols.some((c) => c.name === "original_estimate_seconds")) {
     db.exec("ALTER TABLE issues ADD COLUMN original_estimate_seconds INTEGER");
   }
+  if (!cols.some((c) => c.name === "story_points")) {
+    db.exec("ALTER TABLE issues ADD COLUMN story_points REAL");
+  }
+  if (!cols.some((c) => c.name === "size_label")) {
+    db.exec("ALTER TABLE issues ADD COLUMN size_label TEXT");
+  }
 }
 
 export function upsertIssues(db: Database.Database, issues: StoredIssue[]): void {
   const stmt = db.prepare(`
-    INSERT INTO issues (key, summary, issue_type, created_at, resolved_at, current_status, assignee, priority, current_sprint_id, original_estimate_seconds)
-    VALUES (@key, @summary, @issueType, @createdAt, @resolvedAt, @currentStatus, @assignee, @priority, @currentSprintId, @originalEstimateSeconds)
+    INSERT INTO issues (key, summary, issue_type, created_at, resolved_at, current_status, assignee, priority, current_sprint_id, original_estimate_seconds, story_points, size_label)
+    VALUES (@key, @summary, @issueType, @createdAt, @resolvedAt, @currentStatus, @assignee, @priority, @currentSprintId, @originalEstimateSeconds, @storyPoints, @sizeLabel)
     ON CONFLICT(key) DO UPDATE SET
       summary        = excluded.summary,
       issue_type     = excluded.issue_type,
@@ -38,7 +44,9 @@ export function upsertIssues(db: Database.Database, issues: StoredIssue[]): void
       assignee       = excluded.assignee,
       priority       = excluded.priority,
       current_sprint_id = excluded.current_sprint_id,
-      original_estimate_seconds = excluded.original_estimate_seconds
+      original_estimate_seconds = excluded.original_estimate_seconds,
+      story_points   = excluded.story_points,
+      size_label     = excluded.size_label
   `);
 
   const insertMany = db.transaction((rows: StoredIssue[]) => {
@@ -163,4 +171,13 @@ export function logSync(db: Database.Database, projectKey: string, issuesCount: 
   db.prepare(
     "INSERT INTO sync_log (synced_at, issues_count, project_key) VALUES (?, ?, ?)"
   ).run(now().toISOString(), issuesCount, projectKey);
+}
+
+export function getStoredEstimationMethod(db: Database.Database): string {
+  const row = db.prepare("SELECT value FROM app_config WHERE key = 'estimation_method'").get() as { value: string } | undefined;
+  return row?.value ?? "time";
+}
+
+export function persistEstimationMethod(db: Database.Database, method: string): void {
+  db.prepare("INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)").run("estimation_method", method);
 }

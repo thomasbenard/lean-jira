@@ -124,19 +124,24 @@ Si une issue a transité plusieurs fois dans un statut TODO (retour arrière), s
 
 Même algorithme que `lead-time`, avec segmentation par bucket de taille avant calcul des stats.
 
-**Bucketisation** :
+**Bucketisation** (dépend de `metrics.estimation.method`) :
 ```
-Si issue_type IN bugIssueTypes         → BUG
-Si original_estimate_seconds IS NULL
-   ou original_estimate_seconds <= 0   → UNESTIMATED
-Sinon :
-  jours = original_estimate_seconds / 28 800
-  < 0.5j  → XS
-  < 1j    → S
-  < 3j    → M
-  < 5j    → L
-  ≥ 5j    → XL
+Si issue_type IN bugIssueTypes → BUG
+
+method = "none"    → UNESTIMATED (toutes les issues)
+
+method = "t-shirt" → sizeLabel (issues.size_label) converti en SizeBucket, ou UNESTIMATED si absent
+
+method = "story-points" | "numeric" :
+  Si story_points IS NULL ou <= 0 → UNESTIMATED
+  Sinon applyThresholds(story_points, resolveThresholds(estimation))
+
+method = "time" (défaut) :
+  Si original_estimate_seconds IS NULL ou <= 0 → UNESTIMATED
+  Sinon applyThresholds(original_estimate_seconds / 28 800, resolveThresholds(estimation))
 ```
+
+`resolveThresholds` : fusionne seuils par défaut (`time` → {xs:0.5,s:1,m:3,l:5}j ; `story-points` → {xs:1,s:3,m:8,l:13}SP) avec `bucketThresholds` optionnel du config. `numeric` requiert `bucketThresholds` explicite.
 
 **Sortie** : `DurationStats` par bucket (`XS | S | M | L | XL | BUG | UNESTIMATED`).
 

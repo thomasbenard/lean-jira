@@ -16,4 +16,4 @@ Ajout de deux colonnes dans la table `issues` : `story_points REAL` (partagée e
 
 ## Statut
 
-**à faire**
+**livré**

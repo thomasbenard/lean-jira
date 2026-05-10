@@ -27,6 +27,8 @@ vi.mock("../../src/db/store", async (importOriginal) => {
     replaceAllIssueSprints: vi.fn(),
     logSync: vi.fn(),
     getLastSyncDate: vi.fn(),
+    getStoredEstimationMethod: vi.fn().mockReturnValue("time"),
+    persistEstimationMethod: vi.fn(),
   };
 });
 

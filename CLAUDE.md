@@ -108,7 +108,7 @@ Jira REST API v2 (ou fixtures JSON) → SQLite (WAL) → metric computations →
 
 ## Database schema
 
-- `issues` — current snapshot; `resolved_at` = Jira `resolutiondate` (kept for audit; no longer used by metrics)
+- `issues` — current snapshot; `resolved_at` = Jira `resolutiondate` (kept for audit; no longer used by metrics); `story_points REAL` (story-points + numeric methods); `size_label TEXT` (t-shirt method)
 - `transitions` — full status history; **source of truth for all duration & debit metrics** via `done_at`; indexed on `issue_key`, `to_status`, `transitioned_at`
 - `statuses` — `(name, category_key, category_name)`; populated by `sync` from `/rest/api/2/status`; drives done-status detection at runtime
 - `sprints` — `current_sprint_id` on issues holds only the current active sprint
@@ -116,6 +116,7 @@ Jira REST API v2 (ou fixtures JSON) → SQLite (WAL) → metric computations →
 - `issue_field_changes` — changelog des champs métier (`description`, `summary`, `Story Points`, `Sprint`); replace-all par issue à chaque sync; `from_value`/`to_value` nullable; indexé sur `issue_key`, `field_name`, `changed_at`
 - `issue_sprints` — table de jonction `(issue_key, sprint_id)` peuplée depuis `customfield_10020` à chaque sync (replace-all par issue); représente l'appartenance historique complète d'une issue à ses sprints (inclut les issues créées directement dans un sprint, sans changelog Sprint); dénominateur de `scope-change-rate`; indexé sur `issue_key` et `sprint_id`
 - `metric_snapshots` — long format `(snapshot_date, metric_name, bucket, stat, value)`; populated by `npm run snapshots`; read by `npm run report`
+- `app_config` — clé/valeur applicative persistée entre syncs; utilisée pour détecter un changement de `metrics.estimation.method` et forcer un full resync automatique
 
 ## Configuration (`config.yaml` + `board.yaml`)
 
@@ -145,6 +146,7 @@ Board is defined as an ordered list of columns under `board.columns`. Each colum
 - `metrics.cutoffDate` → global lower bound (issues delivered before are ignored)
 - `metrics.bugIssueTypes` → routed to BUG bucket; excluded from normalized/weighted metrics
 - `metrics.healthThresholds` → optional KPI health signals in the report; each key maps to `{ warn, crit }` pair; absent = no signal; keys: `leadTimeMedianDays`, `cycleTimeMedianDays`, `throughputWeekly` (higher=better), `wipCount`, `bugCycleTimeMedianDays`, `bugRatio`
+- `metrics.estimation` → section optionnelle déclarant la méthode d'estimation : `method` (`time` | `story-points` | `numeric` | `t-shirt` | `none`), `jiraField` (obligatoire pour `numeric` et `t-shirt`; implicite pour `time`=`timeoriginalestimate` et `story-points`=`customfield_10016`), `bucketThresholds` (`{xs,s,m,l}` numérique; obligatoire pour `numeric`; optionnel pour `time` et `story-points` avec seuils par défaut). Méthodes `numeric`/`story-points` alimentent `issues.story_points`; `t-shirt` alimente `issues.size_label`. Changement de méthode entre deux syncs force un full resync automatique (détection via `app_config`). Validation au démarrage via `validateEstimationConfig()` dans `loadBoardConfig()`
 - `report.title` → replaces "Rapport Lean — {projectKey}" in HTML `<title>` and header
 - `report.logoUrl` → local path (resolved from `board.yaml` dir, embedded as base64 data URI) or http(s) URL; supported extensions: `.png`, `.jpg`, `.jpeg`, `.svg`, `.webp`; missing file throws error; unknown extension warns and ignores
 - `report.fontUrl` → replaces IBM Plex Google Fonts `<link>` (Chart.js font unchanged)

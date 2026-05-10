@@ -9,7 +9,8 @@ import { runAllMetrics, runMetric, ALL_METRICS } from "./metrics/index";
 import { BUCKET_LABELS, BUCKET_ORDER } from "./metrics/utils";
 import { backfillSnapshots } from "./snapshots/compute";
 import { generateReport, exportDefaultTemplate, type HealthThresholds, type ReportPersonalization } from "./report/generate";
-import { type MetricConfig } from "./metrics/types";
+import { type MetricConfig, type EstimationConfig, type EstimationMethod, type EstimationBucketThresholds, resolveEstimationField } from "./metrics/types";
+export type { EstimationConfig, EstimationMethod, EstimationBucketThresholds };
 import { JiraClient } from "./jira/client";
 import { type JiraBoardConfig, type JiraStatus } from "./jira/types";
 import { type StageTimeSummary } from "./metrics/stageTimeBreakdown";
@@ -135,8 +136,22 @@ export interface BoardFileConfig {
     excludeIssueTypes?: string[];
     healthThresholds?: HealthThresholds;
     scopeChangeGracePeriodHours?: number;
+    estimation?: EstimationConfig;
   };
   report?: ReportPersonalization;
+}
+
+export function validateEstimationConfig(cfg: EstimationConfig | undefined): void {
+  if (!cfg) { return; }
+  const field = resolveEstimationField(cfg);
+  if ((cfg.method === "t-shirt" || cfg.method === "numeric") && !field) {
+    console.error(`Erreur : metrics.estimation.method="${cfg.method}" requiert metrics.estimation.jiraField`);
+    process.exit(1);
+  }
+  if (cfg.method === "numeric" && !cfg.bucketThresholds) {
+    console.error(`Erreur : metrics.estimation.method="numeric" requiert metrics.estimation.bucketThresholds`);
+    process.exit(1);
+  }
 }
 
 export type { ReportPersonalization };
@@ -161,7 +176,9 @@ export function loadBoardConfig(boardPath: string): BoardFileConfig {
     console.error(`Lancer d'abord : npm run autoconfig -- --apply`);
     process.exit(1);
   }
-  return yaml.parse(fs.readFileSync(boardPath, "utf-8")) as BoardFileConfig;
+  const cfg = yaml.parse(fs.readFileSync(boardPath, "utf-8")) as BoardFileConfig;
+  validateEstimationConfig(cfg.metrics?.estimation);
+  return cfg;
 }
 
 export function loadConfigs(configPath: string, boardPath: string): AppConfig {
@@ -214,6 +231,7 @@ export function buildMetricConfig(db: Database.Database, app: AppConfig, opts: {
     bugIssueTypes: app.metrics?.bugIssueTypes ?? ["Bug"],
     excludeIssueTypes: app.metrics?.excludeIssueTypes ?? [],
     scopeChangeGracePeriodHours: app.metrics?.scopeChangeGracePeriodHours,
+    estimation: app.metrics?.estimation ?? { method: "time" },
   };
 }
 

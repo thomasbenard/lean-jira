@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import type { MetricConfig } from "./types";
+import type { EstimationConfig, EstimationBucketThresholds, EstimationMethod, MetricConfig } from "./types";
 
 export interface TransitionRow {
   key: string;
@@ -125,15 +125,82 @@ export const BUCKET_LABELS: Record<SizeBucket, string> = {
   UNESTIMATED: "UNESTIMATED",
 };
 
-export function bucketize(estimateSeconds: number | null | undefined, isBug = false): SizeBucket {
-  if (isBug) {return "BUG";}
-  if (estimateSeconds == null || estimateSeconds <= 0) {return "UNESTIMATED";}
-  const days = estimateSeconds / SECONDS_PER_DAY;
-  if (days < 0.5) {return "XS";}
-  if (days < 1) {return "S";}
-  if (days < 3) {return "M";}
-  if (days < 5) {return "L";}
+const DEFAULT_THRESHOLDS: Partial<Record<EstimationMethod, EstimationBucketThresholds>> = {
+  time:            { xs: 0.5, s: 1, m: 3,  l: 5  },
+  "story-points":  { xs: 1,   s: 3, m: 8,  l: 13 },
+};
+
+function resolveThresholds(estimation: EstimationConfig): EstimationBucketThresholds {
+  const defaults = DEFAULT_THRESHOLDS[estimation.method];
+  if (!defaults && !estimation.bucketThresholds) {
+    throw new Error(`metrics.estimation.method="${estimation.method}" requiert bucketThresholds`);
+  }
+  return { ...defaults, ...estimation.bucketThresholds } as EstimationBucketThresholds;
+}
+
+function applyThresholds(value: number, t: EstimationBucketThresholds): SizeBucket {
+  if (value < t.xs) {return "XS";}
+  if (value < t.s) {return "S";}
+  if (value < t.m) {return "M";}
+  if (value < t.l) {return "L";}
   return "XL";
+}
+
+export interface IssueEstimation {
+  originalEstimateSeconds: number | null | undefined;
+  storyPoints: number | null | undefined;
+  sizeLabel: string | null | undefined;
+}
+
+export function bucketize(issue: IssueEstimation, isBug: boolean, estimation: EstimationConfig): SizeBucket {
+  if (isBug) {return "BUG";}
+
+  const { method } = estimation;
+
+  if (method === "none") {return "UNESTIMATED";}
+
+  if (method === "t-shirt") {
+    return (issue.sizeLabel as SizeBucket | null) ?? "UNESTIMATED";
+  }
+
+  if (method === "story-points" || method === "numeric") {
+    if (issue.storyPoints == null || issue.storyPoints <= 0) {return "UNESTIMATED";}
+    return applyThresholds(issue.storyPoints, resolveThresholds(estimation));
+  }
+
+  const sec = issue.originalEstimateSeconds;
+  if (sec == null || sec <= 0) {return "UNESTIMATED";}
+  return applyThresholds(sec / SECONDS_PER_DAY, resolveThresholds(estimation));
+}
+
+export function getBucketLabels(estimation: EstimationConfig): Record<SizeBucket, string> {
+  const { method } = estimation;
+
+  if (method === "t-shirt") {
+    return { XS: "XS", S: "S", M: "M", L: "L", XL: "XL", BUG: "BUG", UNESTIMATED: "UNESTIMATED" };
+  }
+
+  if (method === "none") {
+    return { XS: "UNESTIMATED", S: "UNESTIMATED", M: "UNESTIMATED", L: "UNESTIMATED",
+      XL: "UNESTIMATED", BUG: "BUG", UNESTIMATED: "UNESTIMATED" };
+  }
+
+  if (method === "story-points" || method === "numeric") {
+    const t = resolveThresholds(estimation);
+    const unit = method === "story-points" ? " SP" : "";
+    return {
+      XS: `XS (<${t.xs}${unit})`,
+      S:  `S (${t.xs}-${t.s}${unit})`,
+      M:  `M (${t.s}-${t.m}${unit})`,
+      L:  `L (${t.m}-${t.l}${unit})`,
+      XL: `XL (≥${t.l}${unit})`,
+      BUG: "BUG",
+      UNESTIMATED: "UNESTIMATED",
+    };
+  }
+
+  // "time" : labels existants
+  return BUCKET_LABELS;
 }
 
 export function avg(values: number[]): number {

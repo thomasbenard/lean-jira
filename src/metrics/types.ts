@@ -1,5 +1,27 @@
 import type Database from "better-sqlite3";
 
+export type EstimationMethod = "time" | "story-points" | "numeric" | "t-shirt" | "none";
+
+export interface EstimationBucketThresholds {
+  xs: number;
+  s: number;
+  m: number;
+  l: number;
+}
+
+export interface EstimationConfig {
+  method: EstimationMethod;
+  jiraField?: string;
+  bucketThresholds?: EstimationBucketThresholds;
+}
+
+export function resolveEstimationField(cfg: EstimationConfig): string | null {
+  if (cfg.jiraField) { return cfg.jiraField; }
+  if (cfg.method === "time") { return "timeoriginalestimate"; }
+  if (cfg.method === "story-points") { return "customfield_10016"; }
+  return null;
+}
+
 export interface MetricConfig {
   todoStatuses: string[];
   devStartStatuses: string[];
@@ -32,6 +54,8 @@ export interface MetricConfig {
   excludeIssueTypes: string[];
   // Couvre le nettoyage de description en sprint planning (ex: 24).
   scopeChangeGracePeriodHours?: number;
+  // Méthode d'estimation active. Défaut { method: "time" } injecté par buildMetricConfig().
+  estimation: EstimationConfig;
 }
 
 // Contrat que chaque métrique doit implémenter

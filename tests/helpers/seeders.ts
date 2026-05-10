@@ -21,6 +21,8 @@ export function makeIssue(overrides: Partial<StoredIssue> = {}): StoredIssue {
     priority: null,
     currentSprintId: null,
     originalEstimateSeconds: null,
+    storyPoints: null,
+    sizeLabel: null,
     ...overrides,
   };
 }
@@ -77,4 +79,5 @@ export const TEST_CONFIG: MetricConfig = {
   bugIssueTypes: ["Bug"],
   excludeIssueTypes: [],
   excludeOutliers: false,
+  estimation: { method: "time" },
 };

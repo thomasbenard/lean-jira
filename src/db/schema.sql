@@ -8,7 +8,14 @@ CREATE TABLE IF NOT EXISTS issues (
   assignee     TEXT,
   priority     TEXT,
   current_sprint_id INTEGER,
-  original_estimate_seconds INTEGER
+  original_estimate_seconds INTEGER,
+  story_points              REAL,
+  size_label                TEXT
+);
+
+CREATE TABLE IF NOT EXISTS app_config (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS sprints (

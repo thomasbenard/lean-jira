@@ -12,6 +12,10 @@ export const leadTimeNormalizedMetric: Metric<LeadTimeNormalizedResult> = {
     "Lead-time total (backlog -> 1er statut team-done) divisé par l'estimation. Inclut attente. Cf. cycle-time-normalized pour dérive dev seul.",
 
   compute(db: Database.Database, config: MetricConfig): LeadTimeNormalizedResult {
+    if (config.estimation.method !== "time") {
+      return { count: 0, avgDays: 0, medianDays: 0, p85Days: 0, p95Days: 0,
+        excludedOutliers: 0, unit: "ratio (lead réel / estimé)", disabled: true } as LeadTimeNormalizedResult & { disabled: true };
+    }
     const todoPh = placeholders(config.todoStatuses);
     const devStartPh = placeholders(config.devStartStatuses);
     const delivered = buildDeliveredCte(config.doneStatuses);
