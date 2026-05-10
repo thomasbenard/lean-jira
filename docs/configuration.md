@@ -283,3 +283,91 @@ metrics:
 > `cutoffDate` affecte `lead-time`, `cycle-time`, `throughput` et toutes les métriques de durée. Les issues livrées avant cette date sont exclues des calculs et du rapport.
 
 ---
+
+## 4. Valider et premier lancement
+
+### Étape 1 — Valider la config board
+
+```bash
+npm run validate
+```
+
+Vérifie que chaque statut listé dans `board.yaml` existe bien en base (table `statuses` peuplée par `sync`).
+
+**Sortie attendue (tout OK) :**
+```
+todoStatuses
+  ✓ To Do
+  ✓ Ready
+
+devStartStatuses
+  ✓ In Progress
+
+inProgressStatuses
+  ✓ In Progress
+  ✓ In Review
+
+doneStatuses
+  ✓ Done
+
+activeStatuses
+  ✓ In Progress
+
+queueStatuses
+  ✓ In Review
+
+✓ Config valide.
+```
+
+**Sortie si problème :**
+```
+todoStatuses
+  ✓ To Do
+  ✗ Backlog   ← introuvable en base
+
+Statuts disponibles en base :
+  To Do                          (new)
+  In Progress                    (indeterminate)
+  In Review                      (indeterminate)
+  Done                           (done)
+
+1 statut(s) introuvable(s). Vérifier board.yaml.
+```
+
+> Si un statut est marqué `✗` : copier le nom exact depuis la liste "Statuts disponibles en base" et corriger `board.yaml`.
+
+**Erreur "Base vide" :**
+```
+Base vide. Lancer npm run sync d'abord.
+```
+→ Lancer `npm run sync` puis relancer `npm run validate`.
+
+---
+
+### Étape 2 — Premier sync
+
+```bash
+npm run sync
+```
+
+Pull de tous les tickets, transitions et sprints depuis Jira → SQLite. Durée : quelques secondes à quelques minutes selon la taille du projet.
+
+---
+
+### Étape 3 — Premier rapport
+
+```bash
+npm run refresh
+```
+
+Enchaîne `sync → snapshots → report`. Génère `./report.html`.
+
+Ouvrir `report.html` dans un navigateur. Si les métriques semblent incorrectes :
+- Cycle time à 0 → voir [Troubleshooting](#7-troubleshooting)
+- Métriques role-aware absentes → voir [Section 3b](#champ-role--métriques-role-aware)
+
+---
+
+✓ **Installation terminée.** Pour regénérer le rapport : `npm run refresh`.
+
+---
