@@ -130,3 +130,45 @@ db:
 ✓ **Config.yaml prête.** Passer à la section suivante.
 
 ---
+
+## 3. `board.yaml` — définition du board
+
+`board.yaml` mappe votre workflow Jira aux métriques Lean. Deux voies :
+
+| Voie | Quand l'utiliser |
+|---|---|
+| **A — `autoconfig`** (recommandée) | Nouvelle installation, workflow Jira standard |
+| **B — Manuelle** | Workflow complexe, ajustements fins requis |
+
+---
+
+### Voie A — `autoconfig` (recommandée)
+
+`autoconfig` interroge l'API Jira et génère `board.yaml` automatiquement.
+
+**Étape 1 — Dry-run (inspecter avant d'appliquer) :**
+```bash
+npm run autoconfig
+```
+Affiche le YAML inféré sur stdout. Aucun fichier écrit.
+
+**Étape 2 — Appliquer :**
+```bash
+npm run autoconfig -- --apply
+```
+Écrit `board.yaml`. Si un `board.yaml` existe déjà, sauvegardé en `board.yaml.bak`.
+
+**Ce qu'`autoconfig` fait automatiquement :**
+- Récupère les colonnes du board depuis l'API Jira
+- Assigne le `type` de chaque colonne (`todo`, `active`, `queue`, `done`)
+- Pose `devStart: true` sur la première colonne `active`
+- Détecte les colonnes "queue" par mots-clés : review, validation, valider, attente, wait, waiting, approval, approuver, staging, qa…
+- Si une base SQLite existe déjà : ajoute les statuts renommés dans `legacyDoneStatuses`
+
+**Ce qu'il faut toujours vérifier manuellement après génération :**
+- Le `devStart: true` est sur la bonne colonne (début du travail actif réel)
+- Les colonnes `type: queue` correspondent bien à des files d'attente (pas du travail actif)
+- Ajouter `role: dev | qa | po` sur les colonnes si vous voulez les métriques role-aware (voir Section 3b)
+- Vérifier `cutoffDate` si votre historique Jira a subi un bulk-close
+
+---
