@@ -2,6 +2,7 @@ import { createJiraClient } from "./jira/clientFactory";
 import { type FieldChange, type JiraIssue, type StoredIssue, type StoredSprint, type StoredStatus, type Transition } from "./jira/types";
 import { openDb, upsertIssues, upsertSprints, upsertStatuses, replaceAllTransitions, replaceAllFieldChanges, replaceAllIssueSprints, logSync, getLastSyncDate, getStoredEstimationMethod, persistEstimationMethod } from "./db/store";
 import { type EstimationConfig, resolveEstimationField } from "./metrics/types";
+import { t } from "./i18n/index";
 
 interface SyncConfig {
   jira: {
@@ -23,7 +24,7 @@ export async function sync(config: SyncConfig): Promise<void> {
   const db = openDb(config.db.path);
   const client = createJiraClient(config.jira);
 
-  console.log(`Sync projet ${config.jira.projectKey}...`);
+  console.log(t("sync.start", { projectKey: config.jira.projectKey }));
 
   const rawStatuses = await client.fetchAllStatuses();
   const statuses: StoredStatus[] = rawStatuses.map((s) => ({
@@ -33,7 +34,7 @@ export async function sync(config: SyncConfig): Promise<void> {
   }));
   upsertStatuses(db, statuses);
   const doneCount = statuses.filter((s) => s.categoryKey === "done").length;
-  console.log(`  ${statuses.length} statuts récupérés (${doneCount} en catégorie 'done')`);
+  console.log(t("sync.statusesFetched", { count: statuses.length, doneCount }));
 
   const rawSprints = await client.fetchAllSprints();
   const sprints: StoredSprint[] = rawSprints.map((s) => ({
@@ -46,30 +47,27 @@ export async function sync(config: SyncConfig): Promise<void> {
   }));
   upsertSprints(db, sprints);
   const activeSprintIds = new Set(rawSprints.filter((s) => s.state === "active").map((s) => s.id));
-  console.log(`  ${sprints.length} sprints récupérés (${activeSprintIds.size} actif(s))`);
+  console.log(t("sync.sprintsFetched", { count: sprints.length, activeCount: activeSprintIds.size }));
 
   const currentMethod = config.estimation?.method ?? "time";
   const storedMethod = getStoredEstimationMethod(db);
 
   let lastSyncDate = getLastSyncDate(db, config.jira.projectKey);
   if (storedMethod !== currentMethod && lastSyncDate !== null) {
-    console.warn(
-      `  ⚠ Méthode d'estimation changée (${storedMethod} → ${currentMethod})` +
-      ` — sync complet forcé pour remplir story_points/size_label sur l'historique`,
-    );
+    console.warn(t("sync.estimationMethodChanged", { from: storedMethod, to: currentMethod }));
     lastSyncDate = null;
   }
 
   if (lastSyncDate) {
-    console.log(`  Sync incrémental depuis ${lastSyncDate}`);
+    console.log(t("sync.incrementalFrom", { date: lastSyncDate }));
   } else {
-    console.log(`  Premier sync — récupération complète`);
+    console.log(t("sync.firstSync"));
   }
 
   const rawIssues = await client.fetchAllIssues((fetched, total) => {
-    process.stdout.write(`\r  ${fetched}/${total} issues récupérées`);
+    process.stdout.write(t("sync.issuesFetching", { fetched, total }));
   }, lastSyncDate ?? undefined);
-  console.log(`\n  ${rawIssues.length} issues récupérées depuis Jira`);
+  console.log(t("sync.issuesFetched", { count: rawIssues.length }));
 
   const issues: StoredIssue[] = [];
   const allTransitions: { key: string; transitions: Transition[] }[] = [];
@@ -89,7 +87,7 @@ export async function sync(config: SyncConfig): Promise<void> {
 
   logSync(db, config.jira.projectKey, rawIssues.length);
   persistEstimationMethod(db, currentMethod);
-  console.log(`Sync terminé. ${rawIssues.length} issues stockées.`);
+  console.log(t("sync.done", { count: rawIssues.length }));
 }
 
 const VALID_SIZE_LABELS = new Set(["XS", "S", "M", "L", "XL"]);
@@ -116,7 +114,7 @@ function extractEstimation(
     : (raw as { value?: string } | null)?.value ?? null;
   const label = str?.toUpperCase().trim() ?? null;
   if (label && !VALID_SIZE_LABELS.has(label)) {
-    console.warn(`  ⚠ size_label non reconnu : "${str}" — issue sans bucket taille`);
+    console.warn(t("sync.sizeLabelUnrecognized", { value: str ?? "" }));
   }
   return { storyPoints: null, sizeLabel: VALID_SIZE_LABELS.has(label ?? "") ? label : null };
 }

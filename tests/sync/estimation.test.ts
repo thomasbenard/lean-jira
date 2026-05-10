@@ -218,7 +218,7 @@ describe("extractEstimation — méthode t-shirt", () => {
       expect.anything(),
       expect.arrayContaining([expect.objectContaining({ sizeLabel: null })]),
     );
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("size_label non reconnu"));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("size_label not recognized"));
   });
 
   it("story_points reste null pour t-shirt", async () => {
@@ -255,7 +255,7 @@ describe("détection changement de méthode", () => {
     const warnSpy = vi.spyOn(console, "warn");
     await sync({ ...baseConfig, estimation: { method: "story-points" as const } });
     expect(mockFetchAllIssues).toHaveBeenCalledWith(expect.any(Function), undefined);
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Méthode d'estimation changée"));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Estimation method changed"));
   });
 
   it("sync incrémental normal si méthode inchangée", async () => {

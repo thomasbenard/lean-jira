@@ -73,14 +73,14 @@ describe("sync — détection premier sync vs incrémental", () => {
     vi.mocked(store.getLastSyncDate).mockReturnValue(null);
     const consoleSpy = vi.spyOn(console, "log");
     await sync(baseConfig);
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Premier sync — récupération complète"));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("First sync — full fetch"));
   });
 
   it("affiche 'Sync incrémental depuis <date>' si sync précédent existe", async () => {
     vi.mocked(store.getLastSyncDate).mockReturnValue("2026-04-01T07:00:00.000Z");
     const consoleSpy = vi.spyOn(console, "log");
     await sync(baseConfig);
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Sync incrémental depuis 2026-04-01T07:00:00.000Z"));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Incremental sync from 2026-04-01T07:00:00.000Z"));
   });
 });
 

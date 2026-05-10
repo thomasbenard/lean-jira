@@ -54,12 +54,14 @@ npm run build       # Compile TypeScript → ./dist
 npm start           # Run compiled build
 ```
 
-`metrics` options: `-m <name>` (single metric), `--json`, `--include-outliers`, `-b <path>` (board config, default `./board.yaml`).
-`report` options: `-c <path>` (config, default `./config.yaml`), `-b <path>` (board config, default `./board.yaml`), `-o <path>` (output file, default `./report.html`).
-`refresh` options: `-c <path>` (config, default `./config.yaml`), `-b <path>` (board config, default `./board.yaml`), `-o <path>` (output file, default `./report.html`). Permet de générer des rapports distincts par squad : `npm run refresh -- -c config.keck.yaml -b board.yaml -o report.keck.html`.
-`snapshots` / `validate-config` options: `-b <path>` (board config, default `./board.yaml`).
-`autoconfig` options: `-c <path>` (config path, default `./config.yaml`), `-b <path>` (board config, default `./board.yaml`), `--apply` (destructive: creates/overwrites `board.yaml` after 3s delay; backs up existing to `board.yaml.bak`). Dry-run prints detected `metrics.estimation` as YAML snippet. `--apply` writes `metrics.estimation` detected from the Jira board API; preserves existing value if `board.yaml` already has `metrics.estimation`.
-`list-metrics` subcommand prints all registered metric names.
+`metrics` options: `-m <name>` (single metric), `--json`, `--include-outliers`, `-b <path>` (board config, default `./board.yaml`), `--lang <code>` (default `en`; `fr` for French output).
+`report` options: `-c <path>` (config, default `./config.yaml`), `-b <path>` (board config, default `./board.yaml`), `-o <path>` (output file, default `./report.html`), `--lang <code>`.
+`refresh` options: `-c <path>` (config, default `./config.yaml`), `-b <path>` (board config, default `./board.yaml`), `-o <path>` (output file, default `./report.html`), `--lang <code>`. Permet de générer des rapports distincts par squad : `npm run refresh -- -c config.keck.yaml -b board.yaml -o report.keck.html`.
+`snapshots` / `validate-config` options: `-b <path>` (board config, default `./board.yaml`), `--lang <code>`.
+`autoconfig` options: `-c <path>` (config path, default `./config.yaml`), `-b <path>` (board config, default `./board.yaml`), `--apply` (destructive: creates/overwrites `board.yaml` after 3s delay; backs up existing to `board.yaml.bak`), `--lang <code>`. Dry-run prints detected `metrics.estimation` as YAML snippet. `--apply` writes `metrics.estimation` detected from the Jira board API; preserves existing value if `board.yaml` already has `metrics.estimation`.
+`list-metrics` subcommand prints all registered metric names. Accepts `--lang <code>`.
+
+All commands accept `--lang <code>` (`en` default, `fr` for French). Unknown locale warns and falls back to `en`.
 
 **Mode fake (sans Jira)** : ajouter `jira.mode: fake` + `jira.frozenNow: "YYYY-MM-DD"` dans `config.yaml`. Les fixtures JSON embarquées (`src/jira/fixtures/`) remplacent l'API. Output déterministe : toutes les métriques utilisent `frozenNow` comme "aujourd'hui", le forecast Monte Carlo utilise un PRNG seedé. Exemple :
 ```bash

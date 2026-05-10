@@ -17,6 +17,7 @@ import { type StageTimeSummary } from "./metrics/stageTimeBreakdown";
 import { type ThroughputWeightedSummary } from "./metrics/throughputWeighted";
 import { initClock } from "./clock";
 import { initRandom } from "./random";
+import { t, initLocale } from "./i18n/index";
 
 type ColumnType = "todo" | "active" | "queue" | "done";
 export type RoleType = "dev" | "qa" | "po";
@@ -146,11 +147,11 @@ export function validateEstimationConfig(cfg: EstimationConfig | undefined): voi
   if (!cfg) { return; }
   const field = resolveEstimationField(cfg);
   if ((cfg.method === "t-shirt" || cfg.method === "numeric") && !field) {
-    console.error(`Erreur : metrics.estimation.method="${cfg.method}" requiert metrics.estimation.jiraField`);
+    console.error(t("estimation.requiresField", { method: cfg.method }));
     process.exit(1);
   }
   if (cfg.method === "numeric" && !cfg.bucketThresholds) {
-    console.error(`Erreur : metrics.estimation.method="numeric" requiert metrics.estimation.bucketThresholds`);
+    console.error(t("estimation.requiresThresholds"));
     process.exit(1);
   }
 }
@@ -165,7 +166,7 @@ export function loadJiraConfig(configPath: string): JiraFileConfig {
   const hasPat = !!j.personalAccessToken;
   const hasBasic = j.email && j.apiToken;
   if (!hasPat && !hasBasic) {
-    console.error("config.yaml : fournir soit personalAccessToken, soit email + apiToken");
+    console.error(t("config.authMissing"));
     process.exit(1);
   }
   return cfg;
@@ -173,8 +174,8 @@ export function loadJiraConfig(configPath: string): JiraFileConfig {
 
 export function loadBoardConfig(boardPath: string): BoardFileConfig {
   if (!fs.existsSync(boardPath)) {
-    console.error(`board.yaml introuvable : ${boardPath}`);
-    console.error(`Lancer d'abord : npm run autoconfig -- --apply`);
+    console.error(t("board.missing", { path: boardPath }));
+    console.error(t("board.runAutoconfig"));
     process.exit(1);
   }
   const cfg = yaml.parse(fs.readFileSync(boardPath, "utf-8")) as BoardFileConfig;
@@ -214,7 +215,7 @@ export function buildMetricConfig(db: Database.Database, app: AppConfig, opts: {
   const totalRemoved = removed.inProgress.length + removed.active.length + removed.queue.length;
   if (totalRemoved > 0) {
     const all = [...new Set([...removed.inProgress, ...removed.active, ...removed.queue])];
-    console.warn(`  ⚠ ${totalRemoved} statut(s) du config classés 'done' par Jira → exclus du WIP/flow : ${all.join(", ")}`);
+    console.warn(t("autoconfig.wip.stripped", { count: totalRemoved, names: all.join(", ") }));
   }
 
   return {
@@ -239,7 +240,7 @@ export function buildMetricConfig(db: Database.Database, app: AppConfig, opts: {
 function bootstrapFakeMode(jira: JiraFileConfig["jira"]): void {
   if (jira.mode !== "fake") {return;}
   if (!jira.frozenNow) {
-    console.error("Erreur : jira.frozenNow est requis en mode fake (nécessaire pour output déterministe).");
+    console.error(t("fakeMode.missingFrozenNow"));
     process.exit(1);
   }
   initClock(jira.frozenNow);
@@ -459,13 +460,14 @@ export function mergeColumns(
   return { columns, warnings };
 }
 
-interface SyncOpts { config: string }
-interface MetricsOpts { config: string; boardConfig: string; metric?: string; json?: boolean; includeOutliers?: boolean }
-interface SnapshotsOpts { config: string; boardConfig: string }
-interface ReportOpts { config: string; boardConfig: string; output: string; exportTemplate?: string }
-interface RefreshOpts { config: string; boardConfig: string; output: string }
-interface ValidateConfigOpts { config: string; boardConfig: string }
-interface AutoconfigOpts { config: string; boardConfig: string; apply?: boolean }
+interface SyncOpts { config: string; lang: string }
+interface MetricsOpts { config: string; boardConfig: string; metric?: string; json?: boolean; includeOutliers?: boolean; lang: string }
+interface SnapshotsOpts { config: string; boardConfig: string; lang: string }
+interface ReportOpts { config: string; boardConfig: string; output: string; exportTemplate?: string; lang: string }
+interface RefreshOpts { config: string; boardConfig: string; output: string; lang: string }
+interface ValidateConfigOpts { config: string; boardConfig: string; lang: string }
+interface AutoconfigOpts { config: string; boardConfig: string; apply?: boolean; lang: string }
+interface ListMetricsOpts { lang: string }
 
 const program = new Command();
 
@@ -478,7 +480,9 @@ program
   .command("sync")
   .description("Récupère les données Jira et les stocke en base")
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
+  .option("--lang <code>", "UI language: en|fr", "en")
   .action(async (opts: SyncOpts) => {
+    initLocale(opts.lang);
     const config = loadJiraConfig(path.resolve(opts.config));
     bootstrapFakeMode(config.jira);
     await sync(config);
@@ -492,7 +496,9 @@ program
   .option("-m, --metric <name>", "Métrique spécifique (optionnel)")
   .option("--json", "Sortie JSON brute")
   .option("--include-outliers", "Inclure les outliers extrêmes (Tukey upper fence) dans les calculs")
+  .option("--lang <code>", "UI language: en|fr", "en")
   .action((opts: MetricsOpts) => {
+    initLocale(opts.lang);
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     bootstrapFakeMode(config.jira);
     const db = openDb(config.db.path);
@@ -514,13 +520,15 @@ program
   .description("Recalcule l'historique des snapshots hebdomadaires (table metric_snapshots)")
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
   .option("-b, --board-config <path>", "Chemin vers board.yaml", "./board.yaml")
+  .option("--lang <code>", "UI language: en|fr", "en")
   .action((opts: SnapshotsOpts) => {
+    initLocale(opts.lang);
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     bootstrapFakeMode(config.jira);
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config);
     const count = backfillSnapshots(db, metricConfig);
-    console.log(`Snapshots recalculés : ${count} dates hebdomadaires.`);
+    console.log(t("snapshots.done", { count }));
   });
 
 program
@@ -530,7 +538,9 @@ program
   .option("-b, --board-config <path>", "Chemin vers board.yaml", "./board.yaml")
   .option("-o, --output <path>", "Chemin du fichier HTML de sortie", "./report.html")
   .option("--export-template <dir>", "Exporte le template Handlebars par défaut dans <dir> et quitte")
+  .option("--lang <code>", "UI language: en|fr", "en")
   .action((opts: ReportOpts) => {
+    initLocale(opts.lang);
     if (opts.exportTemplate) {
       exportDefaultTemplate(path.resolve(opts.exportTemplate));
       return;
@@ -540,7 +550,7 @@ program
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config);
     generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds, config.jira.name, config.report, path.dirname(path.resolve(opts.boardConfig)));
-    console.log(`Rapport généré : ${path.resolve(opts.output)}`);
+    console.log(t("report.done", { path: path.resolve(opts.output) }));
   });
 
 program
@@ -549,7 +559,9 @@ program
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
   .option("-b, --board-config <path>", "Chemin vers board.yaml", "./board.yaml")
   .option("-o, --output <path>", "Chemin du fichier HTML de sortie", "./report.html")
+  .option("--lang <code>", "UI language: en|fr", "en")
   .action(async (opts: RefreshOpts) => {
+    initLocale(opts.lang);
     const jiraConfig = loadJiraConfig(path.resolve(opts.config));
     bootstrapFakeMode(jiraConfig.jira);
     await sync(jiraConfig);
@@ -557,9 +569,9 @@ program
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config);
     const count = backfillSnapshots(db, metricConfig);
-    console.log(`Snapshots recalculés : ${count} dates hebdomadaires.`);
+    console.log(t("snapshots.done", { count }));
     generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds, config.jira.name, config.report, path.dirname(path.resolve(opts.boardConfig)));
-    console.log(`Rapport généré : ${path.resolve(opts.output)}`);
+    console.log(t("report.done", { path: path.resolve(opts.output) }));
   });
 
 program
@@ -567,13 +579,15 @@ program
   .description("Vérifie que les statuts du config existent dans la base (après un sync)")
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
   .option("-b, --board-config <path>", "Chemin vers board.yaml", "./board.yaml")
+  .option("--lang <code>", "UI language: en|fr", "en")
   .action((opts: ValidateConfigOpts) => {
+    initLocale(opts.lang);
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     const db = openDb(config.db.path);
 
     const dbStatuses = getAllStatuses(db);
     if (dbStatuses.length === 0) {
-      console.error("Base vide. Lancer `npm run sync` d'abord.");
+      console.error(t("validateConfig.empty"));
       process.exit(1);
     }
 
@@ -594,24 +608,24 @@ program
       console.log(`\n${section.label}`);
       for (const entry of section.entries) {
         if (entry.found) {
-          console.log(`  ✓ ${entry.name}`);
+          console.log(t("validateConfig.entryFound", { name: entry.name }));
         } else if (entry.isLegacy) {
-          console.log(`  ✗ ${entry.name}  ← introuvable en base (statut legacy — accepté pour l'historique)`);
+          console.log(t("validateConfig.missingLegacy", { name: entry.name }));
         } else {
-          console.log(`  ✗ ${entry.name}  ← introuvable en base`);
+          console.log(t("validateConfig.missing", { name: entry.name }));
         }
       }
     }
 
     if (result.missingCount > 0) {
-      console.log("\nStatuts disponibles en base :");
+      console.log(t("validateConfig.available"));
       for (const s of dbStatuses) {
         console.log(`  ${s.name.padEnd(30)} (${s.categoryKey})`);
       }
-      console.log(`\n${result.missingCount} statut(s) introuvable(s). Vérifier board.yaml.`);
+      console.log(t("validateConfig.errors", { count: result.missingCount }));
       process.exit(1);
     } else {
-      console.log("\n✓ Config valide.");
+      console.log(t("validateConfig.ok"));
     }
   });
 
@@ -621,10 +635,12 @@ program
   .option("-c, --config <path>", "Chemin vers config.yaml", "./config.yaml")
   .option("-b, --board-config <path>", "Chemin vers board.yaml", "./board.yaml")
   .option("--apply", "Crée/écrase board.yaml (destructif)")
+  .option("--lang <code>", "UI language: en|fr", "en")
   .action(async (opts: AutoconfigOpts) => {
+    initLocale(opts.lang);
     const jiraConfig = loadJiraConfig(path.resolve(opts.config));
     if (jiraConfig.jira.mode === "fake") {
-      console.error("Erreur : autoconfig non disponible en mode fake (aucune API Jira accessible).");
+      console.error(t("autoconfig.fakeNotAvailable"));
       process.exit(1);
     }
     const client = new JiraClient(jiraConfig.jira);
@@ -636,11 +652,11 @@ program
 
     const cols = boardConfig.columnConfig.columns;
     if (cols.length === 0) {
-      console.error("⚠ Board vide — aucune colonne détectée.");
+      console.error(t("autoconfig.emptyBoard"));
       process.exit(1);
     }
     if (cols.length === 1) {
-      console.warn("⚠ Board à une seule colonne — configuration probablement incomplète.");
+      console.warn(t("autoconfig.singleColumn"));
     }
 
     const warnings: string[] = [];
@@ -682,7 +698,7 @@ program
     warnings.push(...buildEstimationWarnings(detectedEstimation, boardConfig));
 
     if (opts.apply) {
-      console.warn(`⚠ --apply va créer/écraser ${opts.boardConfig}. Attente 3s…`);
+      console.warn(t("autoconfig.applying", { path: opts.boardConfig }));
       await new Promise((r) => setTimeout(r, 3000));
       if (existingBoard !== null) {
         fs.copyFileSync(boardPath, boardPath + ".bak");
@@ -700,26 +716,18 @@ program
       };
       const boardContent = yaml.stringify(newBoard);
       fs.writeFileSync(boardPath, unresolvableComment ? `${boardContent}\n${unresolvableComment}\n` : boardContent, "utf-8");
-      console.log("✓ board.yaml créé/mis à jour :", opts.boardConfig);
+      console.log(t("autoconfig.applied", { path: opts.boardConfig }));
     } else {
-      console.log(`# Board "${boardConfig.name}" — généré automatiquement depuis l'API Jira`);
-      console.log("# Vérifier devStart: true — positionné sur la première colonne intermédiaire par défaut");
-      console.log('# Colonnes intermédiaires : type "queue" inféré par mot-clé (review, qa, validation…) — sinon type: active\n');
+      console.log(t("autoconfig.dryRunBoardName", { name: boardConfig.name }));
+      console.log(t("autoconfig.dryRunDevStart"));
+      console.log(t("autoconfig.dryRunQueueColumns"));
       console.log(renderBoardColumnsYaml(columns));
       if (unresolvableComment) {console.log(unresolvableComment);}
       const estimationYaml = yaml.stringify({ metrics: { estimation: detectedEstimation } }).trimEnd();
       console.log(`\n${estimationYaml}`);
     }
 
-    console.log("");
-    console.log("╔══ Types de colonnes disponibles ══════════════════════════════════════╗");
-    console.log("║  todo   — file d'attente initiale (début lead time)                   ║");
-    console.log("║  active — travail en cours actif (touch time, flow efficiency)        ║");
-    console.log("║           ↳ + devStart: true → début cycle time (1 seule colonne)     ║");
-    console.log("║  queue  — attente passive : review, QA, blocked… (queue time)         ║");
-    console.log("║           ↳ flow efficiency = active / (active + queue)               ║");
-    console.log("║  done   — livraison équipe (fin lead time et cycle time)              ║");
-    console.log("╚═══════════════════════════════════════════════════════════════════════╝");
+    console.log(t("autoconfig.columnTypesHelp"));
 
     if (warnings.length > 0) {
       console.log("");
@@ -730,8 +738,10 @@ program
 program
   .command("list-metrics")
   .description("Liste toutes les métriques disponibles")
-  .action(() => {
-    console.log("Métriques disponibles :");
+  .option("--lang <code>", "UI language: en|fr", "en")
+  .action((opts: ListMetricsOpts) => {
+    initLocale(opts.lang);
+    console.log(t("listMetrics.header"));
     for (const m of ALL_METRICS) {
       console.log(`  ${m.name.padEnd(20)} ${m.description}`);
     }

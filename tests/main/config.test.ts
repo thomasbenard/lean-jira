@@ -128,7 +128,7 @@ describe("loadBoardConfig", () => {
 
     expect(() => loadBoardConfig(path.join(os.tmpdir(), "absent-board-xyz.yaml"))).toThrow("process.exit:1");
     expect(exitSpy).toHaveBeenCalledWith(1);
-    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("board.yaml introuvable"));
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("board.yaml not found"));
     expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("npm run autoconfig -- --apply"));
   });
 });

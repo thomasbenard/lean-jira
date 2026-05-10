@@ -45,7 +45,7 @@
 | [039c](039c-estimation-throughput-weighted/description.md) | Throughput pondéré adapté à la méthode d'estimation | livré |
 | [039d](039d-estimation-rapport-adaptatif/description.md) | Rapport adaptatif selon méthode d'estimation | livré |
 | [040](040-autoconfig-estimation/description.md) | Autoconfig détection de la méthode d'estimation | livré |
-| [041a](041a-i18n-infra-cli/description.md) | i18n infrastructure + traduction messages CLI | à faire |
+| [041a](041a-i18n-infra-cli/description.md) | i18n infrastructure + traduction messages CLI | livré |
 | [041b](041b-i18n-report-html/description.md) | Traduction rapport HTML (labels + help texts) | à faire |
 | [041c](041c-i18n-readme/description.md) | Réécriture README en anglais | à faire |
 | [042](042-supprimer-renderhtml-hbs-defaut/description.md) | Supprimer renderHtml() (~1025 lignes) et faire de report.hbs le renderer par défaut | à faire |
