@@ -8,6 +8,7 @@ import { agingWipMetric, type AgingWipSummary, type AgingWipIssue, type AgingRis
 import { forecastMetric, type ForecastSummary } from "../metrics/forecast";
 import { cycleTimeMetric } from "../metrics/cycleTime";
 import { scopeChangeMetric, type ScopeChangeResult } from "../metrics/scopeChange";
+import { bottleneckAnalysisMetric, type BottleneckAnalysisResult } from "../metrics/bottleneckAnalysis";
 import { getLastSyncDate } from "../db/store";
 import { now } from "../clock";
 
@@ -247,6 +248,10 @@ const HELP_TEXTS: Record<string, { title: string; body: string } | undefined> = 
     title: "First-time-right rate",
     body: "% tickets ayant traversé chaque rôle en un seul passage (sans retour). FTR 100% = aucun rework. Complément lisible du handoff-rework.",
   },
+  bottleneckAnalysis: {
+    title: "Bottleneck Analysis",
+    body: "Score composite 0–1 par rôle (dev/qa/po) synthétisant 4 signaux TOC : temps de passage médian, flux net moyen, taux de rework entrant, pénalité first-time-right. Score 1 = bottleneck le plus sévère. Le rôle primaire est celui avec le score le plus élevé.",
+  },
   scopeChange: {
     title: "Dérive de périmètre par sprint",
     body:
@@ -306,6 +311,7 @@ export function generateReport(
     handoffReworkRatio: buildSeries(metricRows("handoff-rework"), "", ["reworkRatio", "avgReworks"]),
     handoffReworkByType: buildRoleSeries(metricRows("handoff-rework"), ["qaToDev", "poToQa", "poDev"], "count"),
     ftrByRole: buildRoleSeries(metricRows("first-time-right"), ["dev", "qa", "po"], "ftrRate"),
+    bottleneckScores: buildRoleSeries(metricRows("bottleneck-analysis"), ["dev", "qa", "po"], "score"),
   };
 
   const lastDate = snapshots[snapshots.length - 1].snapshot_date;
@@ -352,6 +358,7 @@ export function generateReport(
 
   const agingWip = agingWipMetric.compute(db, config);
   const forecast = forecastMetric.compute(db, config);
+  const bottleneck = bottleneckAnalysisMetric.compute(db, config);
   const cycleTime = cycleTimeMetric.compute(db, config);
   const histogram = buildHistogram(cycleTime.issues.map((i) => i.cycleTimeDays));
 
@@ -393,6 +400,7 @@ export function generateReport(
     scopeAlertHtml,
     scopeSectionHtml,
     personalization: resolvedPersonalization,
+    bottleneck,
   };
 
   const resolvedTemplatePath = personalization?.templatePath
@@ -497,6 +505,7 @@ interface RenderInput {
   scopeAlertHtml?: string;
   scopeSectionHtml?: string;
   personalization?: ResolvedPersonalization;
+  bottleneck: BottleneckAnalysisResult;
 }
 
 function buildHistogram(values: number[]): HistogramBin[] {
@@ -733,6 +742,14 @@ ${fontLink}
   .role-stat .v { font-family: "IBM Plex Mono"; font-size: 1.4rem; font-weight: 500; color: #fff; }
   .role-stat .l { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; }
 
+  .bn-bars { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.8rem; }
+  .bn-row { display: flex; align-items: center; gap: 0.75rem; }
+  .bn-label { font-family: "IBM Plex Mono"; font-size: 0.78rem; min-width: 5rem; }
+  .bn-rank { color: var(--text-dim); font-weight: 400; }
+  .bn-bar-bg { flex: 1; height: 10px; background: var(--panel-2); border-radius: 2px; overflow: hidden; }
+  .bn-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s ease; }
+  .bn-pct { font-family: "IBM Plex Mono"; font-size: 0.75rem; color: var(--text-dim); min-width: 2.5rem; text-align: right; }
+
   .bucket-selector { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
   .bucket-btn { padding: 0.25rem 0.6rem; border-radius: 2px; border: 1px solid var(--line); background: var(--panel-2); cursor: pointer; font-size: 0.75rem; color: var(--text-dim); font-family: "IBM Plex Mono"; }
   .bucket-btn.active { background: var(--cyan); color: var(--bg); border-color: var(--cyan); }
@@ -880,6 +897,7 @@ ${show("roles") ? `<div class="tab-panel${firstTab === "roles" ? " active" : ""}
     ${renderRoleCardHtml({ cls: "qa",  name: "QA",  wip: input.kpis.wipQa, med: input.kpis.stageTimeQaMedian, ftr: input.kpis.ftrQa })}
     ${renderRoleCardHtml({ cls: "po",  name: "PO",  wip: input.kpis.wipPo, med: input.kpis.stageTimePoMedian, ftr: input.kpis.ftrPo })}
   </div>
+  ${buildBottleneckPanelHtml(input.bottleneck)}
   <div class="panel-grid">
     <div class="chart-card"><h3>Temps médian par rôle${helpBtn("stageTimeBreakdown")}</h3><canvas id="stageTimeByRoleChart"></canvas></div>
     <div class="chart-card"><h3>Répartition cycle time${helpBtn("stageTimeBreakdown")}</h3><canvas id="stageTimeShareChart"></canvas></div>
@@ -888,6 +906,7 @@ ${show("roles") ? `<div class="tab-panel${firstTab === "roles" ? " active" : ""}
     <div class="chart-card"><h3>FTR par rôle${helpBtn("firstTimeRight")}</h3><canvas id="ftrByRoleChart"></canvas></div>
     <div class="chart-card"><h3>Taux de rework${helpBtn("handoffRework")}</h3><canvas id="reworkRatioChart"></canvas></div>
     <div class="chart-card wide"><h3>Reworks par type${helpBtn("handoffRework")}</h3><canvas id="reworkByTypeChart"></canvas></div>
+    <div class="chart-card wide"><h3>Évolution scores bottleneck${helpBtn("bottleneckAnalysis")}</h3><canvas id="bottleneckScoresChart"></canvas></div>
   </div>
 </div>` : ""}
 
@@ -1377,6 +1396,23 @@ lineChart("ftrByRoleChart", CHARTS.ftrByRole, [
   { key: "po",  label: "FTR po",  color: COLOR_PO  },
 ]);
 
+(function renderBottleneckScores() {
+  const ctx = document.getElementById("bottleneckScoresChart");
+  if (!ctx || !CHARTS.bottleneckScores || CHARTS.bottleneckScores.dates.length === 0) return;
+  new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: CHARTS.bottleneckScores.dates,
+      datasets: [
+        { label: "Dev", data: CHARTS.bottleneckScores.series["dev"], borderColor: COLOR_DEV, backgroundColor: "transparent", tension: 0.3, pointRadius: 2 },
+        { label: "QA",  data: CHARTS.bottleneckScores.series["qa"],  borderColor: COLOR_QA,  backgroundColor: "transparent", tension: 0.3, pointRadius: 2 },
+        { label: "PO",  data: CHARTS.bottleneckScores.series["po"],  borderColor: COLOR_PO,  backgroundColor: "transparent", tension: 0.3, pointRadius: 2 },
+      ],
+    },
+    options: { ...baseOpts, scales: { ...baseOpts.scales, y: { ...baseOpts.scales.y, min: 0, max: 1, title: { display: true, text: "Score bottleneck" } } } },
+  });
+})();
+
 lineChart("reworkRatioChart", CHARTS.handoffReworkRatio, [
   { key: "reworkRatio", label: "Taux de rework", color: "#ef4444" },
 ], true);
@@ -1476,6 +1512,7 @@ lineChart("reworkRatioChart", CHARTS.handoffReworkRatio, [
     wipPerRoleChart: "wipPerRole", stageThroughputGapChart: "stageThroughputGap",
     reworkRatioChart: "handoffRework", reworkByTypeChart: "handoffRework",
     ftrByRoleChart: "firstTimeRight",
+    bottleneckScoresChart: "bottleneckAnalysis",
   };
 
   document.body.insertAdjacentHTML('beforeend', [
@@ -1589,6 +1626,31 @@ function renderKpiCellHtml(c: KpiCell, idx: number): string {
       ${fmtDelta(c)}
       <canvas class="spark" id="kpi-spark-${idx}" width="180" height="52" data-values='${escapeHtml(sparkData)}' data-color="${SIGNAL_COLOR[c.signal]}"></canvas>
     </div>`;
+}
+
+function buildBottleneckPanelHtml(b: BottleneckAnalysisResult): string {
+  if (b.count === 0) {
+    return `<div class="chart-card wide"><h3>Bottleneck Analysis${helpBtn("bottleneckAnalysis")}</h3><p class="meta-line">Données insuffisantes — configurer <code>role:</code> sur les colonnes du board.</p></div>`;
+  }
+  const primary = b.primaryBottleneck ?? "dev";
+  const score = b.byRole[primary].score;
+  const badgeCls = score >= 0.6 ? "risk-critical" : score >= 0.4 ? "risk-at-risk" : "risk-ok";
+  const bars = (["dev", "qa", "po"] as const).map((role) => {
+    const s = b.byRole[role];
+    const pct = Math.round(s.score * 100);
+    const fillColor = s.score >= 0.6 ? "var(--red)" : s.score >= 0.4 ? "var(--orange)" : "var(--green)";
+    const labelCls = s.score >= 0.6 ? "risk-critical" : s.score >= 0.4 ? "risk-at-risk" : "risk-ok";
+    return `<div class="bn-row">
+        <span class="bn-label ${labelCls}">${escapeHtml(role.toUpperCase())} <span class="bn-rank">#${s.rank}</span></span>
+        <div class="bn-bar-bg"><div class="bn-bar-fill" style="width:${pct}%;background:${fillColor}"></div></div>
+        <span class="bn-pct mono">${pct}%</span>
+      </div>`;
+  }).join("");
+  return `<div class="chart-card wide">
+    <h3>Bottleneck Analysis${helpBtn("bottleneckAnalysis")}</h3>
+    <p class="meta-line"><span class="${badgeCls}">${escapeHtml(primary.toUpperCase())}</span> — ${escapeHtml(b.recommendation)}</p>
+    <div class="bn-bars">${bars}</div>
+  </div>`;
 }
 
 function renderRoleCardHtml(r: { cls: string; name: string; wip: number | null; med: number | null; ftr: number | null }): string {

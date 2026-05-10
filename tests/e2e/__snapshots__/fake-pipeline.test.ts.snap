@@ -76,6 +76,46 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
     },
     "unit": "j",
   },
+  "bottleneck-analysis": {
+    "byRole": {
+      "dev": {
+        "dominantSignal": "accumulation",
+        "rank": 1,
+        "score": 0.5,
+        "signals": {
+          "avgNetFlow": 0.25,
+          "ftrPenalty": 0,
+          "reworkInboundRate": 0,
+          "stageTimeMedianDays": 4,
+        },
+      },
+      "po": {
+        "dominantSignal": "accumulation",
+        "rank": 3,
+        "score": 0,
+        "signals": {
+          "avgNetFlow": 0.05,
+          "ftrPenalty": 0,
+          "reworkInboundRate": 0,
+          "stageTimeMedianDays": 0,
+        },
+      },
+      "qa": {
+        "dominantSignal": "rework",
+        "rank": 2,
+        "score": 0.5,
+        "signals": {
+          "avgNetFlow": 0.05,
+          "ftrPenalty": 0.1428571428571429,
+          "reworkInboundRate": 0.041666666666666664,
+          "stageTimeMedianDays": 0,
+        },
+      },
+    },
+    "count": 24,
+    "primaryBottleneck": "dev",
+    "recommendation": "Réduire les entrées en dev ou augmenter la capacité disponible à ce stage.",
+  },
   "bug-backlog": {
     "closed": 12,
     "created": 14,

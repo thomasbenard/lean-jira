@@ -9,6 +9,7 @@ import { type WipPerRoleResult } from "../metrics/wipPerRole";
 import { type StageThroughputGapResult } from "../metrics/stageThroughputGap";
 import { type HandoffReworkResult } from "../metrics/handoffRework";
 import { type FirstTimeRightResult } from "../metrics/firstTimeRight";
+import { type BottleneckAnalysisResult } from "../metrics/bottleneckAnalysis";
 import { now } from "../clock";
 
 const ROLLING_WINDOW_DAYS = 30;
@@ -183,6 +184,14 @@ export function extractStats(date: string, metricName: string, result: Record<st
       out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "median", value: s.medianDays });
       out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "p85", value: s.p85Days });
       out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "avgShare", value: r.avgShareByRole[role] });
+    }
+  } else if ("primaryBottleneck" in result) {
+    const r = result as unknown as BottleneckAnalysisResult;
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "count", value: r.count });
+    for (const role of ["dev", "qa", "po"] as const) {
+      const s = r.byRole[role];
+      out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "score", value: s.score });
+      out.push({ snapshot_date: date, metric_name: metricName, bucket: role, stat: "rank", value: s.rank });
     }
   } else if ("byRole" in result) {
     // wip-per-role bypasse extractStats via computeHistoricWipPerRole — cette branche

@@ -465,6 +465,47 @@ normalize : lowercase, strip Markdown symbols, collapse whitespace
 
 ---
 
+### `bottleneck-analysis`
+
+**Définition** : score composite 0–1 par rôle (dev / qa / po) synthétisant 4 signaux indépendants. Identifie le stage prioritaire à améliorer selon la Theory of Constraints.
+
+**Population** :
+- Signaux 1, 3, 4 (stageTime, reworkInbound, ftrPenalty) : population cycle-time livrée (`fetchDeliveredTransitions`), même fenêtre que les autres métriques rôle-aware.
+- Signal 2 (avgNetFlow) : **toutes les transitions** dans la fenêtre (WIP inclus) — mesure l'accumulation en cours, pas seulement le livré.
+
+**Signaux** :
+
+| Signal | Formule | Interprétation |
+|--------|---------|----------------|
+| `stageTimeMedianDays` | médiane des jours passés dans le rôle (via `computeRoleDays`) | temps de passage unitaire |
+| `avgNetFlow` | moyenne hebdomadaire de (entrées − sorties) dans le rôle | accumulation : net > 0 = embouteillage |
+| `reworkInboundRate` | % issues avec au moins un retour arrière **vers** ce rôle | pression qualité entrante |
+| `ftrPenalty` | 1 − ftrRate = % issues passant le rôle en ≥ 2 passages | rejet interne du rôle |
+
+**Normalisation** : ranking dense normalisé 0–1 (`rankNormalize`). Ex-æquo → même rang. Normalise sur le nombre de valeurs distinctes, pas sur le nombre d'éléments.
+
+```
+uniqueSorted = distinct(values).sort()
+n = |uniqueSorted|
+rank(v) = indexOf(v, uniqueSorted) / (n − 1)   si n > 1
+          0                                      si n = 1 (toutes égales)
+```
+
+**Score composite** :
+```
+score(role) = (rankStageTime + rankNetFlow + rankRework + rankFtr) / 4
+```
+
+**Signal dominant** : signal avec le rang le plus élevé. Si l'écart entre le 1er et le 2e rang < 0.1 → `combined`. En cas d'égalité exacte, priorité TOC : `accumulation > stage_time > rework > ftr`.
+
+**po hardcodé à reworkInboundRate = 0** : po est le stage final de la chaîne — aucun flux aval ne lui retourne des tickets.
+
+**Snapshot** : stocke par rôle `score` et `rank` (bucket `"dev"` / `"qa"` / `"po"`), plus `count` (bucket `""`).
+
+**Sortie** : `{ count, primaryBottleneck: RoleKey | null, recommendation: string, byRole: {dev, qa, po}: {score, rank, dominantSignal, signals} }`.
+
+---
+
 ## WIP (Work In Progress)
 
 > **Loi de Little** ([Little, 1961](https://doi.org/10.1287/opre.9.3.383)) : dans un système stable, `WIP = throughput × cycle_time`. Inversement, `cycle_time = WIP / throughput`. Les trois métriques `wip`, `throughput` et `cycle-time` ne sont pas indépendantes — réduire le WIP réduit mécaniquement le cycle time sans modifier le throughput.

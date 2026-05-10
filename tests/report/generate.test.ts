@@ -61,6 +61,7 @@ function makeRenderInput(): RenderInput {
       handoffReworkRatio: empty,
       handoffReworkByType: empty,
       ftrByRole: empty,
+      bottleneckScores: empty,
     },
     leadBySize: {},
     cycleBySize: {},
@@ -83,6 +84,14 @@ function makeRenderInput(): RenderInput {
     },
     histogram: [],
     cycleStats: { median: 0, p85: 0, p95: 0, avg: 0, count: 0 },
+    bottleneck: {
+      count: 0, primaryBottleneck: null, recommendation: "",
+      byRole: {
+        dev: { score: 0, rank: 3, dominantSignal: "combined" as const, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
+        qa:  { score: 0, rank: 3, dominantSignal: "combined" as const, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
+        po:  { score: 0, rank: 3, dominantSignal: "combined" as const, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
+      },
+    },
   };
 }
 

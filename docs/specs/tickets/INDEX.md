@@ -38,7 +38,7 @@
 | [034](034-scope-change-fix-denominator/description.md) | Corriger le dénominateur de scope-change-rate | livré |
 | [035](035-scope-change-description-only/description.md) | scope-change-rate : détection description uniquement | livré |
 | [036](036-scope-change-reduce-false-positives/description.md) | scope-change-rate : réduire les faux positifs | livré |
-| [037](037-bottleneck-analysis/description.md) | Bottleneck Analysis | à faire |
+| [037](037-bottleneck-analysis/description.md) | Bottleneck Analysis | livré |
 | [038](038-fake-jira-connector/description.md) | Connecteur Jira fake (mode local sans accès Jira) | livré |
 | [039a](039a-estimation-data-model/description.md) | Modèle de données estimation brute | à faire |
 | [039b](039b-estimation-bucketize/description.md) | Bucketize par méthode d'estimation | à faire |
