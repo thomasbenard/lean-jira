@@ -17,6 +17,7 @@ Implémente un ticket spécifié dans `docs/specs/tickets/<NNN>-<slug>/`. Garant
 - **Si nouvelle métrique** → `docs/specs/system/spec-fonctionnelle.md` + `metrics-formulas.md` + `CLAUDE.md` (section "Metric catalog") mis à jour
 - **Si autre invariant modifié** (DB schema, CLI, config, export API) → sections concernées dans `docs/specs/system/` + `CLAUDE.md` mis à jour
 - **Si surface publique modifiée** (nouvelle commande, option, comportement observable) → `README.md` mis à jour
+- **Si champ config modifié** (nouveau champ `config.yaml`/`board.yaml`, nouvelle commande CLI, nouvelle option, comportement observable changé) → `docs/configuration.md` mis à jour (sections Référence complète et/ou Troubleshooting si pertinent)
 - `description.md` du ticket + `docs/specs/tickets/INDEX.md` → statut `livré` (via `bash scripts/update-ticket.sh status <NNN> livré`, cf. Phase 8)
 
 Ces 6 points sont non-négociables. Les phases ci-dessous décrivent comment y arriver.
@@ -116,11 +117,13 @@ Pour chaque finding sévérité `bug` ou `spec-deviation` :
 
 Re-lancer `npx vitest run` après chaque correction.
 
-### Phase 7 — Mise à jour specs système + CLAUDE.md + README.md (conditionnelle)
+### Phase 7 — Mise à jour specs système + CLAUDE.md + README.md + docs/configuration.md (conditionnelle)
 
 Voir la **Definition of Done** en tête de document pour les critères de déclenchement.
 
 **Procédure** : grep dans `docs/specs/system/`, `CLAUDE.md` et `README.md` pour trouver les sections à toucher. Éditer en ton descriptif (état présent, pas changelog). Pas d'historique « avant/après ».
+
+Si le ticket touche la configuration (`config.yaml`, `board.yaml`, nouvelles commandes, options CLI) : mettre à jour `docs/configuration.md` (section 5 Référence pour les champs, section 7 Troubleshooting si comportement d'erreur change).
 
 **README.md** : mettre à jour si la surface publique change — nouvelle commande CLI, nouvelle option, nouveau comportement observable par l'utilisateur final. Appliquer la même règle de tranchage que pour les specs système.
 
