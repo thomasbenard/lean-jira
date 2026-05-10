@@ -63,6 +63,13 @@ export interface JiraBoardConfig {
   columnConfig: {
     columns: JiraBoardColumnRaw[];
   };
+  estimation?: {
+    type: "none" | "issueCount" | "field";
+    field?: {
+      fieldId: string;
+      displayName: string;
+    };
+  };
 }
 
 export interface ChangelogHistory {

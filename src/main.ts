@@ -307,6 +307,33 @@ export function inferBoardColumns(
   });
 }
 
+export function inferEstimationConfig(
+  boardConfig: JiraBoardConfig,
+): EstimationConfig {
+  const est = boardConfig.estimation;
+  if (!est) { return { method: "time" }; }
+  if (est.type === "none" || est.type === "issueCount") { return { method: "none" }; }
+  if (est.field) {
+    const { fieldId } = est.field;
+    if (fieldId === "timeoriginalestimate") { return { method: "time" }; }
+    if (fieldId === "customfield_10016") { return { method: "story-points" }; }
+    return { method: "numeric", jiraField: fieldId };
+  }
+  return { method: "time" };
+}
+
+export function buildEstimationWarnings(
+  detected: EstimationConfig,
+  boardConfig: JiraBoardConfig,
+): string[] {
+  if (detected.method !== "numeric" || !boardConfig.estimation?.field) { return []; }
+  const { fieldId, displayName } = boardConfig.estimation.field;
+  return [
+    `⚠ Champ d'estimation détecté : "${fieldId}" (${displayName}).\n` +
+    `  Si les valeurs sont catégorielles (XS/S/M/L/XL), changer method: t-shirt dans board.yaml.`,
+  ];
+}
+
 export function renderBoardColumnsYaml(columns: InferredColumn[]): string {
   const lines: string[] = ["board:", "  columns:"];
   for (const col of columns) {
@@ -651,6 +678,9 @@ program
 
     const unresolvableComment = buildUnresolvableComment(unresolvable);
 
+    const detectedEstimation = inferEstimationConfig(boardConfig);
+    warnings.push(...buildEstimationWarnings(detectedEstimation, boardConfig));
+
     if (opts.apply) {
       console.warn(`⚠ --apply va créer/écraser ${opts.boardConfig}. Attente 3s…`);
       await new Promise((r) => setTimeout(r, 3000));
@@ -663,7 +693,10 @@ program
           columns: columns.map(({ warning: _w, ...c }) => c),
           ...(existingLegacyDone.length > 0 && { legacyDoneStatuses: existingLegacyDone }),
         },
-        metrics: existingBoard?.metrics ?? { bugIssueTypes: ["Bug"] },
+        metrics: {
+          ...(existingBoard?.metrics ?? { bugIssueTypes: ["Bug"] }),
+          estimation: existingBoard?.metrics?.estimation ?? detectedEstimation,
+        },
       };
       const boardContent = yaml.stringify(newBoard);
       fs.writeFileSync(boardPath, unresolvableComment ? `${boardContent}\n${unresolvableComment}\n` : boardContent, "utf-8");
@@ -674,6 +707,8 @@ program
       console.log('# Colonnes intermédiaires : type "queue" inféré par mot-clé (review, qa, validation…) — sinon type: active\n');
       console.log(renderBoardColumnsYaml(columns));
       if (unresolvableComment) {console.log(unresolvableComment);}
+      const estimationYaml = yaml.stringify({ metrics: { estimation: detectedEstimation } }).trimEnd();
+      console.log(`\n${estimationYaml}`);
     }
 
     console.log("");

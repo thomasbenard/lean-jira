@@ -11,8 +11,10 @@ import {
   enrichWithLegacyStatuses,
   mergeColumns,
   buildUnresolvableComment,
+  buildEstimationWarnings,
 } from "../../src/main";
 import type { BoardColumn, InferredColumn } from "../../src/main";
+import type { EstimationConfig } from "../../src/metrics/types";
 
 function makeStatus(id: string, name: string, categoryKey: "new" | "indeterminate" | "done"): JiraStatus {
   return { id, name, statusCategory: { key: categoryKey, name: categoryKey } };
@@ -450,5 +452,37 @@ describe("mergeColumns — préservation du champ role", () => {
     const inferred: InferredColumn[] = [{ name: "QA", type: "active", statuses: ["En test"] }];
     const { columns } = mergeColumns(existing, inferred);
     expect(columns[0].role).toBeUndefined();
+  });
+});
+
+describe("buildEstimationWarnings — warning champ custom non-standard", () => {
+  it("méthode numeric + champ custom → warning mentionnant fieldId et t-shirt", () => {
+    const detected: EstimationConfig = { method: "numeric", jiraField: "customfield_10200" };
+    const board: JiraBoardConfig = {
+      id: 1, name: "T", columnConfig: { columns: [] },
+      estimation: { type: "field", field: { fieldId: "customfield_10200", displayName: "T-Shirt Size" } },
+    };
+    const warnings = buildEstimationWarnings(detected, board);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("customfield_10200");
+    expect(warnings[0]).toContain("T-Shirt Size");
+    expect(warnings[0]).toContain("t-shirt");
+  });
+
+  it("méthode story-points (champ standard) → aucun warning", () => {
+    const detected: EstimationConfig = { method: "story-points" };
+    const board: JiraBoardConfig = {
+      id: 1, name: "T", columnConfig: { columns: [] },
+      estimation: { type: "field", field: { fieldId: "customfield_10016", displayName: "Story Points" } },
+    };
+    const warnings = buildEstimationWarnings(detected, board);
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("méthode none → aucun warning", () => {
+    const detected: EstimationConfig = { method: "none" };
+    const board: JiraBoardConfig = { id: 1, name: "T", columnConfig: { columns: [] }, estimation: { type: "none" } };
+    const warnings = buildEstimationWarnings(detected, board);
+    expect(warnings).toHaveLength(0);
   });
 });

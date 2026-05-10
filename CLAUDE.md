@@ -58,7 +58,7 @@ npm start           # Run compiled build
 `report` options: `-c <path>` (config, default `./config.yaml`), `-b <path>` (board config, default `./board.yaml`), `-o <path>` (output file, default `./report.html`).
 `refresh` options: `-c <path>` (config, default `./config.yaml`), `-b <path>` (board config, default `./board.yaml`), `-o <path>` (output file, default `./report.html`). Permet de générer des rapports distincts par squad : `npm run refresh -- -c config.keck.yaml -b board.yaml -o report.keck.html`.
 `snapshots` / `validate-config` options: `-b <path>` (board config, default `./board.yaml`).
-`autoconfig` options: `-c <path>` (config path, default `./config.yaml`), `-b <path>` (board config, default `./board.yaml`), `--apply` (destructive: creates/overwrites `board.yaml` after 3s delay; backs up existing to `board.yaml.bak`).
+`autoconfig` options: `-c <path>` (config path, default `./config.yaml`), `-b <path>` (board config, default `./board.yaml`), `--apply` (destructive: creates/overwrites `board.yaml` after 3s delay; backs up existing to `board.yaml.bak`). Dry-run prints detected `metrics.estimation` as YAML snippet. `--apply` writes `metrics.estimation` detected from the Jira board API; preserves existing value if `board.yaml` already has `metrics.estimation`.
 `list-metrics` subcommand prints all registered metric names.
 
 **Mode fake (sans Jira)** : ajouter `jira.mode: fake` + `jira.frozenNow: "YYYY-MM-DD"` dans `config.yaml`. Les fixtures JSON embarquées (`src/jira/fixtures/`) remplacent l'API. Output déterministe : toutes les métriques utilisent `frozenNow` comme "aujourd'hui", le forecast Monte Carlo utilise un PRNG seedé. Exemple :
@@ -77,7 +77,7 @@ Jira REST API v2 (ou fixtures JSON) → SQLite (WAL) → metric computations →
 ```
 
 **Layers** (`src/`):
-- `main.ts` — Commander.js CLI; routes `sync` / `metrics` / `snapshots` / `report` / `refresh` / `autoconfig` / `list-metrics`; exports `inferBoardColumns()`, `renderBoardColumnsYaml()`, `enrichWithLegacyStatuses()`, `mergeColumns()`, `buildUnresolvableComment()`, `loadJiraConfig()`, `loadBoardConfig()`, `loadConfigs()`, `InferredColumn`, `BoardColumn`, `RoleType`, `JiraFileConfig`, `BoardFileConfig`; bootstrap `initClock`/`initRandom` si `jira.mode=fake`
+- `main.ts` — Commander.js CLI; routes `sync` / `metrics` / `snapshots` / `report` / `refresh` / `autoconfig` / `list-metrics`; exports `inferBoardColumns()`, `renderBoardColumnsYaml()`, `enrichWithLegacyStatuses()`, `mergeColumns()`, `buildUnresolvableComment()`, `inferEstimationConfig()`, `buildEstimationWarnings()`, `loadJiraConfig()`, `loadBoardConfig()`, `loadConfigs()`, `InferredColumn`, `BoardColumn`, `RoleType`, `JiraFileConfig`, `BoardFileConfig`; bootstrap `initClock`/`initRandom` si `jira.mode=fake`
 - `sync.ts` — fetches sprints + issues (with changelog), upserts to DB; `replaceTransitions` per issue; incremental mode via `getLastSyncDate()` (JQL `updated >= "<date>"` filter when prior sync exists)
 - `jira/clientFactory.ts` — `JiraClientLike` interface + `createJiraClient(config)` factory; retourne `JiraClient` (real) ou `FakeJiraClient` (fake) selon `jira.mode`
 - `jira/client.ts` — Axios + 200ms sleep between pages

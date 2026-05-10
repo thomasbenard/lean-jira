@@ -20,4 +20,4 @@ Requiert **039a livré** (types `EstimationConfig` dans `src/metrics/types.ts`).
 
 ## Statut
 
-**à faire**
+**livré**

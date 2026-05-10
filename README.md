@@ -79,7 +79,7 @@ npm run autoconfig -- --apply        # Écrit board.yaml (backup → board.yaml.
 
 `autoconfig` interroge directement l'API Jira et n'a pas besoin d'un `sync` préalable. Si une base SQLite existe déjà, les statuts historiques renommés (présents dans les transitions mais absents de l'API courante) sont automatiquement ajoutés en `legacyStatuses`. Pour bénéficier de cet enrichissement sur une nouvelle install, lancer un `sync` puis relancer `autoconfig --apply`.
 
-`autoconfig` infère le type de chaque colonne intermédiaire : `queue` si le nom contient un mot-clé connu (review, validation, QA, attente, staging, approval…), sinon `active`. Le `devStart: true` est positionné sur la première colonne `active`. Toujours revoir et ajuster manuellement après génération.
+`autoconfig` infère le type de chaque colonne intermédiaire : `queue` si le nom contient un mot-clé connu (review, validation, QA, attente, staging, approval…), sinon `active`. Le `devStart: true` est positionné sur la première colonne `active`. La méthode d'estimation (`metrics.estimation`) est détectée depuis le champ configuré sur le board Jira : `timeoriginalestimate` → `time`, `customfield_10016` → `story-points`, champ custom inconnu → `numeric` (avec avertissement d'envisager `t-shirt`). En mode `--apply`, une estimation déjà configurée dans `board.yaml` est préservée. Toujours revoir et ajuster manuellement après génération.
 
 **Option B — configuration manuelle** :
 

@@ -10,5 +10,12 @@
       { "name": "PO Validation", "statuses": [{ "id": "5", "self": "fake://status/5" }] },
       { "name": "Done", "statuses": [{ "id": "6", "self": "fake://status/6" }] }
     ]
+  },
+  "estimation": {
+    "type": "field",
+    "field": {
+      "fieldId": "customfield_10016",
+      "displayName": "Story Points"
+    }
   }
 }

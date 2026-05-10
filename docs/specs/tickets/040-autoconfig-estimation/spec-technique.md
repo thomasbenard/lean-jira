@@ -44,16 +44,15 @@ export function inferEstimationConfig(
   boardConfig: JiraBoardConfig,
 ): import("./metrics/types").EstimationConfig {
   const est = boardConfig.estimation;
-  if (!est || est.type === "none" || est.type === "issueCount") {
-    return { method: "none" };
-  }
+  if (!est) return { method: "time" };
+  if (est.type === "none" || est.type === "issueCount") return { method: "none" };
   if (est.type === "field" && est.field) {
     const { fieldId } = est.field;
     if (fieldId === "timeoriginalestimate") return { method: "time" };
     if (fieldId === "customfield_10016")    return { method: "story-points" };
     return { method: "numeric", jiraField: fieldId };
   }
-  return { method: "time" };   // défaut silencieux si champ absent
+  return { method: "time" };
 }
 ```
 
