@@ -2,8 +2,8 @@ import type Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import Handlebars from "handlebars";
-import { BUCKET_LABELS, BUCKET_ORDER, placeholders } from "../metrics/utils";
-import { type MetricConfig } from "../metrics/types";
+import { getBucketLabels, BUCKET_LABELS, BUCKET_ORDER, placeholders } from "../metrics/utils";
+import { type MetricConfig, type EstimationConfig } from "../metrics/types";
 import { agingWipMetric, type AgingWipSummary, type AgingWipIssue, type AgingRisk } from "../metrics/agingWip";
 import { forecastMetric, type ForecastSummary } from "../metrics/forecast";
 import { cycleTimeMetric } from "../metrics/cycleTime";
@@ -94,6 +94,33 @@ export function resolvePersonalization(
   }
 
   return { title: p.title, logoDataUri, fontLinkHtml, customCss, excludedTabs };
+}
+
+export interface EstimationFlags {
+  showWeighted: boolean;
+  showNormalized: boolean;
+  showNormalizedNote: boolean;
+  showBySize: boolean;
+  weightedUnit: "j-h" | "SP" | "pts";
+  contextLabel: string;
+}
+
+export function estimationFlags(est: EstimationConfig): EstimationFlags {
+  const m = est.method;
+  const t = { xs: 1, s: 3, m: 8, l: 13, ...est.bucketThresholds };
+  return {
+    showWeighted:       m !== "t-shirt" && m !== "none",
+    showNormalized:     m === "time",
+    showNormalizedNote: m === "time",
+    showBySize:         m !== "none",
+    weightedUnit:       m === "story-points" ? "SP" : m === "numeric" ? "pts" : "j-h",
+    contextLabel:
+      m === "time"          ? "Estimation : temps (j-h)"
+      : m === "story-points" ? `Estimation : story points (SP) — seuils XS<${t.xs} S<${t.s} M<${t.m} L<${t.l}`
+      : m === "numeric"      ? "Estimation : champ custom (pts)"
+      : m === "t-shirt"      ? "Estimation : taille de t-shirt"
+      : "Estimation : aucune — métriques by-size désactivées",
+  };
 }
 
 export interface ThresholdPair {
@@ -406,6 +433,7 @@ export function generateReport(
     scopeAlertHtml,
     scopeSectionHtml,
     personalization: resolvedPersonalization,
+    estimation: config.estimation,
     bottleneck,
   };
 
@@ -511,6 +539,7 @@ interface RenderInput {
   scopeAlertHtml?: string;
   scopeSectionHtml?: string;
   personalization?: ResolvedPersonalization;
+  estimation?: EstimationConfig;
   bottleneck: BottleneckAnalysisResult;
 }
 
@@ -539,6 +568,10 @@ export function renderHtml(input: RenderInput): string {
   const top3Html = buildTop3Actions(input.agingWip, input.jiraBaseUrl);
 
   const kpiGridHtml = kpiCells.map(renderKpiCellHtml).join("");
+
+  const flags = estimationFlags(input.estimation ?? { method: "time" });
+  const hide = (show: boolean): string => show ? "" : ' style="display:none"';
+  const bucketLabelsJson = JSON.stringify(getBucketLabels(input.estimation ?? { method: "time" }));
 
   const p = input.personalization;
   const excludedTabs = p?.excludedTabs ?? new Set<string>();
@@ -842,6 +875,7 @@ ${p?.customCss ? `<style>\n${p.customCss}\n</style>` : ""}
 
 ${staleBannerHtml(input.isSyncStale, input.lastSyncAt)}
 ${input.scopeAlertHtml ?? ""}
+<p class="estimation-context">${escapeHtml(flags.contextLabel)}</p>
 
 <section class="actions">
   <div class="actions-head"><h2>À traiter // top 3</h2><div class="sep"></div></div>
@@ -867,7 +901,7 @@ ${show("delivery") ? `<div class="tab-panel${firstTab === "delivery" ? " active"
     <div class="chart-card"><h3>Lead time (jours)${helpBtn("leadTime")}</h3><canvas id="leadTimeChart"></canvas></div>
     <div class="chart-card"><h3>Cycle time (jours)${helpBtn("cycleTime")}</h3><canvas id="cycleTimeChart"></canvas></div>
     <div class="chart-card"><h3>Throughput (issues / 7j)${helpBtn("throughput")}</h3><canvas id="throughputChart"></canvas></div>
-    <div class="chart-card"><h3>Throughput pondéré (j-h estimés)${helpBtn("throughputWeighted")}</h3><canvas id="throughputWeightedChart"></canvas></div>
+    <div class="chart-card"${hide(flags.showWeighted)}><h3>Throughput pondéré (${flags.weightedUnit} estimés)${helpBtn("throughputWeighted")}</h3><canvas id="throughputWeightedChart"></canvas></div>
     <div class="chart-card"><h3>WIP (fin de semaine)${helpBtn("wip")}</h3><canvas id="wipChart"></canvas></div>
     <div class="chart-card wide">
       <h3>Distribution cycle time${helpBtn("cycleHistogram")}</h3>
@@ -876,12 +910,12 @@ ${show("delivery") ? `<div class="tab-panel${firstTab === "delivery" ? " active"
     </div>
   </div>
   <div class="panel-grid" style="margin-top: 1rem">
-    <div class="chart-card">
+    <div class="chart-card"${hide(flags.showBySize)}>
       <h3>Lead time par taille — fenêtre du ${escapeHtml(input.lastSnapshotDate)}${helpBtn("leadTimeBySize")}</h3>
       <table><thead><tr><th>Taille</th><th>Count</th><th>Médiane</th><th>P85</th></tr></thead>
       <tbody>${bySizeRows(input.leadBySize)}</tbody></table>
     </div>
-    <div class="chart-card">
+    <div class="chart-card"${hide(flags.showBySize)}>
       <h3>Cycle time par taille${helpBtn("cycleTimeBySize")}</h3>
       <table><thead><tr><th>Taille</th><th>Count</th><th>Médiane</th><th>P85</th></tr></thead>
       <tbody>${bySizeRows(input.cycleBySize)}</tbody></table>
@@ -947,17 +981,17 @@ ${input.scopeSectionHtml ? `<div class="tab-panel" id="tab-scope">${input.scopeS
 
 ${show("advanced") ? `<div class="tab-panel${firstTab === "advanced" ? " active" : ""}" id="tab-advanced">
   <div class="panel-grid three">
-    <div class="chart-card"><h3>Lead normalisé (réel / estimé)${helpBtn("leadTimeNormalized")}</h3><canvas id="leadNormalizedChart"></canvas></div>
-    <div class="chart-card"><h3>Cycle normalisé (réel / estimé)${helpBtn("cycleTimeNormalized")}</h3><canvas id="cycleNormalizedChart"></canvas></div>
+    <div class="chart-card"${hide(flags.showNormalized)}><h3>Lead normalisé (réel / estimé)${helpBtn("leadTimeNormalized")}</h3><canvas id="leadNormalizedChart"></canvas></div>
+    <div class="chart-card"${hide(flags.showNormalized)}><h3>Cycle normalisé (réel / estimé)${helpBtn("cycleTimeNormalized")}</h3><canvas id="cycleNormalizedChart"></canvas></div>
     <div class="chart-card"><h3>Flow efficiency (ratio)${helpBtn("flowEfficiency")}</h3><canvas id="flowEfficiencyChart"></canvas></div>
   </div>
   <div class="panel-grid" style="margin-top: 1rem">
-    <div class="chart-card">
+    <div class="chart-card"${hide(flags.showBySize)}>
       <h3>Lead time par taille (jours)${helpBtn("leadTimeBySize")}</h3>
       <div class="bucket-selector" id="leadBySizeBuckets"></div>
       <canvas id="leadBySizeChart"></canvas>
     </div>
-    <div class="chart-card">
+    <div class="chart-card"${hide(flags.showBySize)}>
       <h3>Cycle time par taille (jours)${helpBtn("cycleTimeBySize")}</h3>
       <div class="bucket-selector" id="cycleBySizeBuckets"></div>
       <canvas id="cycleBySizeChart"></canvas>
@@ -1289,7 +1323,7 @@ const AGING = ${JSON.stringify({
 
 const LEAD_BY_SIZE = ${JSON.stringify(input.leadTimeBySizeCharts)};
 const CYCLE_BY_SIZE = ${JSON.stringify(input.cycleTimeBySizeCharts)};
-const BUCKET_LABELS_MAP = ${JSON.stringify(BUCKET_LABELS)};
+const BUCKET_LABELS_MAP = ${bucketLabelsJson};
 
 function initBucketSelector(dataByBucket, canvasId, selectorId) {
   const buckets = Object.keys(dataByBucket);
@@ -1720,6 +1754,8 @@ export function buildKpiGridHtml(input: RenderInput): string {
 }
 
 export function buildRenderedTabs(input: RenderInput): { id: string; label: string; html: string }[] {
+  const flags = estimationFlags(input.estimation ?? { method: "time" });
+  const hide = (show: boolean): string => show ? "" : ' style="display:none"';
   const tabs: { id: string; label: string; html: string }[] = [];
 
   tabs.push({
@@ -1729,7 +1765,7 @@ export function buildRenderedTabs(input: RenderInput): { id: string; label: stri
     <div class="chart-card"><h3>Lead time (jours)${helpBtn("leadTime")}</h3><canvas id="leadTimeChart"></canvas></div>
     <div class="chart-card"><h3>Cycle time (jours)${helpBtn("cycleTime")}</h3><canvas id="cycleTimeChart"></canvas></div>
     <div class="chart-card"><h3>Throughput (issues / 7j)${helpBtn("throughput")}</h3><canvas id="throughputChart"></canvas></div>
-    <div class="chart-card"><h3>Throughput pondéré (j-h estimés)${helpBtn("throughputWeighted")}</h3><canvas id="throughputWeightedChart"></canvas></div>
+    <div class="chart-card"${hide(flags.showWeighted)}><h3>Throughput pondéré (${flags.weightedUnit} estimés)${helpBtn("throughputWeighted")}</h3><canvas id="throughputWeightedChart"></canvas></div>
     <div class="chart-card"><h3>WIP (fin de semaine)${helpBtn("wip")}</h3><canvas id="wipChart"></canvas></div>
     <div class="chart-card wide">
       <h3>Distribution cycle time${helpBtn("cycleHistogram")}</h3>

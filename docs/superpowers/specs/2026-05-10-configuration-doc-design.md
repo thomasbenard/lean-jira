@@ -97,6 +97,21 @@ Couvre :
 - Throughput faussé par bulk-close → ajouter `cutoffDate`
 - `validate` dit "Base vide" → lancer `sync` d'abord
 
+## Maintenance — doc vivante
+
+`docs/configuration.md` doit rester synchronisée avec le code. Règle :
+
+**Tout ticket qui touche l'un des éléments suivants doit mettre à jour `docs/configuration.md` en fin de dev :**
+- Ajout/suppression/renommage d'un champ `config.yaml` ou `board.yaml`
+- Nouvelle commande ou option CLI
+- Nouvelle métrique ajoutée au catalogue
+- Changement de comportement d'une commande existante (ex. `autoconfig`, `validate`)
+
+**Intégration dans le workflow `implement-ticket` :** le skill `/implement-ticket` doit inclure une étape finale explicite :
+> "Si le ticket modifie la config, les commandes ou le comportement utilisateur → mettre à jour `docs/configuration.md` (section Référence complète et/ou Troubleshooting si pertinent)."
+
+Critère simple : si un utilisateur qui lit `docs/configuration.md` serait surpris par le comportement après le ticket → la doc est à mettre à jour.
+
 ## Ce qui n'est PAS dans cette doc
 
 - Catalogue des métriques (dans README)
