@@ -162,7 +162,7 @@ Board is defined as an ordered list of columns under `board.columns`. Each colum
 | `cycle-time` / `-by-size` / `-normalized` | DurationStats | dev start → team-done |
 | `bug-cycle-time` | DurationStats | dev start → team-done (bugs only) |
 | `throughput` / `bug-throughput` | byWeek + avgPerWeek | weekly count of team-done deliveries |
-| `throughput-weighted` | byWeek (estimatedDays) | weekly sum of estimated person-days delivered |
+| `throughput-weighted` | byWeek (estimatedDays) + unit ("j-h"\|"SP"\|"pts") + disabled | weekly sum of estimated units delivered; unit derived from estimation.method; disabled for t-shirt/none |
 | `wip` | currentWip + issueKeys | sprint-scoped active WIP |
 | `flow-efficiency` | aggregate / median / P15 | active / (active+queue) over cycle-time window |
 | `aging-wip` | per-issue ages + risk classification | current items vs historical cycle-time P50/P85/P95 |

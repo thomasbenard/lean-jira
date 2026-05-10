@@ -1582,6 +1582,8 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         "week": "2025-W50",
       },
     ],
+    "disabled": false,
+    "unit": "j-h",
   },
   "wip": {
     "currentWip": 7,

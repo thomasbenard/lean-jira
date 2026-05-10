@@ -49,6 +49,37 @@ metrics:
   bugIssueTypes:
     - "Bug"
 
+  # Méthode d'estimation de l'équipe.
+  # Détermine les métriques by-size et throughput-weighted.
+  # Pas de weightField — champ et unité dérivés automatiquement depuis method.
+  #
+  # --- Time estimate (défaut, pas de section estimation requise) ---
+  # estimation:
+  #   method: "time"
+  #   bucketThresholds: { xs: 0.5, s: 1, m: 3, l: 5 }   # jours ouvrés (optionnel)
+  #
+  # --- Story points (champ Atlassian standard customfield_10016) ---
+  # estimation:
+  #   method: "story-points"
+  #   bucketThresholds: { xs: 1, s: 3, m: 8, l: 13 }     # SP (optionnel)
+  #
+  # --- Complexity / Fibonacci / champ numérique custom ---
+  # estimation:
+  #   method: "numeric"
+  #   jiraField: "customfield_10099"                       # obligatoire
+  #   bucketThresholds: { xs: 2, s: 5, m: 10, l: 20 }    # obligatoire
+  #
+  # --- Taille de t-shirt (valeurs XS/S/M/L/XL dans Jira) ---
+  # estimation:
+  #   method: "t-shirt"
+  #   jiraField: "customfield_10200"                       # obligatoire
+  #   # throughput-weighted désactivé automatiquement
+  #
+  # --- Pas d'estimation ---
+  # estimation:
+  #   method: "none"
+  #   # by-size et throughput-weighted désactivés automatiquement
+
   # Seuils des signaux de santé sur les KPIs du rapport.
   # Absents = aucun signal affiché. Toutes les clés sont optionnelles.
   # Durées en jours ouvrés. bugRatio = ratio 0-1 (0.20 = 20%).

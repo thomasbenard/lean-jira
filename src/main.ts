@@ -14,6 +14,7 @@ export type { EstimationConfig, EstimationMethod, EstimationBucketThresholds };
 import { JiraClient } from "./jira/client";
 import { type JiraBoardConfig, type JiraStatus } from "./jira/types";
 import { type StageTimeSummary } from "./metrics/stageTimeBreakdown";
+import { type ThroughputWeightedSummary } from "./metrics/throughputWeighted";
 import { initClock } from "./clock";
 import { initRandom } from "./random";
 
@@ -477,7 +478,7 @@ program
     if (opts.json) {
       console.log(JSON.stringify(results, null, 2));
     } else {
-      printResults(results);
+      printResults(results, metricConfig.estimation.method);
     }
   });
 
@@ -705,7 +706,7 @@ if (require.main === module) {
   program.parse(process.argv);
 }
 
-function printResults(results: Record<string, unknown>): void {
+function printResults(results: Record<string, unknown>, estimationMethod?: EstimationMethod): void {
   for (const [name, data] of Object.entries(results)) {
     const description = ALL_METRICS.find((m) => m.name === name)?.description;
     console.log(`\n=== ${name.toUpperCase()} ===`);
@@ -723,17 +724,22 @@ function printResults(results: Record<string, unknown>): void {
       console.log(`  P85       : ${(d.p85Days as number).toFixed(2)} ${unit}`);
       console.log(`  P95       : ${(d.p95Days as number).toFixed(2)} ${unit}`);
       console.log(`  Issues    : ${totalIssues}${excluded > 0 ? ` (${excluded} outliers exclus)` : ""}`);
+    } else if (name === "throughput-weighted") {
+      const tw = d as unknown as ThroughputWeightedSummary;
+      if (tw.disabled) {
+        console.log(`  throughput-weighted : désactivé (méthode : ${estimationMethod ?? "inconnue"})`);
+      } else {
+        const unit = tw.unit;
+        console.log(`  Moy/semaine : ${tw.avgPerWeek.toFixed(1)} ${unit}/semaine`);
+        tw.byWeek.slice(-8).forEach((w) => {
+          console.log(`  ${w.week} : ${w.estimatedDays.toFixed(1)} ${unit} (${w.estimatedCount} estimées, ${w.unestimatedCount} non estimées)`);
+        });
+      }
     } else if ("byWeek" in d) {
-      const byWeek = d.byWeek as { week: string; estimatedDays: number; estimatedCount: number; unestimatedCount: number; count: number }[];
-      const isWeighted = byWeek.length > 0 && "estimatedDays" in byWeek[0];
-      const unit = isWeighted ? "j-h" : "issues";
-      console.log(`  Moy/semaine : ${(d.avgPerWeek as number).toFixed(1)} ${unit}`);
+      const byWeek = d.byWeek as { week: string; count: number }[];
+      console.log(`  Moy/semaine : ${(d.avgPerWeek as number).toFixed(1)} issues`);
       byWeek.slice(-8).forEach((w) => {
-        if (isWeighted) {
-          console.log(`  ${w.week} : ${w.estimatedDays.toFixed(1)} j-h (${w.estimatedCount} estimées, ${w.unestimatedCount} non estimées)`);
-        } else {
-          console.log(`  ${w.week} : ${w.count}`);
-        }
+        console.log(`  ${w.week} : ${w.count}`);
       });
     } else if ("aggregateFlowEfficiency" in d) {
       const agg = d.aggregateFlowEfficiency as number;

@@ -18,4 +18,4 @@ En tant que lead technique configurant lean-jira pour son équipe, je veux que l
 
 ## Statut
 
-**à faire**
+**livré**
