@@ -42,6 +42,8 @@ La configuration est séparée en deux fichiers :
 | `config.yaml` | Secrets Jira + chemin DB | Non (gitignoré) |
 | `board.yaml` | Définition du board + métriques | Oui |
 
+> Pour une configuration pas-à-pas complète (auth, board, validation, troubleshooting) : **[→ Guide de configuration](docs/configuration.md)**
+
 ### 1. `config.yaml`
 
 ```bash
