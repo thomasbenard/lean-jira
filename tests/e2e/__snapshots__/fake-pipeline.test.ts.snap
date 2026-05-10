@@ -77,8 +77,35 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
     "unit": "j",
   },
   "bottleneck-analysis": {
+    "byColumn": [
+      {
+        "count": 24,
+        "medianDays": 3,
+        "role": "dev",
+        "status": "In Progress",
+      },
+      {
+        "count": 10,
+        "medianDays": 3,
+        "role": "dev",
+        "status": "In Review",
+      },
+      {
+        "count": 8,
+        "medianDays": 2.2916666666666665,
+        "role": "qa",
+        "status": "In QA",
+      },
+      {
+        "count": 2,
+        "medianDays": 1,
+        "role": "po",
+        "status": "Awaiting PO",
+      },
+    ],
     "byRole": {
       "dev": {
+        "dominantColumn": "In Progress",
         "dominantSignal": "accumulation",
         "rank": 1,
         "score": 0.5,
@@ -90,6 +117,7 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         },
       },
       "po": {
+        "dominantColumn": "Awaiting PO",
         "dominantSignal": "accumulation",
         "rank": 3,
         "score": 0,
@@ -101,6 +129,7 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         },
       },
       "qa": {
+        "dominantColumn": "In QA",
         "dominantSignal": "rework",
         "rank": 2,
         "score": 0.5,
@@ -114,6 +143,7 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
     },
     "count": 24,
     "primaryBottleneck": "dev",
+    "primaryColumn": "In Progress",
     "recommendation": "Réduire les entrées en dev ou augmenter la capacité disponible à ce stage.",
   },
   "bug-backlog": {

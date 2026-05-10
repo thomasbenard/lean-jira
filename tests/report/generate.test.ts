@@ -85,12 +85,13 @@ function makeRenderInput(): RenderInput {
     histogram: [],
     cycleStats: { median: 0, p85: 0, p95: 0, avg: 0, count: 0 },
     bottleneck: {
-      count: 0, primaryBottleneck: null, recommendation: "",
+      count: 0, primaryBottleneck: null, primaryColumn: null, recommendation: "",
       byRole: {
-        dev: { score: 0, rank: 3, dominantSignal: "combined" as const, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
-        qa:  { score: 0, rank: 3, dominantSignal: "combined" as const, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
-        po:  { score: 0, rank: 3, dominantSignal: "combined" as const, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
+        dev: { score: 0, rank: 3, dominantSignal: "combined" as const, dominantColumn: null, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
+        qa:  { score: 0, rank: 3, dominantSignal: "combined" as const, dominantColumn: null, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
+        po:  { score: 0, rank: 3, dominantSignal: "combined" as const, dominantColumn: null, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
       },
+      byColumn: [],
     },
   };
 }
@@ -567,5 +568,56 @@ describe("buildScopeSection", () => {
     expect(html).not.toContain("Changements");
     expect(html).not.toContain("Story Points");
     expect(html).not.toContain("Reprogrammé");
+  });
+});
+
+describe("renderHtml — Bottleneck panel", () => {
+  it("affiche primaryColumn dans le badge si non null", () => {
+    const input: RenderInput = {
+      ...makeRenderInput(),
+      bottleneck: {
+        count: 1, primaryBottleneck: "dev", primaryColumn: "In Progress",
+        recommendation: "Réduire les entrées en dev.",
+        byRole: {
+          dev: { score: 0.7, rank: 1, dominantSignal: "stage_time" as const, dominantColumn: "In Progress", signals: { stageTimeMedianDays: 5, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
+          qa:  { score: 0.3, rank: 2, dominantSignal: "combined" as const, dominantColumn: null, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
+          po:  { score: 0,   rank: 3, dominantSignal: "combined" as const, dominantColumn: null, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
+        },
+        byColumn: [{ status: "In Progress", role: "dev", medianDays: 5, count: 1 }],
+      },
+    };
+    const html = renderHtml(input);
+    expect(html).toContain("DEV (In Progress)");
+  });
+
+  it("n'affiche pas de parenthèse si primaryColumn est null", () => {
+    const html = renderHtml(makeRenderInput());
+    expect(html).not.toMatch(/DEV \(/);
+  });
+
+  it("panel drill-down contient statut, médiane et count si byColumn non vide", () => {
+    const input: RenderInput = {
+      ...makeRenderInput(),
+      bottleneck: {
+        count: 1, primaryBottleneck: "dev", primaryColumn: "In Progress",
+        recommendation: "Réduire les entrées en dev.",
+        byRole: {
+          dev: { score: 0.7, rank: 1, dominantSignal: "stage_time" as const, dominantColumn: "In Progress", signals: { stageTimeMedianDays: 5, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
+          qa:  { score: 0.3, rank: 2, dominantSignal: "combined" as const, dominantColumn: null, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
+          po:  { score: 0,   rank: 3, dominantSignal: "combined" as const, dominantColumn: null, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
+        },
+        byColumn: [{ status: "In Progress", role: "dev", medianDays: 5, count: 20 }],
+      },
+    };
+    const html = renderHtml(input);
+    expect(html).toContain("In Progress");
+    expect(html).toContain("5.0j");
+    expect(html).toContain("(20)");
+    expect(html).toContain("Drill-down par colonne");
+  });
+
+  it("panel drill-down absent si byColumn vide", () => {
+    const html = renderHtml(makeRenderInput());
+    expect(html).not.toContain("Drill-down par colonne");
   });
 });

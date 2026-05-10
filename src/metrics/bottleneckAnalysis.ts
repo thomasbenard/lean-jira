@@ -6,6 +6,7 @@ import {
   computeRoleDays,
   toRoleStatuses,
   statsFromDays,
+  workingDaysBetween,
   isoWeek,
   buildExcludeIssueTypesFragment,
   type RoleStatuses,
@@ -25,14 +26,24 @@ export interface RoleBottleneckScore {
   score: number;
   rank: number;
   dominantSignal: BottleneckSignal;
+  dominantColumn: string | null;
   signals: RoleSignals;
+}
+
+export interface ColumnStat {
+  status: string;
+  role: RoleKey;
+  medianDays: number;
+  count: number;
 }
 
 export interface BottleneckAnalysisResult {
   count: number;
   primaryBottleneck: RoleKey | null;
+  primaryColumn: string | null;
   recommendation: string;
   byRole: Record<RoleKey, RoleBottleneckScore>;
+  byColumn: ColumnStat[];
 }
 
 // Assignement de rangs normalisés 0–1 par ordre croissant. Ex-æquo → même rang.
@@ -79,6 +90,7 @@ function emptyScore(): RoleBottleneckScore {
     score: 0,
     rank: 3,
     dominantSignal: "combined",
+    dominantColumn: null,
     signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 },
   };
 }
@@ -87,8 +99,10 @@ function emptyResult(): BottleneckAnalysisResult {
   return {
     count: 0,
     primaryBottleneck: null,
+    primaryColumn: null,
     recommendation: "",
     byRole: { dev: emptyScore(), qa: emptyScore(), po: emptyScore() },
+    byColumn: [],
   };
 }
 
@@ -200,6 +214,7 @@ export const bottleneckAnalysisMetric: Metric<BottleneckAnalysisResult> = {
       qa: { eligible: 0, ftr: 0 },
       po: { eligible: 0, ftr: 0 },
     };
+    const columnDays = new Map<string, number[]>();
 
     for (const [, transitions] of byIssue) {
       const done_at = transitions[0].done_at;
@@ -213,8 +228,20 @@ export const bottleneckAnalysisMetric: Metric<BottleneckAnalysisResult> = {
       const passes: Record<RoleKey, number> = { dev: 0, qa: 0, po: 0 };
       let prevRoleFtr: RoleKey | null = null;
 
-      for (const t of transitions) {
+      for (const [i, t] of transitions.entries()) {
         const cur = getRole(t.to_status);
+
+        if (cur !== null) {
+          const start = t.transitioned_at;
+          const end = i + 1 < transitions.length ? transitions[i + 1].transitioned_at : done_at;
+          // end <= start possible si deux transitions ont le même timestamp → colonne absente de byColumn (0j non significatif)
+          if (end > start) {
+            const days = workingDaysBetween(start, end);
+            let arr = columnDays.get(t.to_status);
+            if (!arr) {arr = []; columnDays.set(t.to_status, arr);}
+            arr.push(days);
+          }
+        }
 
         // rework: prevRole conservé à travers statuts sans rôle (cohérent avec handoff-rework)
         if (cur !== null && cur !== prevRoleRework) {
@@ -266,6 +293,30 @@ export const bottleneckAnalysisMetric: Metric<BottleneckAnalysisResult> = {
     const rankRework    = rankNormalize(ALL_ROLES.map((r) => reworkInboundRate[r]));
     const rankFtr       = rankNormalize(ALL_ROLES.map((r) => ftrPenalty[r]));
 
+    const roleStatuses: { role: RoleKey; statuses: string[] }[] = [
+      { role: "dev", statuses: roles.devStatuses },
+      { role: "qa",  statuses: roles.qaStatuses  },
+      { role: "po",  statuses: roles.poStatuses  },
+    ];
+    const byColumn: ColumnStat[] = [];
+    for (const { role, statuses } of roleStatuses) {
+      const cols: ColumnStat[] = [];
+      for (const status of statuses) {
+        const days = columnDays.get(status);
+        if (!days || days.length === 0) {continue;}
+        cols.push({ status, role, medianDays: statsFromDays(days, false).medianDays, count: days.length });
+      }
+      cols.sort((a, b) => b.medianDays - a.medianDays || a.status.localeCompare(b.status));
+      byColumn.push(...cols);
+    }
+
+    // First entry per role in sorted byColumn = dominant column (highest median, alphabetical tiebreak)
+    const dominantColumns: Record<RoleKey, string | null> = { dev: null, qa: null, po: null };
+    for (const c of byColumn) {
+      if (dominantColumns[c.role] !== null) {continue;}
+      dominantColumns[c.role] = c.status;
+    }
+
     const byRole: Record<RoleKey, RoleBottleneckScore> = {} as Record<RoleKey, RoleBottleneckScore>;
     for (let i = 0; i < ALL_ROLES.length; i++) {
       const role = ALL_ROLES[i];
@@ -279,6 +330,7 @@ export const bottleneckAnalysisMetric: Metric<BottleneckAnalysisResult> = {
           rework: rankRework[i],
           ftr: rankFtr[i],
         }),
+        dominantColumn: dominantColumns[role],
         signals: {
           stageTimeMedianDays: stageTimeMedian[role],
           avgNetFlow: avgNetFlow[role],
@@ -297,8 +349,9 @@ export const bottleneckAnalysisMetric: Metric<BottleneckAnalysisResult> = {
     sorted.forEach((role, i) => {byRole[role].rank = i + 1;});
 
     const primaryBottleneck = sorted[0];
+    const primaryColumn = dominantColumns[primaryBottleneck];
     const recommendation = RECOMMENDATIONS[byRole[primaryBottleneck].dominantSignal](primaryBottleneck);
 
-    return { count, primaryBottleneck, recommendation, byRole };
+    return { count, primaryBottleneck, primaryColumn, recommendation, byRole, byColumn };
   },
 };

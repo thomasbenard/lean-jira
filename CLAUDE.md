@@ -173,7 +173,7 @@ Board is defined as an ordered list of columns under `board.columns`. Each colum
 | `handoff-rework` | count + reworkRatio + avgReworks + byReworkType {qaToDev,poToQa,poDev} | % tickets avec retour arrière entre rôles; population cycle-time; rolling 30j |
 | `first-time-right` | count + ftrByRole {dev,qa,po}: {eligible,firstTimeRight,ftrRate,avgPasses} | % tickets traversant chaque rôle en 1 seul passage; population cycle-time; rolling 30j |
 | `scope-change-rate` | totalIssues + changedIssues + changeRatio + bySprint (incl. issueDetails[]) + changedIssueKeys | issues dont la description ou le résumé a changé significativement après entrée en sprint; seuil similarité 0.85; non snapshotté |
-| `bottleneck-analysis` | count + primaryBottleneck + recommendation + byRole {dev,qa,po}: {score,rank,dominantSignal,signals} | score composite 0–1 par rôle synthétisant 4 signaux (stageTime, avgNetFlow, reworkInbound, ftrPenalty); identifie le stage prioritaire selon Theory of Constraints |
+| `bottleneck-analysis` | count + primaryBottleneck + primaryColumn + recommendation + byRole {dev,qa,po}: {score,rank,dominantSignal,dominantColumn,signals} + byColumn[]: {status,role,medianDays,count} | score composite 0–1 par rôle synthétisant 4 signaux (stageTime, avgNetFlow, reworkInbound, ftrPenalty); identifie le stage prioritaire selon Theory of Constraints; dominantColumn = statut Jira avec médiane la plus haute dans le rôle (tiebreak alphabétique); byColumn trié dev→qa→po puis médiane décroissante + tiebreak alphabétique |
 
 ## Adding a metric
 

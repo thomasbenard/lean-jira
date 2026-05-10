@@ -8,7 +8,7 @@ import { agingWipMetric, type AgingWipSummary, type AgingWipIssue, type AgingRis
 import { forecastMetric, type ForecastSummary } from "../metrics/forecast";
 import { cycleTimeMetric } from "../metrics/cycleTime";
 import { scopeChangeMetric, type ScopeChangeResult } from "../metrics/scopeChange";
-import { bottleneckAnalysisMetric, type BottleneckAnalysisResult } from "../metrics/bottleneckAnalysis";
+import { bottleneckAnalysisMetric, type BottleneckAnalysisResult, type RoleKey } from "../metrics/bottleneckAnalysis";
 import { getLastSyncDate } from "../db/store";
 import { now } from "../clock";
 
@@ -32,6 +32,12 @@ export interface ResolvedPersonalization {
 }
 
 const VALID_TABS = new Set(["delivery", "quality", "roles", "forecast", "advanced"]);
+
+const ROLE_CSS_COLOR: Record<RoleKey, string> = {
+  dev: "var(--violet)",
+  qa:  "var(--green)",
+  po:  "var(--orange)",
+};
 const LOGO_MIME: Record<string, string> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
@@ -718,8 +724,9 @@ ${fontLink}
     text-transform: uppercase; color: var(--text-dim); font-weight: 500;
   }
   .chart-card canvas { max-height: 220px; }
-  .chart-card.wide { grid-column: 1 / -1; }
+  .chart-card.wide { grid-column: 1 / -1; margin-bottom: 1rem; }
   .chart-card.wide canvas { max-height: 320px; }
+  .bn-bars-col .bn-label { min-width: 10rem; }
   .meta-line { font-size: 0.8rem; color: var(--text-dim); margin: 0.5rem 0 1rem; font-family: "IBM Plex Mono"; }
 
   table { width: 100%; border-collapse: collapse; font-family: "IBM Plex Mono"; font-size: 0.82rem; background: var(--panel); }
@@ -898,6 +905,7 @@ ${show("roles") ? `<div class="tab-panel${firstTab === "roles" ? " active" : ""}
     ${renderRoleCardHtml({ cls: "po",  name: "PO",  wip: input.kpis.wipPo, med: input.kpis.stageTimePoMedian, ftr: input.kpis.ftrPo })}
   </div>
   ${buildBottleneckPanelHtml(input.bottleneck)}
+  ${buildColumnDrilldownHtml(input.bottleneck)}
   <div class="panel-grid">
     <div class="chart-card"><h3>Temps médian par rôle${helpBtn("stageTimeBreakdown")}</h3><canvas id="stageTimeByRoleChart"></canvas></div>
     <div class="chart-card"><h3>Répartition cycle time${helpBtn("stageTimeBreakdown")}</h3><canvas id="stageTimeShareChart"></canvas></div>
@@ -1635,6 +1643,7 @@ function buildBottleneckPanelHtml(b: BottleneckAnalysisResult): string {
   const primary = b.primaryBottleneck ?? "dev";
   const score = b.byRole[primary].score;
   const badgeCls = score >= 0.6 ? "risk-critical" : score >= 0.4 ? "risk-at-risk" : "risk-ok";
+  const colLabel = b.primaryColumn ? ` (${escapeHtml(b.primaryColumn)})` : "";
   const bars = (["dev", "qa", "po"] as const).map((role) => {
     const s = b.byRole[role];
     const pct = Math.round(s.score * 100);
@@ -1648,8 +1657,26 @@ function buildBottleneckPanelHtml(b: BottleneckAnalysisResult): string {
   }).join("");
   return `<div class="chart-card wide">
     <h3>Bottleneck Analysis${helpBtn("bottleneckAnalysis")}</h3>
-    <p class="meta-line"><span class="${badgeCls}">${escapeHtml(primary.toUpperCase())}</span> — ${escapeHtml(b.recommendation)}</p>
+    <p class="meta-line"><span class="${badgeCls}">${escapeHtml(primary.toUpperCase())}${colLabel}</span> — ${escapeHtml(b.recommendation)}</p>
     <div class="bn-bars">${bars}</div>
+  </div>`;
+}
+
+function buildColumnDrilldownHtml(b: BottleneckAnalysisResult): string {
+  if (b.byColumn.length === 0) {return "";}
+  const maxMedian = Math.max(...b.byColumn.map((c) => c.medianDays));
+  const rows = b.byColumn.map((c) => {
+    const pct = maxMedian > 0 ? Math.max(1, Math.round((c.medianDays / maxMedian) * 100)) : 1;
+    const color = ROLE_CSS_COLOR[c.role];
+    return `<div class="bn-row">
+        <span class="bn-label">${escapeHtml(c.status)} <span class="bn-rank">${escapeHtml(c.role.toUpperCase())}</span></span>
+        <div class="bn-bar-bg"><div class="bn-bar-fill" style="width:${pct}%;background:${color}"></div></div>
+        <span class="bn-pct mono">${c.medianDays.toFixed(1)}j <span class="bn-rank">(${c.count})</span></span>
+      </div>`;
+  }).join("");
+  return `<div class="chart-card wide">
+    <h3>Drill-down par colonne${helpBtn("bottleneckAnalysis")}</h3>
+    <div class="bn-bars bn-bars-col">${rows}</div>
   </div>`;
 }
 
