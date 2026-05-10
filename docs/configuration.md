@@ -172,3 +172,114 @@ npm run autoconfig -- --apply
 - Vérifier `cutoffDate` si votre historique Jira a subi un bulk-close
 
 ---
+
+### Voie B — Configuration manuelle
+
+```bash
+cp board.example.yaml board.yaml
+# puis éditer board.yaml
+```
+
+#### Types de colonnes
+
+Chaque colonne du board a un `type` qui détermine son rôle dans les métriques :
+
+| `type` | Signification | Impact métrique |
+|---|---|---|
+| `todo` | File d'attente initiale | Début du **lead time** |
+| `active` + `devStart: true` | Début du travail actif | Début du **cycle time** |
+| `active` | Travail en cours (sans être le devStart) | "Touch time" → **flow efficiency** + WIP |
+| `queue` | File d'attente intermédiaire | "Queue time" → **flow efficiency** + WIP |
+| `done` | Livraison équipe | Définit `done_at` pour toutes les métriques |
+
+> **`devStart: true`** peut être posé sur plusieurs colonnes — leurs statuts sont unionés. Exemple : si "Analyse" et "Développement" marquent tous deux le début du travail, les deux peuvent avoir `devStart: true`.
+
+#### Exemple complet
+
+```yaml
+board:
+  columns:
+    - name: "Backlog"
+      type: todo
+      statuses:
+        - "To Do"
+        - "Ready"
+
+    - name: "Développement"
+      type: active
+      devStart: true
+      role: dev          # optionnel — active métriques role-aware
+      statuses:
+        - "In Progress"
+
+    - name: "Code Review"
+      type: queue
+      role: qa
+      statuses:
+        - "In Review"
+
+    - name: "QA"
+      type: active
+      role: qa
+      statuses:
+        - "In QA"
+
+    - name: "Validation PO"
+      type: queue
+      role: po
+      statuses:
+        - "À valider"
+
+    - name: "Done"
+      type: done
+      statuses:
+        - "Done"
+        - "Livré"
+
+metrics:
+  bugIssueTypes:
+    - "Bug"
+```
+
+#### Champ `role:` — métriques role-aware
+
+Le champ `role: dev | qa | po` est **optionnel**. Il active les métriques : stage time breakdown, WIP par rôle, throughput gap, handoff rework, first-time-right.
+
+Sans `role:` sur aucune colonne : ces métriques et l'onglet "Flux par rôle" du rapport sont silencieusement masqués.
+
+> Règle : une colonne de travail actif → `role: dev` ou `role: qa` selon qui travaille. Une colonne de validation → `role: po`. Les files d'attente entre deux rôles peuvent aussi avoir un `role:`.
+
+---
+
+### 3c. Cas particuliers
+
+#### `legacyDoneStatuses` — statuts renommés dans Jira
+
+Si votre historique Jira contient des transitions vers des statuts qui **n'existent plus dans l'API courante** (parce qu'ils ont été renommés), lean-jira ne peut pas les détecter comme "done" automatiquement.
+
+Symptôme : throughput anormalement bas sur l'historique ancien, alors que les tickets sont bien fermés dans Jira.
+
+Fix :
+```yaml
+board:
+  legacyDoneStatuses:
+    - "Delivered"      # ancien nom, renommé en "Done" lors d'une migration
+    - "DELIVERED"      # variante casse
+```
+
+> Garder cette liste minimale — n'ajouter que les statuts présents dans l'historique des transitions mais absents de `/rest/api/2/status`.
+
+#### `cutoffDate` — ignorer l'historique avant une date
+
+Si votre instance Jira a subi un **bulk-close** (fermeture en masse de tickets lors d'une migration de workflow), le throughput sera artificiellement gonflé sur la période concernée.
+
+Fix : ignorer toutes les issues livrées avant la date du bulk-close.
+
+```yaml
+metrics:
+  cutoffDate: "2025-11-01"   # ignorer les livraisons antérieures à cette date
+```
+
+> `cutoffDate` affecte `lead-time`, `cycle-time`, `throughput` et toutes les métriques de durée. Les issues livrées avant cette date sont exclues des calculs et du rapport.
+
+---
