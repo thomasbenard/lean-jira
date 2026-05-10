@@ -371,3 +371,88 @@ Ouvrir `report.html` dans un navigateur. Si les métriques semblent incorrectes 
 ✓ **Installation terminée.** Pour regénérer le rapport : `npm run refresh`.
 
 ---
+
+## 5. Référence complète
+
+### `config.yaml` — tous les champs
+
+#### Section `jira:`
+
+| Champ | Type | Requis | Défaut | Description |
+|---|---|---|---|---|
+| `baseUrl` | string | Oui | — | URL de base de l'instance Jira. Pour le gateway Atlassian : `https://api.atlassian.com/ex/jira/<cloudId>/` |
+| `frontendUrl` | string | Non* | — | URL de l'interface Jira pour les liens cliquables du rapport. *Obligatoire si `baseUrl` pointe vers le gateway Atlassian |
+| `email` | string | Non* | — | Email du compte Jira. *Requis pour auth Basic |
+| `apiToken` | string | Non* | — | Token API Jira. *Requis pour auth Basic |
+| `personalAccessToken` | string | Non* | — | PAT Jira Server/DC. *Prend le dessus sur `email`/`apiToken` si présent et non vide |
+| `projectKey` | string | Oui | — | Clé du projet Jira (ex: `PROJ`) |
+| `boardId` | number | Oui | — | ID numérique du board Jira (visible dans l'URL) |
+| `name` | string | Non | `projectKey` | Nom affiché dans le titre du rapport HTML |
+| `mode` | `"real"` \| `"fake"` | Non | `"real"` | `"fake"` pour utiliser les fixtures JSON embarquées sans connexion Jira |
+| `frozenNow` | string (YYYY-MM-DD) | Non* | — | *Obligatoire si `mode: fake`. Fige la date "aujourd'hui" pour un output déterministe |
+| `fixturesPath` | string | Non | `"./src/jira/fixtures"` | Chemin vers les fixtures JSON pour le mode fake |
+
+#### Section `db:`
+
+| Champ | Type | Requis | Défaut | Description |
+|---|---|---|---|---|
+| `db.path` | string | Oui | — | Chemin vers le fichier SQLite (sera créé s'il n'existe pas) |
+
+---
+
+### `board.yaml` — tous les champs
+
+#### Section `board.columns[]:`
+
+| Champ | Type | Requis | Description |
+|---|---|---|---|
+| `name` | string | Oui | Nom de la colonne (affiché dans les logs) |
+| `type` | `"todo"` \| `"active"` \| `"queue"` \| `"done"` | Oui | Rôle de la colonne dans les métriques (voir Section 3b) |
+| `devStart` | boolean | Non | `true` = début du cycle time. Peut être posé sur plusieurs colonnes (statuts unionés) |
+| `role` | `"dev"` \| `"qa"` \| `"po"` | Non | Active les métriques role-aware pour cette colonne |
+| `statuses[]` | string[] | Oui | Liste des noms de statuts Jira exacts (casse significative) |
+
+#### Section `board:` (hors colonnes)
+
+| Champ | Type | Requis | Description |
+|---|---|---|---|
+| `legacyDoneStatuses[]` | string[] | Non | Statuts historiques renommés, absents de l'API Jira courante, à considérer comme "done" |
+
+#### Section `metrics:`
+
+| Champ | Type | Requis | Défaut | Description |
+|---|---|---|---|---|
+| `cutoffDate` | string (YYYY-MM-DD) | Non | — | Issues livrées avant cette date ignorées par toutes les métriques |
+| `bugIssueTypes[]` | string[] | Non | `[]` | Types Jira traités comme bugs (bucket `BUG`, métriques `bug-*`) |
+| `excludeIssueTypes[]` | string[] | Non | `[]` | Types Jira exclus de toutes les métriques |
+| `scopeChangeGracePeriodHours` | number | Non | — | Délai (en heures) après entrée en sprint avant lequel un changement de scope n'est pas comptabilisé |
+| `healthThresholds` | object | Non | — | Seuils des signaux de santé KPI dans le rapport (voir ci-dessous) |
+| `estimation` | object | Non | `{ method: "time" }` | Méthode d'estimation utilisée (voir `board.example.yaml`) |
+
+**`healthThresholds` — détail :**
+
+| Clé | Direction | Unité | Description |
+|---|---|---|---|
+| `leadTimeMedianDays` | bas = mieux | jours ouvrés | Médiane lead time |
+| `cycleTimeMedianDays` | bas = mieux | jours ouvrés | Médiane cycle time |
+| `throughputWeekly` | haut = mieux | issues/semaine | Throughput hebdo moyen |
+| `wipCount` | bas = mieux | issues | WIP courant |
+| `bugCycleTimeMedianDays` | bas = mieux | jours ouvrés | Médiane cycle time bugs |
+| `bugRatio` | bas = mieux | ratio 0–1 | Part des bugs dans les livraisons |
+
+Chaque seuil prend la forme `{ warn: X, crit: Y }`. Absent = aucun signal affiché.
+
+#### Section `report:` (dans `board.yaml`)
+
+| Champ | Type | Requis | Description |
+|---|---|---|---|
+| `title` | string | Non | Remplace "Rapport Lean — {projectKey}" dans le `<title>` HTML et l'en-tête |
+| `logoUrl` | string | Non | Chemin local (`.png`, `.jpg`, `.svg`, `.webp` — embarqué en base64) ou URL `http(s)` |
+| `fontUrl` | string | Non | Remplace le lien Google Fonts IBM Plex dans le rapport |
+| `customCssPath` | string | Non | Chemin vers un fichier `.css` injecté après le style par défaut (cascade normale) |
+| `excludeTabs[]` | string[] | Non | Onglets à masquer : `delivery`, `quality`, `roles`, `forecast`, `advanced` |
+| `templatePath` | string | Non | Chemin vers un template Handlebars `.hbs` custom (remplace le rendu HTML intégral) |
+
+> Chemins `logoUrl`, `customCssPath`, `templatePath` résolus depuis le répertoire de `board.yaml`.
+
+---
