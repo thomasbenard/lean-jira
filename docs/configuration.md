@@ -56,3 +56,77 @@ Mon instance Jira est...
 2. **Personal Access Tokens** → **Créer un token**
 
 ---
+
+## 2. `config.yaml` — connexion Jira
+
+```bash
+cp config.example.yaml config.yaml
+# puis éditer config.yaml avec vos valeurs
+```
+
+> `config.yaml` est gitignoré — ne jamais le versionner (il contient vos secrets).
+
+---
+
+### Bloc 1 — Jira Cloud, auth Basic
+
+```yaml
+jira:
+  baseUrl: "https://your-company.atlassian.net"
+  email: "you@company.com"
+  apiToken: "YOUR_API_TOKEN"
+  projectKey: "PROJ"
+  boardId: 42
+  name: "Ma Squad"          # Optionnel — titre dans le rapport
+
+db:
+  path: "./lean-jira.db"
+```
+
+---
+
+### Bloc 2 — Jira Cloud, domaine custom (gateway Atlassian)
+
+À utiliser si votre domaine custom bloque l'auth Basic (erreur 401 avec le Bloc 1).
+
+```yaml
+jira:
+  baseUrl: "https://api.atlassian.com/ex/jira/YOUR_CLOUD_ID/"
+  frontendUrl: "https://your-company.com"   # obligatoire ici — sert aux liens du rapport
+  email: "you@company.com"
+  apiToken: "YOUR_API_TOKEN"
+  projectKey: "PROJ"
+  boardId: 42
+
+db:
+  path: "./lean-jira.db"
+```
+
+**Récupérer `YOUR_CLOUD_ID` :**
+```bash
+curl https://your-company.com/_edge/tenant_info
+# Réponse : {"cloudId":"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", ...}
+```
+
+---
+
+### Bloc 3 — Jira Server / Data Center (PAT)
+
+```yaml
+jira:
+  baseUrl: "https://jira.your-company.com"
+  personalAccessToken: "YOUR_PAT"
+  projectKey: "PROJ"
+  boardId: 42
+
+db:
+  path: "./lean-jira.db"
+```
+
+> `email` et `apiToken` sont ignorés si `personalAccessToken` est présent et non vide.
+
+---
+
+✓ **Config.yaml prête.** Passer à la section suivante.
+
+---
