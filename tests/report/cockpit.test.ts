@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
+import { initLocale } from "../../src/i18n/index";
 import {
   buildKpiCells,
   computeVerdict,
@@ -6,6 +7,8 @@ import {
   type KpiCell,
 } from "../../src/report/generate";
 import type { AgingWipSummary, AgingWipIssue } from "../../src/metrics/agingWip";
+
+beforeEach(() => { initLocale("en"); });
 
 const emptySeries = { dates: [], series: {} as Record<string, number[]> };
 
@@ -215,7 +218,7 @@ describe("computeVerdict", () => {
   it("phrase positive si statut ok", () => {
     const cells = [cell("lead", "green"), cell("cycle", "green")];
     const v = computeVerdict(cells);
-    expect(v.phrase).toMatch(/zone verte|sain|tous/i);
+    expect(v.phrase).toMatch(/green zone|healthy|all/i);
   });
 
   it("liste maximum 3 KPIs dans la phrase pour rester scannable", () => {
@@ -279,7 +282,7 @@ describe("buildTop3Actions", () => {
       issues: [makeIssue("K-1", 5, "watch"), makeIssue("K-2", 1, "ok")],
     });
     const html = buildTop3Actions(aging, BASE);
-    expect(html).toContain("Aucun ticket en zone critique");
+    expect(html).toContain("No tickets in critical zone");
     expect(html).not.toContain("K-1");
   });
 

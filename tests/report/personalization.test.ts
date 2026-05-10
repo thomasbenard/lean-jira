@@ -190,9 +190,9 @@ describe("renderHtml — personnalisation", () => {
     expect(html).toContain("Équipe Plateforme");
   });
 
-  it("conserve le titre par défaut si absent (Rapport Lean — projectKey)", () => {
+  it("conserve le titre par défaut si absent (Lean Report — projectKey)", () => {
     const html = renderHtml(makeRenderInput());
-    expect(html).toContain("<title>Rapport Lean — TEST</title>");
+    expect(html).toContain("<title>Lean Report — TEST</title>");
   });
 
   it("injecte le logo dans le header", () => {
@@ -258,7 +258,7 @@ describe("renderHtml — personnalisation", () => {
       },
     }));
     expect(html).not.toContain('class="tabs"');
-    expect(html).toContain("Indicateurs clés");
+    expect(html).toContain("Key indicators");
   });
 
   it("décale la classe active si le premier onglet est exclu", () => {

@@ -58,9 +58,9 @@ function makeRenderInput(overrides: Partial<RenderInput> = {}): RenderInput {
 }
 
 describe("buildTemplateContext", () => {
-  it("title par défaut = 'Rapport Lean — {projectKey}'", () => {
+  it("title par défaut = 'Lean Report — {projectKey}'", () => {
     const ctx = buildTemplateContext(makeRenderInput(), [], "{}");
-    expect(ctx.title).toBe("Rapport Lean — TEST");
+    expect(ctx.title).toBe("Lean Report — TEST");
   });
 
   it("title personnalisé depuis personalization", () => {
@@ -147,7 +147,7 @@ describe("renderWithHandlebars", () => {
   it("template minimal {{title}} → rendu avec valeur correcte", () => {
     fs.writeFileSync(tmpFile, "{{escapeHtml title}}");
     const result = renderWithHandlebars(makeRenderInput(), tmpFile);
-    expect(result).toBe("Rapport Lean — TEST");
+    expect(result).toBe("Lean Report — TEST");
   });
 
   it("template avec variable inexistante → chaîne vide, pas d'erreur", () => {

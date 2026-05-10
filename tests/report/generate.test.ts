@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { issueLink, agingRowsHtml, buildBucketSeries, buildRoleSeries, syncMetaLabel, staleBannerHtml, computeMovingAvg, renderHtml, isScopeChangeAvailable, buildScopeAlertBanner, buildScopeChangeChart, buildScopeSection, estimationFlags } from "../../src/report/generate";
+import { initLocale } from "../../src/i18n/index";
 import type { AgingWipSummary } from "../../src/metrics/agingWip";
 import type { SnapshotRow } from "../../src/snapshots/compute";
 import type { ScopeChangeResult, SprintScopeStats } from "../../src/metrics/scopeChange";
@@ -7,6 +8,8 @@ import type { EstimationConfig } from "../../src/metrics/types";
 import { createTestDb } from "../helpers/db";
 import { upsertIssues, upsertSprints } from "../../src/db/store";
 import { makeIssue } from "../helpers/seeders";
+
+beforeEach(() => { initLocale("en"); });
 
 type RenderInput = Parameters<typeof renderHtml>[0];
 
@@ -188,15 +191,15 @@ describe("buildBucketSeries", () => {
 
 describe("syncMetaLabel", () => {
   it("retourne le texte jamais synchronisé si null", () => {
-    expect(syncMetaLabel(null)).toBe("Données Jira : jamais synchronisé");
+    expect(syncMetaLabel(null)).toBe("Jira data: never synced");
   });
 
   it("affiche la date tronquée au format YYYY-MM-DD HH:MM", () => {
-    expect(syncMetaLabel("2026-04-28T10:30:00Z")).toBe("Données Jira du 2026-04-28 10:30");
+    expect(syncMetaLabel("2026-04-28T10:30:00Z")).toBe("Jira data: 2026-04-28 10:30");
   });
 
   it("fonctionne avec un timestamp ISO sans milliseconde", () => {
-    expect(syncMetaLabel("2026-01-15T08:05:00.000Z")).toBe("Données Jira du 2026-01-15 08:05");
+    expect(syncMetaLabel("2026-01-15T08:05:00.000Z")).toBe("Jira data: 2026-01-15 08:05");
   });
 });
 
@@ -215,7 +218,7 @@ describe("staleBannerHtml", () => {
   it("retourne le bandeau avec 'jamais effectué' si lastSyncAt = null", () => {
     const html = staleBannerHtml(true, null);
     expect(html).toContain("stale-warning");
-    expect(html).toContain("jamais effectué");
+    expect(html).toContain("never synced");
   });
 
   it("le bandeau est non vide si stale + lastSyncAt présent", () => {
@@ -247,7 +250,7 @@ describe("agingRowsHtml", () => {
 
   it("affiche le message vide si aucune issue", () => {
     const html = agingRowsHtml(summary([]), BASE);
-    expect(html).toContain("Aucun item en cours");
+    expect(html).toContain("No items in progress");
     expect(html).not.toContain("<a href");
   });
 });
@@ -321,7 +324,7 @@ describe("renderHtml — Cockpit structure", () => {
     for (const id of ["leadTimeChart", "cycleTimeChart", "throughputChart", "throughputWeightedChart", "wipChart", "cycleHistogramChart"]) {
       expect(panel, `canvas ${id}`).toContain(`id="${id}"`);
     }
-    expect(panel).toContain("Lead time par taille");
+    expect(panel).toContain("Lead time by size");
   });
 
   it("panel Qualité contient les charts bugs", () => {
@@ -521,7 +524,7 @@ describe("buildScopeSection", () => {
   it("affiche 'Aucune dérive' quand bySprint est vide", () => {
     const db = createTestDb();
     const html = buildScopeSection(makeScopeData(), db, "https://test.atlassian.net");
-    expect(html).toContain("Aucune dérive de périmètre détectée");
+    expect(html).toContain("No scope drift detected.");
     expect(html).not.toContain("<canvas");
     expect(html).not.toContain("<table");
   });
@@ -537,7 +540,7 @@ describe("buildScopeSection", () => {
     upsertIssues(db, [makeIssue({ key: "P-1", summary: "Ma US" })]);
     const html = buildScopeSection(scopeData, db, "https://test.atlassian.net");
     expect(html).toContain("<canvas");
-    expect(html).not.toContain("Aucune dérive de périmètre détectée");
+    expect(html).not.toContain("No scope drift detected.");
   });
 
   it("mappe chaque issue à son sprint réel dans le tableau (2 issues, 2 sprints différents)", () => {
@@ -625,7 +628,7 @@ describe("renderHtml — Bottleneck panel", () => {
     expect(html).toContain("In Progress");
     expect(html).toContain("5.0j");
     expect(html).toContain("(20)");
-    expect(html).toContain("Drill-down par colonne");
+    expect(html).toContain("Drill-down by column");
   });
 
   it("panel drill-down absent si byColumn vide", () => {
@@ -645,7 +648,7 @@ describe("estimationFlags — méthode none", () => {
   });
 
   it("contextLabel contient 'aucune'", () => {
-    expect(estimationFlags({ method: "none" }).contextLabel).toContain("aucune");
+    expect(estimationFlags({ method: "none" }).contextLabel).toContain("none");
   });
 });
 
@@ -683,7 +686,7 @@ describe("estimationFlags — méthode numeric", () => {
   it("unit=pts, contextLabel contient 'champ custom'", () => {
     const f = estimationFlags({ method: "numeric", jiraField: "cf", bucketThresholds: { xs: 2, s: 5, m: 10, l: 20 } });
     expect(f.weightedUnit).toBe("pts");
-    expect(f.contextLabel).toContain("champ custom");
+    expect(f.contextLabel).toContain("custom field");
   });
 });
 
@@ -692,28 +695,28 @@ describe("estimationFlags — méthode numeric", () => {
 describe("renderHtml — méthode none", () => {
   it("throughput pondéré masqué", () => {
     const html = renderHtml(makeInput({ method: "none" }));
-    expect(isHidden(html, "Throughput pondéré")).toBe(true);
+    expect(isHidden(html, "Weighted throughput")).toBe(true);
   });
 
   it("lead normalisé masqué", () => {
     const html = renderHtml(makeInput({ method: "none" }));
-    expect(isHidden(html, "Lead normalisé")).toBe(true);
+    expect(isHidden(html, "Normalized lead")).toBe(true);
   });
 
   it("cycle normalisé masqué", () => {
     const html = renderHtml(makeInput({ method: "none" }));
-    expect(isHidden(html, "Cycle normalisé")).toBe(true);
+    expect(isHidden(html, "Normalized cycle")).toBe(true);
   });
 
   it("lead by-size masqué", () => {
     const html = renderHtml(makeInput({ method: "none" }));
     expect(html).toContain('style="display:none"');
-    expect(html).toMatch(/class="chart-card" style="display:none"[^>]*>\s*\n?\s*<h3>Lead time par taille/);
+    expect(html).toMatch(/class="chart-card" style="display:none"[^>]*>\s*\n?\s*<h3>Lead time by size/);
   });
 
   it("bandeau mention aucune", () => {
     const html = renderHtml(makeInput({ method: "none" }));
-    expect(html).toContain("aucune");
+    expect(html).toContain("none");
     expect(html).toContain("estimation-context");
   });
 });
@@ -721,63 +724,63 @@ describe("renderHtml — méthode none", () => {
 describe("renderHtml — méthode time (défaut)", () => {
   it("throughput pondéré visible", () => {
     const html = renderHtml(makeInput({ method: "time" }));
-    expect(isVisible(html, "Throughput pondéré")).toBe(true);
-    expect(isHidden(html, "Throughput pondéré")).toBe(false);
+    expect(isVisible(html, "Weighted throughput")).toBe(true);
+    expect(isHidden(html, "Weighted throughput")).toBe(false);
   });
 
   it("lead normalisé visible", () => {
     const html = renderHtml(makeInput({ method: "time" }));
-    expect(isHidden(html, "Lead normalisé")).toBe(false);
+    expect(isHidden(html, "Normalized lead")).toBe(false);
   });
 
-  it("titre throughput contient 'j-h estimés'", () => {
+  it("titre throughput contient 'estimated j-h'", () => {
     const html = renderHtml(makeInput({ method: "time" }));
-    expect(html).toContain("j-h estimés");
+    expect(html).toContain("estimated j-h");
   });
 
   it("bandeau toujours présent et contient label 'Estimation : temps'", () => {
     const html = renderHtml(makeInput({ method: "time" }));
     expect(html).toContain("estimation-context");
-    expect(html).toContain("Estimation : temps");
+    expect(html).toContain("Estimation: time");
   });
 
-  it("note normalisée contient 'ratio basé sur les estimations'", () => {
+  it("note normalisée contient 'ratio based on estimates'", () => {
     const html = renderHtml(makeInput({ method: "time" }));
-    expect(html).toContain("ratio basé sur les estimations");
+    expect(html).toContain("ratio based on estimates");
   });
 
   it("note normalisée absente pour méthode none", () => {
     const html = renderHtml(makeInput({ method: "none" }));
-    expect(html).not.toContain("ratio basé sur les estimations");
+    expect(html).not.toContain("ratio based on estimates");
   });
 });
 
 describe("renderHtml — méthode t-shirt", () => {
   it("throughput pondéré masqué", () => {
     const html = renderHtml(makeInput({ method: "t-shirt", jiraField: "customfield_10200" }));
-    expect(isHidden(html, "Throughput pondéré")).toBe(true);
+    expect(isHidden(html, "Weighted throughput")).toBe(true);
   });
 
   it("by-size visible", () => {
     const html = renderHtml(makeInput({ method: "t-shirt", jiraField: "customfield_10200" }));
-    expect(html).toMatch(/class="chart-card">\s*\n?\s*<h3>Lead time par taille/);
+    expect(html).toMatch(/class="chart-card">\s*\n?\s*<h3>Lead time by size/);
   });
 });
 
 describe("renderHtml — méthode story-points", () => {
-  it("titre throughput contient 'SP estimés'", () => {
+  it("titre throughput contient 'estimated SP'", () => {
     const html = renderHtml(makeInput({ method: "story-points" }));
-    expect(html).toContain("SP estimés");
+    expect(html).toContain("estimated SP");
   });
 
   it("lead normalisé masqué", () => {
     const html = renderHtml(makeInput({ method: "story-points" }));
-    expect(isHidden(html, "Lead normalisé")).toBe(true);
+    expect(isHidden(html, "Normalized lead")).toBe(true);
   });
 
   it("cycle normalisé masqué", () => {
     const html = renderHtml(makeInput({ method: "story-points" }));
-    expect(isHidden(html, "Cycle normalisé")).toBe(true);
+    expect(isHidden(html, "Normalized cycle")).toBe(true);
   });
 
   it("bandeau contient seuils SP", () => {
@@ -789,12 +792,12 @@ describe("renderHtml — méthode story-points", () => {
 describe("renderHtml — estimation absente (implicite time)", () => {
   it("estimation undefined → sections normalisées visibles", () => {
     const html = renderHtml(makeInput(undefined));
-    expect(isHidden(html, "Lead normalisé")).toBe(false);
-    expect(isHidden(html, "Throughput pondéré")).toBe(false);
+    expect(isHidden(html, "Normalized lead")).toBe(false);
+    expect(isHidden(html, "Weighted throughput")).toBe(false);
   });
 
   it("estimation undefined → bandeau 'Estimation : temps'", () => {
     const html = renderHtml(makeInput(undefined));
-    expect(html).toContain("Estimation : temps");
+    expect(html).toContain("Estimation: time");
   });
 });

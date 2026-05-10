@@ -11,6 +11,13 @@ import { scopeChangeMetric, type ScopeChangeResult } from "../metrics/scopeChang
 import { bottleneckAnalysisMetric, type BottleneckAnalysisResult, type RoleKey } from "../metrics/bottleneckAnalysis";
 import { getLastSyncDate } from "../db/store";
 import { now } from "../clock";
+import { t, getCurrentLocale, type LocaleShape, type LocaleCode } from "../i18n/index";
+import { en } from "../i18n/en";
+import { fr } from "../i18n/fr";
+
+export function buildReportLabels(lang: LocaleCode): LocaleShape {
+  return lang === "fr" ? fr : en;
+}
 
 const STALE_THRESHOLD_DAYS = 7;
 
@@ -106,18 +113,18 @@ export interface EstimationFlags {
 
 export function estimationFlags(est: EstimationConfig): EstimationFlags {
   const m = est.method;
-  const t = { xs: 1, s: 3, m: 8, l: 13, ...est.bucketThresholds };
+  const thr = { xs: 1, s: 3, m: 8, l: 13, ...est.bucketThresholds };
   return {
     showWeighted:       m !== "t-shirt" && m !== "none",
     showNormalized:     m === "time",
     showBySize:         m !== "none",
     weightedUnit:       m === "story-points" ? "SP" : m === "numeric" ? "pts" : "j-h",
     contextLabel:
-      m === "time"          ? "Estimation : temps (j-h)"
-      : m === "story-points" ? `Estimation : story points (SP) — seuils XS<${t.xs} S<${t.s} M<${t.m} L<${t.l}`
-      : m === "numeric"      ? "Estimation : champ custom (pts)"
-      : m === "t-shirt"      ? "Estimation : taille de t-shirt"
-      : "Estimation : aucune — métriques by-size désactivées",
+      m === "time"          ? t("report.estimation.time")
+      : m === "story-points" ? t("report.estimation.storyPoints", { xs: String(thr.xs), s: String(thr.s), m: String(thr.m), l: String(thr.l) })
+      : m === "numeric"      ? t("report.estimation.numeric")
+      : m === "t-shirt"      ? t("report.estimation.tShirt")
+      : t("report.estimation.none"),
   };
 }
 
@@ -174,125 +181,7 @@ interface ChartSeries {
   series: Record<string, number[]>;
 }
 
-const HELP_TEXTS: Record<string, { title: string; body: string } | undefined> = {
-  leadTime: {
-    title: "Lead time",
-    body:
-      "Délai total entre l'entrée du ticket en colonne TODO du board (engagement de l'équipe) et sa résolution. Inclut l'attente backlog, le design et le dev. Indicateur de prévisibilité côté demandeur. Outliers extrêmes retirés (Tukey upper fence).",
-  },
-  cycleTime: {
-    title: "Cycle time",
-    body:
-      "Durée du dev actif: première transition vers une colonne 'Développement en cours' jusqu'à la livraison. Exclut l'attente backlog et le design. Mesure l'efficacité de l'équipe en boucle dev pure.",
-  },
-  throughput: {
-    title: "Throughput",
-    body:
-      "Nombre brut d'issues livrées par fenêtre de 7 jours. Mesure la capacité de débit sans pondération de taille. À combiner avec le throughput pondéré pour distinguer 'beaucoup de petits tickets' vs 'gros chantiers'.",
-  },
-  throughputWeighted: {
-    title: "Throughput pondéré",
-    body:
-      "Somme des jours-personnes estimés des issues livrées dans la fenêtre. Bugs exclus (non estimés par nature). Compense le biais 'beaucoup de petits tickets gonflent le throughput brut'.",
-  },
-  wip: {
-    title: "WIP (Work In Progress)",
-    body:
-      "Nombre d'issues simultanément en cours à la fin de chaque semaine. Loi de Little: cycle_time = WIP / throughput. Limiter le WIP réduit le cycle time. Reconstitué historiquement à partir des transitions, sans scoping sprint.",
-  },
-  bugThroughput: {
-    title: "Bug throughput",
-    body:
-      "Bugs livrés par fenêtre de 7j. Indicateur de charge incidents, à comparer avec le throughput de features. Une hausse signale soit une dette qualité qui remonte, soit une équipe en mode pompier.",
-  },
-  bugCycleTime: {
-    title: "Bug cycle time",
-    body:
-      "Cycle time des issues type Bug uniquement (non estimés par nature). Mesure la réactivité aux incidents (vs cycle time global qui mélange features + bugs).",
-  },
-  devTimeAllocation: {
-    title: "Allocation dev : features vs bugs",
-    body:
-      "Somme des cycle times livrés par semaine, split features (US/TS) vs bugs. " +
-      "bugRatio = bugDays / totalDays. Hausse du ratio = dérive vers mode pompier.",
-  },
-  bugBacklog: {
-    title: "Bug backlog",
-    body:
-      "Nombre de bugs ouverts à la fin de chaque semaine (courbe, axe gauche) et flux net hebdomadaire fermés − créés (barres, axe droit). netFlow > 0 = backlog réduit. netFlow < 0 = backlog grossit.",
-  },
-  leadTimeNormalized: {
-    title: "Lead time normalisé",
-    body:
-      "Lead time réel divisé par l'estimation originale. 1 = on time, 2 = 2× plus long que prévu. Indicateur de dérive d'estimation côté demandeur. Bugs exclus (pas d'estimation).",
-  },
-  cycleTimeNormalized: {
-    title: "Cycle time normalisé",
-    body:
-      "Cycle time réel divisé par l'estimation originale. Idem normalized lead, mais sur la phase dev seule. Si médiane > 1 = équipe sous-estime systématiquement.",
-  },
-  leadTimeBySize: {
-    title: "Lead time par taille",
-    body:
-      "Lead time agrégé par bucket de taille (estimation originale): XS <0.5j, S 0.5-1j, M 1-3j, L 3-5j, XL ≥5j. BUG = bugs (non estimés). UNESTIMATED = vrais oublis d'estimation.",
-  },
-  cycleTimeBySize: {
-    title: "Cycle time par taille",
-    body:
-      "Idem lead-time-by-size mais sur la phase dev. Sert à valider la cohérence: un L doit avoir un cycle médian > qu'un M. Une inversion révèle un problème (sous-estimation, refactoring caché).",
-  },
-  flowEfficiency: {
-    title: "Flow efficiency",
-    body:
-      "Ratio temps actif / (actif + queue) sur la phase cycle-time. 'Actif' = Dev/Design/QA in progress. 'Queue' = review, validation, ready-for-X. Typique 5-15% : la majorité du temps est de l'attente, pas du travail. Si la médiane chute, le workflow a un goulot (handoffs, WIP non limité).",
-  },
-  agingWip: {
-    title: "Aging WIP",
-    body:
-      "Pour chaque ticket en cours : âge (jours ouvrés depuis le 1er passage en dev) comparé aux percentiles cycle-time historiques. Risque OK ≤ P50, watch ≤ P85, at-risk ≤ P95, critical > P95. Métrique actionnable : un ticket 'critical' va presque sûrement rater son SLE — agir maintenant.",
-  },
-  cycleHistogram: {
-    title: "Distribution cycle time",
-    body:
-      "Histogramme des cycle times des issues résolues (depuis cutoff). La moyenne ment quand la distribution est asymétrique (queue droite typique). Lire la médiane (P50), P85 (engagement raisonnable) et la longueur de la queue.",
-  },
-  forecast: {
-    title: "Forecast Monte Carlo",
-    body:
-      "Simule 10 000 scénarios de livraison à partir des throughput hebdo des 12 dernières semaines. P15 = engagement à 85% de confiance (« on livrera au moins X »). P50 = livraison médiane attendue. P85/P95 = optimiste. Résultat varie d'un run à l'autre (aléa contrôlé).",
-  },
-  stageTimeBreakdown: {
-    title: "Stage time breakdown",
-    body: "Temps médian passé par chaque rôle (dev/qa/po) sur les tickets cycle-time. Révèle où le temps est consommé dans le flux.",
-  },
-  wipPerRole: {
-    title: "WIP par rôle",
-    body: "Nombre de tickets en cours par rôle à chaque fin de semaine. Identifier quel rôle accumule du WIP non limité.",
-  },
-  stageThroughputGap: {
-    title: "Stage throughput gap",
-    body: "Flux net (entrées − sorties) par rôle sur la période. Positif = le rôle reçoit plus qu'il ne livre (backlog grossit). Négatif = le rôle écoule son backlog.",
-  },
-  handoffRework: {
-    title: "Handoff rework",
-    body: "% tickets avec au moins un retour arrière (qa→dev, po→qa, po→dev) et nombre moyen de reworks. Indicateur de qualité au passage de rôle.",
-  },
-  firstTimeRight: {
-    title: "First-time-right rate",
-    body: "% tickets ayant traversé chaque rôle en un seul passage (sans retour). FTR 100% = aucun rework. Complément lisible du handoff-rework.",
-  },
-  bottleneckAnalysis: {
-    title: "Bottleneck Analysis",
-    body: "Score composite 0–1 par rôle (dev/qa/po) synthétisant 4 signaux TOC : temps de passage médian, flux net moyen, taux de rework entrant, pénalité first-time-right. Score 1 = bottleneck le plus sévère. Le rôle primaire est celui avec le score le plus élevé.",
-  },
-  scopeChange: {
-    title: "Dérive de périmètre par sprint",
-    body:
-      "Issues dont la description ou le résumé a changé significativement après le début du sprint. " +
-      "Seuil de détection : similarité texte < 85% (Levenshtein normalisé). " +
-      "Une dérive élevée corrèle avec des sprints ratés et un cycle time long.",
-  },
-};
+
 
 export function generateReport(
   db: Database.Database,
@@ -576,15 +465,15 @@ export function renderHtml(input: RenderInput): string {
   const p = input.personalization;
   const excludedTabs = p?.excludedTabs ?? new Set<string>();
   const ALL_TABS = ["delivery", "quality", "roles", "forecast", "advanced"] as const;
-  const visibleTabs = ALL_TABS.filter((t) => !excludedTabs.has(t));
+  const visibleTabs = ALL_TABS.filter((tab) => !excludedTabs.has(tab));
   const firstTab = visibleTabs[0] ?? "delivery";
   const show = (tab: string): boolean => !excludedTabs.has(tab);
-  const reportTitle = escapeHtml(p?.title ?? `Rapport Lean — ${input.projectKey}`);
+  const reportTitle = escapeHtml(p?.title ?? t("report.title.default", { projectKey: input.projectKey }));
   const headerLabel = escapeHtml(p?.title ?? (input.squadName ? `${input.squadName} (${input.projectKey})` : input.projectKey));
   const fontLink = p?.fontLinkHtml ?? DEFAULT_FONT_LINK;
 
   return `<!DOCTYPE html>
-<html lang="fr">
+<html lang="${getCurrentLocale()}">
 <head>
 <meta charset="utf-8">
 <title>${reportTitle}</title>
@@ -868,7 +757,7 @@ ${p?.customCss ? `<style>\n${p.customCss}\n</style>` : ""}
 </header>
 <main>
 <div class="verdict ${verdict.status}">
-  <span class="verdict-status">${escapeHtml(VERDICT_LABELS[verdict.status])}</span>
+  <span class="verdict-status">${escapeHtml(verdictLabels()[verdict.status])}</span>
   <span class="verdict-text">${verdict.phrase}</span>
   <span class="verdict-time mono">${escapeHtml(syncMetaLabel(input.lastSyncAt))} · Snapshot ${escapeHtml(input.lastSnapshotDate)}</span>
 </div>
@@ -878,46 +767,46 @@ ${input.scopeAlertHtml ?? ""}
 <p class="estimation-context">${escapeHtml(flags.contextLabel)}</p>
 
 <section class="actions">
-  <div class="actions-head"><h2>À traiter // top 3</h2><div class="sep"></div></div>
+  <div class="actions-head"><h2>${escapeHtml(t("report.section.toProcess"))}</h2><div class="sep"></div></div>
   <div class="actions-grid">${top3Html}</div>
 </section>
 
 <section class="kpi-section">
-  <div class="actions-head"><h2>Indicateurs clés</h2><div class="sep"></div></div>
+  <div class="actions-head"><h2>${escapeHtml(t("report.section.kpis"))}</h2><div class="sep"></div></div>
   <div class="kpi-grid">${kpiGridHtml}</div>
 </section>
 
 ${(visibleTabs.length > 0 || !!input.scopeSectionHtml) ? `<div class="tabs" id="tabs">
-  ${show("delivery") ? `<button class="tab${firstTab === "delivery" ? " active" : ""}" data-tab="delivery">Livraison</button>` : ""}
-  ${show("quality") ? `<button class="tab${firstTab === "quality" ? " active" : ""}" data-tab="quality">Qualité &amp; bugs</button>` : ""}
-  ${show("roles") ? `<button class="tab${firstTab === "roles" ? " active" : ""}" data-tab="roles">Flux par rôle</button>` : ""}
-  ${show("forecast") ? `<button class="tab${firstTab === "forecast" ? " active" : ""}" data-tab="forecast">Forecast &amp; aging</button>` : ""}
-  ${input.scopeSectionHtml ? `<button class="tab" data-tab="scope">Dérive de périmètre</button>` : ""}
-  ${show("advanced") ? `<button class="tab${firstTab === "advanced" ? " active" : ""}" data-tab="advanced">Avancé</button>` : ""}
+  ${show("delivery") ? `<button class="tab${firstTab === "delivery" ? " active" : ""}" data-tab="delivery">${escapeHtml(t("report.tab.delivery"))}</button>` : ""}
+  ${show("quality") ? `<button class="tab${firstTab === "quality" ? " active" : ""}" data-tab="quality">${escapeHtml(t("report.tab.quality"))}</button>` : ""}
+  ${show("roles") ? `<button class="tab${firstTab === "roles" ? " active" : ""}" data-tab="roles">${escapeHtml(t("report.tab.roles"))}</button>` : ""}
+  ${show("forecast") ? `<button class="tab${firstTab === "forecast" ? " active" : ""}" data-tab="forecast">${escapeHtml(t("report.tab.forecast"))}</button>` : ""}
+  ${input.scopeSectionHtml ? `<button class="tab" data-tab="scope">${escapeHtml(t("report.tab.scope"))}</button>` : ""}
+  ${show("advanced") ? `<button class="tab${firstTab === "advanced" ? " active" : ""}" data-tab="advanced">${escapeHtml(t("report.tab.advanced"))}</button>` : ""}
 </div>` : ""}
 
 ${show("delivery") ? `<div class="tab-panel${firstTab === "delivery" ? " active" : ""}" id="tab-delivery">
   <div class="panel-grid">
-    <div class="chart-card"><h3>Lead time (jours)${helpBtn("leadTime")}</h3><canvas id="leadTimeChart"></canvas></div>
-    <div class="chart-card"><h3>Cycle time (jours)${helpBtn("cycleTime")}</h3><canvas id="cycleTimeChart"></canvas></div>
-    <div class="chart-card"><h3>Throughput (issues / 7j)${helpBtn("throughput")}</h3><canvas id="throughputChart"></canvas></div>
-    <div class="chart-card"${hide(flags.showWeighted)}><h3>Throughput pondéré (${flags.weightedUnit} estimés)${helpBtn("throughputWeighted")}</h3><canvas id="throughputWeightedChart"></canvas></div>
-    <div class="chart-card"><h3>WIP (fin de semaine)${helpBtn("wip")}</h3><canvas id="wipChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.leadTime"))}${helpBtn("leadTime")}</h3><canvas id="leadTimeChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.cycleTime"))}${helpBtn("cycleTime")}</h3><canvas id="cycleTimeChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.throughput"))}${helpBtn("throughput")}</h3><canvas id="throughputChart"></canvas></div>
+    <div class="chart-card"${hide(flags.showWeighted)}><h3>${escapeHtml(t("report.chart.throughputWeighted", { unit: flags.weightedUnit }))}${helpBtn("throughputWeighted")}</h3><canvas id="throughputWeightedChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.wip"))}${helpBtn("wip")}</h3><canvas id="wipChart"></canvas></div>
     <div class="chart-card wide">
-      <h3>Distribution cycle time${helpBtn("cycleHistogram")}</h3>
-      <p class="meta-line">${input.cycleStats.count} issues · médiane ${input.cycleStats.median.toFixed(1)}j · P85 ${input.cycleStats.p85.toFixed(1)}j · P95 ${input.cycleStats.p95.toFixed(1)}j · moyenne ${input.cycleStats.avg.toFixed(1)}j</p>
+      <h3>${escapeHtml(t("report.chart.cycleHistogram"))}${helpBtn("cycleHistogram")}</h3>
+      <p class="meta-line">${escapeHtml(t("report.meta.cycleStats", { count: String(input.cycleStats.count), median: input.cycleStats.median.toFixed(1), p85: input.cycleStats.p85.toFixed(1), p95: input.cycleStats.p95.toFixed(1), avg: input.cycleStats.avg.toFixed(1) }))}</p>
       <canvas id="cycleHistogramChart"></canvas>
     </div>
   </div>
   <div class="panel-grid" style="margin-top: 1rem">
     <div class="chart-card"${hide(flags.showBySize)}>
-      <h3>Lead time par taille — fenêtre du ${escapeHtml(input.lastSnapshotDate)}${helpBtn("leadTimeBySize")}</h3>
-      <table><thead><tr><th>Taille</th><th>Count</th><th>Médiane</th><th>P85</th></tr></thead>
+      <h3>${escapeHtml(t("report.chart.leadBySize", { date: input.lastSnapshotDate }))}${helpBtn("leadTimeBySize")}</h3>
+      <table><thead><tr><th>${escapeHtml(t("report.table.size"))}</th><th>${escapeHtml(t("report.table.count"))}</th><th>${escapeHtml(t("report.table.median"))}</th><th>${escapeHtml(t("report.table.p85"))}</th></tr></thead>
       <tbody>${bySizeRows(input.leadBySize)}</tbody></table>
     </div>
     <div class="chart-card"${hide(flags.showBySize)}>
-      <h3>Cycle time par taille${helpBtn("cycleTimeBySize")}</h3>
-      <table><thead><tr><th>Taille</th><th>Count</th><th>Médiane</th><th>P85</th></tr></thead>
+      <h3>${escapeHtml(t("report.chart.cycleBySize"))}${helpBtn("cycleTimeBySize")}</h3>
+      <table><thead><tr><th>${escapeHtml(t("report.table.size"))}</th><th>${escapeHtml(t("report.table.count"))}</th><th>${escapeHtml(t("report.table.median"))}</th><th>${escapeHtml(t("report.table.p85"))}</th></tr></thead>
       <tbody>${bySizeRows(input.cycleBySize)}</tbody></table>
     </div>
   </div>
@@ -925,10 +814,10 @@ ${show("delivery") ? `<div class="tab-panel${firstTab === "delivery" ? " active"
 
 ${show("quality") ? `<div class="tab-panel${firstTab === "quality" ? " active" : ""}" id="tab-quality">
   <div class="panel-grid">
-    <div class="chart-card"><h3>Bugs livrés (issues / 7j)${helpBtn("bugThroughput")}</h3><canvas id="bugThroughputChart"></canvas></div>
-    <div class="chart-card"><h3>Bug cycle time (jours)${helpBtn("bugCycleTime")}</h3><canvas id="bugCycleTimeChart"></canvas></div>
-    <div class="chart-card"><h3>Allocation dev : features vs bugs${helpBtn("devTimeAllocation")}</h3><canvas id="devTimeAllocationChart"></canvas></div>
-    <div class="chart-card"><h3>Bug backlog${helpBtn("bugBacklog")}</h3><canvas id="bugBacklogChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.bugThroughput"))}${helpBtn("bugThroughput")}</h3><canvas id="bugThroughputChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.bugCycleTime"))}${helpBtn("bugCycleTime")}</h3><canvas id="bugCycleTimeChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.devTimeAllocation"))}${helpBtn("devTimeAllocation")}</h3><canvas id="devTimeAllocationChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.bugBacklog"))}${helpBtn("bugBacklog")}</h3><canvas id="bugBacklogChart"></canvas></div>
   </div>
 </div>` : ""}
 
@@ -941,36 +830,36 @@ ${show("roles") ? `<div class="tab-panel${firstTab === "roles" ? " active" : ""}
   ${buildBottleneckPanelHtml(input.bottleneck)}
   ${buildColumnDrilldownHtml(input.bottleneck)}
   <div class="panel-grid">
-    <div class="chart-card"><h3>Temps médian par rôle${helpBtn("stageTimeBreakdown")}</h3><canvas id="stageTimeByRoleChart"></canvas></div>
-    <div class="chart-card"><h3>Répartition cycle time${helpBtn("stageTimeBreakdown")}</h3><canvas id="stageTimeShareChart"></canvas></div>
-    <div class="chart-card"><h3>WIP par rôle${helpBtn("wipPerRole")}</h3><canvas id="wipPerRoleChart"></canvas></div>
-    <div class="chart-card"><h3>Throughput net par rôle${helpBtn("stageThroughputGap")}</h3><canvas id="stageThroughputGapChart"></canvas></div>
-    <div class="chart-card"><h3>FTR par rôle${helpBtn("firstTimeRight")}</h3><canvas id="ftrByRoleChart"></canvas></div>
-    <div class="chart-card"><h3>Taux de rework${helpBtn("handoffRework")}</h3><canvas id="reworkRatioChart"></canvas></div>
-    <div class="chart-card wide"><h3>Reworks par type${helpBtn("handoffRework")}</h3><canvas id="reworkByTypeChart"></canvas></div>
-    <div class="chart-card wide"><h3>Évolution scores bottleneck${helpBtn("bottleneckAnalysis")}</h3><canvas id="bottleneckScoresChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.stageTimeByRole"))}${helpBtn("stageTimeBreakdown")}</h3><canvas id="stageTimeByRoleChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.stageTimeShare"))}${helpBtn("stageTimeBreakdown")}</h3><canvas id="stageTimeShareChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.wipPerRole"))}${helpBtn("wipPerRole")}</h3><canvas id="wipPerRoleChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.stageThroughputGap"))}${helpBtn("stageThroughputGap")}</h3><canvas id="stageThroughputGapChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.ftrByRole"))}${helpBtn("firstTimeRight")}</h3><canvas id="ftrByRoleChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.reworkRatio"))}${helpBtn("handoffRework")}</h3><canvas id="reworkRatioChart"></canvas></div>
+    <div class="chart-card wide"><h3>${escapeHtml(t("report.chart.reworkByType"))}${helpBtn("handoffRework")}</h3><canvas id="reworkByTypeChart"></canvas></div>
+    <div class="chart-card wide"><h3>${escapeHtml(t("report.chart.bottleneckScores"))}${helpBtn("bottleneckAnalysis")}</h3><canvas id="bottleneckScoresChart"></canvas></div>
   </div>
 </div>` : ""}
 
 ${show("forecast") ? `<div class="tab-panel${firstTab === "forecast" ? " active" : ""}" id="tab-forecast">
   <div class="panel-grid">
     <div class="chart-card">
-      <h3>Forecast Monte Carlo${helpBtn("forecast")}</h3>
-      <p class="meta-line">Pool : ${input.forecast.weeksUsed} semaines · ${input.forecast.simulations} simulations</p>
+      <h3>${escapeHtml(t("report.chart.forecastMonteCarlo"))}${helpBtn("forecast")}</h3>
+      <p class="meta-line">${escapeHtml(t("report.meta.forecastPool", { weeks: String(input.forecast.weeksUsed), sims: String(input.forecast.simulations) }))}</p>
       <table>
         <thead><tr><th>Horizon</th><th>P15<br><small>(85% conf.)</small></th><th>P50</th><th>P85</th><th>P95</th></tr></thead>
         <tbody>${forecastTableRows(input.forecast)}</tbody>
       </table>
     </div>
     <div class="chart-card">
-      <h3>Aging WIP — au ${escapeHtml(input.agingWip.asOf)}${helpBtn("agingWip")}</h3>
-      <p class="meta-line">P50 ${input.agingWip.percentiles.p50.toFixed(1)}j · P85 ${input.agingWip.percentiles.p85.toFixed(1)}j · P95 ${input.agingWip.percentiles.p95.toFixed(1)}j · ${input.agingWip.count} en cours</p>
+      <h3>${escapeHtml(t("report.chart.agingWip", { date: input.agingWip.asOf }))}${helpBtn("agingWip")}</h3>
+      <p class="meta-line">${escapeHtml(t("report.meta.agingStats", { p50: input.agingWip.percentiles.p50.toFixed(1), p85: input.agingWip.percentiles.p85.toFixed(1), p95: input.agingWip.percentiles.p95.toFixed(1), count: String(input.agingWip.count) }))}</p>
       <canvas id="agingScatter"></canvas>
     </div>
     <div class="chart-card wide">
-      <h3>Top items par âge${helpBtn("agingWip")}</h3>
+      <h3>${escapeHtml(t("report.chart.agingTopItems"))}${helpBtn("agingWip")}</h3>
       <table>
-        <thead><tr><th>Issue</th><th>Statut</th><th>Âge</th><th>Risque</th></tr></thead>
+        <thead><tr><th>${escapeHtml(t("report.aging.col.issue"))}</th><th>${escapeHtml(t("report.aging.col.status"))}</th><th>${escapeHtml(t("report.aging.col.age"))}</th><th>${escapeHtml(t("report.aging.col.risk"))}</th></tr></thead>
         <tbody>${agingRowsHtml(input.agingWip, input.jiraBaseUrl)}</tbody>
       </table>
     </div>
@@ -981,19 +870,19 @@ ${input.scopeSectionHtml ? `<div class="tab-panel" id="tab-scope">${input.scopeS
 
 ${show("advanced") ? `<div class="tab-panel${firstTab === "advanced" ? " active" : ""}" id="tab-advanced">
   <div class="panel-grid three">
-    <div class="chart-card"${hide(flags.showNormalized)}><h3>Lead normalisé (réel / estimé)${helpBtn("leadTimeNormalized")}</h3><canvas id="leadNormalizedChart"></canvas></div>
-    <div class="chart-card"${hide(flags.showNormalized)}><h3>Cycle normalisé (réel / estimé)${helpBtn("cycleTimeNormalized")}</h3><canvas id="cycleNormalizedChart"></canvas></div>
-    <div class="chart-card"><h3>Flow efficiency (ratio)${helpBtn("flowEfficiency")}</h3><canvas id="flowEfficiencyChart"></canvas></div>
+    <div class="chart-card"${hide(flags.showNormalized)}><h3>${escapeHtml(t("report.chart.leadNormalized"))}${helpBtn("leadTimeNormalized")}</h3><canvas id="leadNormalizedChart"></canvas></div>
+    <div class="chart-card"${hide(flags.showNormalized)}><h3>${escapeHtml(t("report.chart.cycleNormalized"))}${helpBtn("cycleTimeNormalized")}</h3><canvas id="cycleNormalizedChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.flowEfficiency"))}${helpBtn("flowEfficiency")}</h3><canvas id="flowEfficiencyChart"></canvas></div>
   </div>
-  ${flags.showNormalized ? `<p class="estimation-note">Ces métriques affichent le ratio basé sur les estimations (temps réel / temps estimé). Pour une analyse de flux plus fiable, préférer les métriques de flux (lead time, cycle time).</p>` : ""}
+  ${flags.showNormalized ? `<p class="estimation-note">${escapeHtml(t("report.estimation.note"))}</p>` : ""}
   <div class="panel-grid" style="margin-top: 1rem">
     <div class="chart-card"${hide(flags.showBySize)}>
-      <h3>Lead time par taille (jours)${helpBtn("leadTimeBySize")}</h3>
+      <h3>${escapeHtml(t("report.chart.leadBySizeAdv"))}${helpBtn("leadTimeBySize")}</h3>
       <div class="bucket-selector" id="leadBySizeBuckets"></div>
       <canvas id="leadBySizeChart"></canvas>
     </div>
     <div class="chart-card"${hide(flags.showBySize)}>
-      <h3>Cycle time par taille (jours)${helpBtn("cycleTimeBySize")}</h3>
+      <h3>${escapeHtml(t("report.chart.cycleBySizeAdv"))}${helpBtn("cycleTimeBySize")}</h3>
       <div class="bucket-selector" id="cycleBySizeBuckets"></div>
       <canvas id="cycleBySizeChart"></canvas>
     </div>
@@ -1076,7 +965,7 @@ function computeMovingAvg(values, windowSize = 4) {
 function buildTrendDataset(trendData) {
   if (!trendData.some(v => v !== null)) return null;
   return {
-    label: "Tendance",
+    label: "${t("report.js.label.trend")}",
     data: trendData,
     borderColor: "#64748b88",
     backgroundColor: "transparent",
@@ -1107,40 +996,40 @@ function lineChart(canvasId, series, datasets, withTrend = false) {
 }
 
 lineChart("leadTimeChart", CHARTS.leadTime, [
-  { key: "median", label: "Médiane", color: COLOR_MEDIAN },
-  { key: "p85", label: "P85", color: COLOR_P85 },
+  { key: "median", label: "${t("report.js.label.median")}", color: COLOR_MEDIAN },
+  { key: "p85", label: "${t("report.js.label.p85")}", color: COLOR_P85 },
 ], true);
 lineChart("cycleTimeChart", CHARTS.cycleTime, [
-  { key: "median", label: "Médiane", color: COLOR_MEDIAN },
-  { key: "p85", label: "P85", color: COLOR_P85 },
+  { key: "median", label: "${t("report.js.label.median")}", color: COLOR_MEDIAN },
+  { key: "p85", label: "${t("report.js.label.p85")}", color: COLOR_P85 },
 ], true);
 lineChart("throughputChart", CHARTS.throughput, [
-  { key: "count", label: "Issues livrées", color: COLOR_COUNT },
+  { key: "count", label: "${t("report.js.label.delivered")}", color: COLOR_COUNT },
 ], true);
 lineChart("throughputWeightedChart", CHARTS.throughputWeighted, [
-  { key: "estimatedDays", label: "Jours-personnes", color: COLOR_DAYS },
+  { key: "estimatedDays", label: "${t("report.js.label.personDays")}", color: COLOR_DAYS },
 ], true);
 lineChart("wipChart", CHARTS.wip, [
-  { key: "count", label: "WIP", color: COLOR_DAYS },
+  { key: "count", label: "${t("report.js.label.wip")}", color: COLOR_DAYS },
 ], true);
 lineChart("bugThroughputChart", CHARTS.bugThroughput, [
-  { key: "count", label: "Bugs", color: "#ef4444" },
+  { key: "count", label: "${t("report.js.label.bugs")}", color: "#ef4444" },
 ], true);
 lineChart("bugCycleTimeChart", CHARTS.bugCycleTime, [
-  { key: "median", label: "Médiane", color: COLOR_MEDIAN },
-  { key: "p85", label: "P85", color: COLOR_P85 },
+  { key: "median", label: "${t("report.js.label.median")}", color: COLOR_MEDIAN },
+  { key: "p85", label: "${t("report.js.label.p85")}", color: COLOR_P85 },
 ], true);
 lineChart("cycleNormalizedChart", CHARTS.cycleTimeNormalized, [
-  { key: "median", label: "Médiane (ratio)", color: COLOR_MEDIAN },
-  { key: "p85", label: "P85 (ratio)", color: COLOR_P85 },
+  { key: "median", label: "${t("report.js.label.medianRatio")}", color: COLOR_MEDIAN },
+  { key: "p85", label: "${t("report.js.label.p85Ratio")}", color: COLOR_P85 },
 ], true);
 lineChart("leadNormalizedChart", CHARTS.leadTimeNormalized, [
-  { key: "median", label: "Médiane (ratio)", color: COLOR_MEDIAN },
-  { key: "p85", label: "P85 (ratio)", color: COLOR_P85 },
+  { key: "median", label: "${t("report.js.label.medianRatio")}", color: COLOR_MEDIAN },
+  { key: "p85", label: "${t("report.js.label.p85Ratio")}", color: COLOR_P85 },
 ], true);
 lineChart("flowEfficiencyChart", CHARTS.flowEfficiency, [
-  { key: "aggregate", label: "Agrégat (pondéré durée)", color: COLOR_MEDIAN },
-  { key: "median", label: "Médiane (par issue)", color: COLOR_P85 },
+  { key: "aggregate", label: "${t("report.js.label.flowAggregate")}", color: COLOR_MEDIAN },
+  { key: "median", label: "${t("report.js.label.flowMedian")}", color: COLOR_P85 },
 ], true);
 
 (function renderDevTimeAllocation() {
@@ -1153,7 +1042,7 @@ lineChart("flowEfficiencyChart", CHARTS.flowEfficiency, [
       labels: series.dates,
       datasets: [
         {
-          label: "Features (j ouvrés)",
+          label: "${t("report.js.label.featureDays")}",
           data: series.series["featureDays"],
           backgroundColor: "#2563eb88",
           borderColor: "#2563eb",
@@ -1162,7 +1051,7 @@ lineChart("flowEfficiencyChart", CHARTS.flowEfficiency, [
           yAxisID: "y",
         },
         {
-          label: "Bugs (j ouvrés)",
+          label: "${t("report.js.label.bugDays")}",
           data: series.series["bugDays"],
           backgroundColor: "#ef444488",
           borderColor: "#ef4444",
@@ -1172,7 +1061,7 @@ lineChart("flowEfficiencyChart", CHARTS.flowEfficiency, [
         },
         {
           type: "line",
-          label: "Bug ratio (%)",
+          label: "${t("report.js.label.bugRatioPct")}",
           data: (series.series["bugRatio"] ?? []).map(v => v * 100),
           borderColor: "#f97316",
           backgroundColor: "transparent",
@@ -1189,12 +1078,12 @@ lineChart("flowEfficiencyChart", CHARTS.flowEfficiency, [
       plugins: { legend: { position: "bottom" } },
       scales: {
         x: { stacked: true },
-        y: { stacked: true, beginAtZero: true, title: { display: true, text: "Jours ouvrés" } },
+        y: { stacked: true, beginAtZero: true, title: { display: true, text: "${t("report.js.axis.workingDays")}" } },
         y2: {
           position: "right",
           beginAtZero: true,
           max: 100,
-          title: { display: true, text: "Bug ratio (%)" },
+          title: { display: true, text: "${t("report.js.label.bugRatioPct")}" },
           grid: { drawOnChartArea: false },
         },
       },
@@ -1216,8 +1105,8 @@ const CYCLE_STATS = ${JSON.stringify(input.cycleStats)};
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { title: { display: true, text: "Cycle time (j ouvrés)" } },
-        y: { beginAtZero: true, title: { display: true, text: "Nombre d'issues" } },
+        x: { title: { display: true, text: "${t("report.js.axis.cycleTime")}" } },
+        y: { beginAtZero: true, title: { display: true, text: "${t("report.js.axis.issueCount")}" } },
       },
     },
     plugins: [{
@@ -1285,11 +1174,11 @@ const AGING = ${JSON.stringify({
         x: {
           type: "linear", min: -0.5, max: xMax + 0.5,
           ticks: { stepSize: 1, callback: v => statuses[v] ?? "" },
-          title: { display: true, text: "Statut" },
+          title: { display: true, text: "${t("report.js.axis.status")}" },
         },
         y: {
           beginAtZero: true,
-          title: { display: true, text: "Âge (j ouvrés)" },
+          title: { display: true, text: "${t("report.js.axis.ageDays")}" },
         },
       },
     },
@@ -1387,7 +1276,7 @@ initBucketSelector(CYCLE_BY_SIZE, 'cycleBySizeChart', 'cycleBySizeBuckets');
       datasets: [
         {
           type: "bar",
-          label: "Flux net (fermés − créés)",
+          label: "${t("report.js.label.netFlowBars")}",
           data: netFlows,
           backgroundColor: netFlows.map(v => v >= 0 ? "#10b98188" : "#ef444488"),
           borderColor: netFlows.map(v => v >= 0 ? "#10b981" : "#ef4444"),
@@ -1396,7 +1285,7 @@ initBucketSelector(CYCLE_BY_SIZE, 'cycleBySizeChart', 'cycleBySizeBuckets');
         },
         {
           type: "line",
-          label: "Bugs ouverts",
+          label: "${t("report.js.axis.openBugs")}",
           data: series.series["openCount"] ?? [],
           borderColor: "#2563eb",
           backgroundColor: "#2563eb22",
@@ -1412,10 +1301,10 @@ initBucketSelector(CYCLE_BY_SIZE, 'cycleBySizeChart', 'cycleBySizeBuckets');
       interaction: { mode: "index", intersect: false },
       plugins: { legend: { position: "bottom" } },
       scales: {
-        y: { beginAtZero: true, title: { display: true, text: "Bugs ouverts" } },
+        y: { beginAtZero: true, title: { display: true, text: "${t("report.js.axis.openBugs")}" } },
         y2: {
           position: "right",
-          title: { display: true, text: "Flux net" },
+          title: { display: true, text: "${t("report.js.axis.netFlow")}" },
           grid: { drawOnChartArea: false },
         },
       },
@@ -1452,12 +1341,12 @@ lineChart("ftrByRoleChart", CHARTS.ftrByRole, [
         { label: "PO",  data: CHARTS.bottleneckScores.series["po"],  borderColor: COLOR_PO,  backgroundColor: "transparent", tension: 0.3, pointRadius: 2 },
       ],
     },
-    options: { ...baseOpts, scales: { ...baseOpts.scales, y: { ...baseOpts.scales.y, min: 0, max: 1, title: { display: true, text: "Score bottleneck" } } } },
+    options: { ...baseOpts, scales: { ...baseOpts.scales, y: { ...baseOpts.scales.y, min: 0, max: 1, title: { display: true, text: "${t("report.js.axis.bottleneckScore")}" } } } },
   });
 })();
 
 lineChart("reworkRatioChart", CHARTS.handoffReworkRatio, [
-  { key: "reworkRatio", label: "Taux de rework", color: "#ef4444" },
+  { key: "reworkRatio", label: "${t("report.js.label.reworkRate")}", color: "#ef4444" },
 ], true);
 
 (function renderStageTimeByRole() {
@@ -1477,7 +1366,7 @@ lineChart("reworkRatioChart", CHARTS.handoffReworkRatio, [
         { label: "PO P85",  data: CHARTS.stageTimeByRoleP85.series["po"],  backgroundColor: COLOR_PO  + "44", borderColor: COLOR_PO,  borderWidth: 1 },
       ],
     },
-    options: { ...baseOpts, scales: { ...baseOpts.scales, y: { ...baseOpts.scales.y, title: { display: true, text: "Jours ouvrés" } } } },
+    options: { ...baseOpts, scales: { ...baseOpts.scales, y: { ...baseOpts.scales.y, title: { display: true, text: "${t("report.js.axis.workingDays")}" } } } },
   });
 })();
 
@@ -1539,7 +1428,14 @@ lineChart("reworkRatioChart", CHARTS.handoffReworkRatio, [
 (function initZoom() {
   const HELP_BODIES = ${JSON.stringify(
     Object.fromEntries(
-      Object.entries(HELP_TEXTS).map(([k, v]) => [k, v?.body ?? ""])
+      ["leadTime", "cycleTime", "throughput", "throughputWeighted", "wip",
+       "bugThroughput", "bugCycleTime", "devTimeAllocation", "bugBacklog",
+       "leadTimeNormalized", "cycleTimeNormalized", "leadTimeBySize", "cycleTimeBySize",
+       "flowEfficiency", "agingWip", "cycleHistogram", "forecast",
+       "stageTimeBreakdown", "wipPerRole", "stageThroughputGap",
+       "handoffRework", "firstTimeRight", "bottleneckAnalysis", "scopeChange"].map(
+        (k) => [k, t(`report.help.${k}.body` as keyof LocaleShape)]
+      )
     )
   )};
   const CANVAS_KEY = {
@@ -1641,20 +1537,22 @@ function bySizeRows(data: Partial<Record<string, BucketStats>>): string {
 
 function forecastTableRows(data: ForecastSummary): string {
   if (data.byHorizon.length === 0) {
-    return `<tr><td colspan="5">Pas de throughput récent.</td></tr>`;
+    return `<tr><td colspan="5">${escapeHtml(t("report.forecast.noThroughput"))}</td></tr>`;
   }
   return data.byHorizon
     .map(
       (h) =>
-        `<tr><td>${h.weeks} sem.</td><td><strong>${h.p15.toFixed(0)}</strong></td><td>${h.p50.toFixed(0)}</td><td>${h.p85.toFixed(0)}</td><td>${h.p95.toFixed(0)}</td></tr>`,
+        `<tr><td>${h.weeks} ${escapeHtml(t("report.forecast.weeks"))}</td><td><strong>${h.p15.toFixed(0)}</strong></td><td>${h.p50.toFixed(0)}</td><td>${h.p85.toFixed(0)}</td><td>${h.p95.toFixed(0)}</td></tr>`,
     )
     .join("");
 }
 
 function helpBtn(key: string): string {
-  const h = HELP_TEXTS[key];
-  if (!h) {return "";}
-  return `<span class="help-wrap"><button class="help-btn" aria-label="Aide">?</button><span class="help-popover" role="tooltip"><strong>${escapeHtml(h.title)}</strong>${escapeHtml(h.body)}</span></span>`;
+  const titleKey = `report.help.${key}.title` as keyof LocaleShape;
+  const bodyKey = `report.help.${key}.body` as keyof LocaleShape;
+  const title = t(titleKey);
+  if (!title) {return "";}
+  return `<span class="help-wrap"><button class="help-btn" aria-label="${escapeHtml(t("report.help.btn"))}">?</button><span class="help-popover" role="tooltip"><strong>${escapeHtml(title)}</strong>${escapeHtml(t(bodyKey))}</span></span>`;
 }
 
 // pourquoi: data-values est lu côté client par renderSparklines() ; JSON est ASCII-safe pour des nombres,
@@ -1673,7 +1571,7 @@ function renderKpiCellHtml(c: KpiCell, idx: number): string {
 
 function buildBottleneckPanelHtml(b: BottleneckAnalysisResult): string {
   if (b.count === 0) {
-    return `<div class="chart-card wide"><h3>Bottleneck Analysis${helpBtn("bottleneckAnalysis")}</h3><p class="meta-line">Données insuffisantes — configurer <code>role:</code> sur les colonnes du board.</p></div>`;
+    return `<div class="chart-card wide"><h3>Bottleneck Analysis${helpBtn("bottleneckAnalysis")}</h3><p class="meta-line">${escapeHtml(t("report.bottleneck.noData"))}</p></div>`;
   }
   const primary = b.primaryBottleneck ?? "dev";
   const score = b.byRole[primary].score;
@@ -1710,7 +1608,7 @@ function buildColumnDrilldownHtml(b: BottleneckAnalysisResult): string {
       </div>`;
   }).join("");
   return `<div class="chart-card wide">
-    <h3>Drill-down par colonne${helpBtn("bottleneckAnalysis")}</h3>
+    <h3>${escapeHtml(t("report.chart.columnDrilldown"))}${helpBtn("bottleneckAnalysis")}</h3>
     <div class="bn-bars bn-bars-col">${rows}</div>
   </div>`;
 }
@@ -1720,8 +1618,8 @@ function renderRoleCardHtml(r: { cls: string; name: string; wip: number | null; 
       <h4>${escapeHtml(r.name)}</h4>
       <div class="role-stats">
         <div class="role-stat"><div class="v">${fmtInt(r.wip)}</div><div class="l">WIP</div></div>
-        <div class="role-stat"><div class="v">${r.med === null ? "—" : `${r.med.toFixed(1)}j`}</div><div class="l">médiane</div></div>
-        <div class="role-stat"><div class="v">${r.ftr === null ? "—" : `${(r.ftr * 100).toFixed(0)}%`}</div><div class="l">FTR</div></div>
+        <div class="role-stat"><div class="v">${r.med === null ? "—" : `${r.med.toFixed(1)}j`}</div><div class="l">${escapeHtml(t("report.role.median"))}</div></div>
+        <div class="role-stat"><div class="v">${r.ftr === null ? "—" : `${(r.ftr * 100).toFixed(0)}%`}</div><div class="l">${escapeHtml(t("report.role.ftr"))}</div></div>
       </div>
     </div>`;
 }
@@ -1744,7 +1642,7 @@ function buildKpiCellsFromInput(input: RenderInput): KpiCell[] {
 function buildVerdictHtml(input: RenderInput): string {
   const verdict = computeVerdict(buildKpiCellsFromInput(input));
   return `<div class="verdict ${verdict.status}">
-  <span class="verdict-status">${escapeHtml(VERDICT_LABELS[verdict.status])}</span>
+  <span class="verdict-status">${escapeHtml(verdictLabels()[verdict.status])}</span>
   <span class="verdict-text">${verdict.phrase}</span>
   <span class="verdict-time mono">${escapeHtml(syncMetaLabel(input.lastSyncAt))} · Snapshot ${escapeHtml(input.lastSnapshotDate)}</span>
 </div>`;
@@ -1760,28 +1658,28 @@ export function buildRenderedTabs(input: RenderInput): { id: string; label: stri
 
   tabs.push({
     id: "delivery",
-    label: "Livraison",
+    label: t("report.tab.delivery"),
     html: `<div class="panel-grid">
-    <div class="chart-card"><h3>Lead time (jours)${helpBtn("leadTime")}</h3><canvas id="leadTimeChart"></canvas></div>
-    <div class="chart-card"><h3>Cycle time (jours)${helpBtn("cycleTime")}</h3><canvas id="cycleTimeChart"></canvas></div>
-    <div class="chart-card"><h3>Throughput (issues / 7j)${helpBtn("throughput")}</h3><canvas id="throughputChart"></canvas></div>
-    <div class="chart-card"${hide(flags.showWeighted)}><h3>Throughput pondéré (${flags.weightedUnit} estimés)${helpBtn("throughputWeighted")}</h3><canvas id="throughputWeightedChart"></canvas></div>
-    <div class="chart-card"><h3>WIP (fin de semaine)${helpBtn("wip")}</h3><canvas id="wipChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.leadTime"))}${helpBtn("leadTime")}</h3><canvas id="leadTimeChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.cycleTime"))}${helpBtn("cycleTime")}</h3><canvas id="cycleTimeChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.throughput"))}${helpBtn("throughput")}</h3><canvas id="throughputChart"></canvas></div>
+    <div class="chart-card"${hide(flags.showWeighted)}><h3>${escapeHtml(t("report.chart.throughputWeighted", { unit: flags.weightedUnit }))}${helpBtn("throughputWeighted")}</h3><canvas id="throughputWeightedChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.wip"))}${helpBtn("wip")}</h3><canvas id="wipChart"></canvas></div>
     <div class="chart-card wide">
-      <h3>Distribution cycle time${helpBtn("cycleHistogram")}</h3>
-      <p class="meta-line">${input.cycleStats.count} issues · médiane ${input.cycleStats.median.toFixed(1)}j · P85 ${input.cycleStats.p85.toFixed(1)}j · P95 ${input.cycleStats.p95.toFixed(1)}j · moyenne ${input.cycleStats.avg.toFixed(1)}j</p>
+      <h3>${escapeHtml(t("report.chart.cycleHistogram"))}${helpBtn("cycleHistogram")}</h3>
+      <p class="meta-line">${escapeHtml(t("report.meta.cycleStats", { count: String(input.cycleStats.count), median: input.cycleStats.median.toFixed(1), p85: input.cycleStats.p85.toFixed(1), p95: input.cycleStats.p95.toFixed(1), avg: input.cycleStats.avg.toFixed(1) }))}</p>
       <canvas id="cycleHistogramChart"></canvas>
     </div>
   </div>
   <div class="panel-grid" style="margin-top: 1rem">
     <div class="chart-card"${hide(flags.showBySize)}>
-      <h3>Lead time par taille — fenêtre du ${escapeHtml(input.lastSnapshotDate)}${helpBtn("leadTimeBySize")}</h3>
-      <table><thead><tr><th>Taille</th><th>Count</th><th>Médiane</th><th>P85</th></tr></thead>
+      <h3>${escapeHtml(t("report.chart.leadBySize", { date: input.lastSnapshotDate }))}${helpBtn("leadTimeBySize")}</h3>
+      <table><thead><tr><th>${escapeHtml(t("report.table.size"))}</th><th>${escapeHtml(t("report.table.count"))}</th><th>${escapeHtml(t("report.table.median"))}</th><th>${escapeHtml(t("report.table.p85"))}</th></tr></thead>
       <tbody>${bySizeRows(input.leadBySize)}</tbody></table>
     </div>
     <div class="chart-card"${hide(flags.showBySize)}>
-      <h3>Cycle time par taille${helpBtn("cycleTimeBySize")}</h3>
-      <table><thead><tr><th>Taille</th><th>Count</th><th>Médiane</th><th>P85</th></tr></thead>
+      <h3>${escapeHtml(t("report.chart.cycleBySize"))}${helpBtn("cycleTimeBySize")}</h3>
+      <table><thead><tr><th>${escapeHtml(t("report.table.size"))}</th><th>${escapeHtml(t("report.table.count"))}</th><th>${escapeHtml(t("report.table.median"))}</th><th>${escapeHtml(t("report.table.p85"))}</th></tr></thead>
       <tbody>${bySizeRows(input.cycleBySize)}</tbody></table>
     </div>
   </div>`,
@@ -1789,55 +1687,55 @@ export function buildRenderedTabs(input: RenderInput): { id: string; label: stri
 
   tabs.push({
     id: "quality",
-    label: "Qualité &amp; bugs",
+    label: t("report.tab.quality"),
     html: `<div class="panel-grid">
-    <div class="chart-card"><h3>Bugs livrés (issues / 7j)${helpBtn("bugThroughput")}</h3><canvas id="bugThroughputChart"></canvas></div>
-    <div class="chart-card"><h3>Bug cycle time (jours)${helpBtn("bugCycleTime")}</h3><canvas id="bugCycleTimeChart"></canvas></div>
-    <div class="chart-card"><h3>Allocation dev : features vs bugs${helpBtn("devTimeAllocation")}</h3><canvas id="devTimeAllocationChart"></canvas></div>
-    <div class="chart-card"><h3>Bug backlog${helpBtn("bugBacklog")}</h3><canvas id="bugBacklogChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.bugThroughput"))}${helpBtn("bugThroughput")}</h3><canvas id="bugThroughputChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.bugCycleTime"))}${helpBtn("bugCycleTime")}</h3><canvas id="bugCycleTimeChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.devTimeAllocation"))}${helpBtn("devTimeAllocation")}</h3><canvas id="devTimeAllocationChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.bugBacklog"))}${helpBtn("bugBacklog")}</h3><canvas id="bugBacklogChart"></canvas></div>
   </div>`,
   });
 
   tabs.push({
     id: "roles",
-    label: "Flux par rôle",
+    label: t("report.tab.roles"),
     html: `<div class="role-grid">
     ${renderRoleCardHtml({ cls: "dev", name: "Dev", wip: input.kpis.wipDev, med: input.kpis.stageTimeDevMedian, ftr: input.kpis.ftrDev })}
     ${renderRoleCardHtml({ cls: "qa",  name: "QA",  wip: input.kpis.wipQa, med: input.kpis.stageTimeQaMedian, ftr: input.kpis.ftrQa })}
     ${renderRoleCardHtml({ cls: "po",  name: "PO",  wip: input.kpis.wipPo, med: input.kpis.stageTimePoMedian, ftr: input.kpis.ftrPo })}
   </div>
   <div class="panel-grid">
-    <div class="chart-card"><h3>Temps médian par rôle${helpBtn("stageTimeBreakdown")}</h3><canvas id="stageTimeByRoleChart"></canvas></div>
-    <div class="chart-card"><h3>Répartition cycle time${helpBtn("stageTimeBreakdown")}</h3><canvas id="stageTimeShareChart"></canvas></div>
-    <div class="chart-card"><h3>WIP par rôle${helpBtn("wipPerRole")}</h3><canvas id="wipPerRoleChart"></canvas></div>
-    <div class="chart-card"><h3>Throughput net par rôle${helpBtn("stageThroughputGap")}</h3><canvas id="stageThroughputGapChart"></canvas></div>
-    <div class="chart-card"><h3>FTR par rôle${helpBtn("firstTimeRight")}</h3><canvas id="ftrByRoleChart"></canvas></div>
-    <div class="chart-card"><h3>Taux de rework${helpBtn("handoffRework")}</h3><canvas id="reworkRatioChart"></canvas></div>
-    <div class="chart-card wide"><h3>Reworks par type${helpBtn("handoffRework")}</h3><canvas id="reworkByTypeChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.stageTimeByRole"))}${helpBtn("stageTimeBreakdown")}</h3><canvas id="stageTimeByRoleChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.stageTimeShare"))}${helpBtn("stageTimeBreakdown")}</h3><canvas id="stageTimeShareChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.wipPerRole"))}${helpBtn("wipPerRole")}</h3><canvas id="wipPerRoleChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.stageThroughputGap"))}${helpBtn("stageThroughputGap")}</h3><canvas id="stageThroughputGapChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.ftrByRole"))}${helpBtn("firstTimeRight")}</h3><canvas id="ftrByRoleChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.reworkRatio"))}${helpBtn("handoffRework")}</h3><canvas id="reworkRatioChart"></canvas></div>
+    <div class="chart-card wide"><h3>${escapeHtml(t("report.chart.reworkByType"))}${helpBtn("handoffRework")}</h3><canvas id="reworkByTypeChart"></canvas></div>
   </div>`,
   });
 
   tabs.push({
     id: "forecast",
-    label: "Forecast &amp; aging",
+    label: t("report.tab.forecast"),
     html: `<div class="panel-grid">
     <div class="chart-card">
-      <h3>Forecast Monte Carlo${helpBtn("forecast")}</h3>
-      <p class="meta-line">Pool : ${input.forecast.weeksUsed} semaines · ${input.forecast.simulations} simulations</p>
+      <h3>${escapeHtml(t("report.chart.forecastMonteCarlo"))}${helpBtn("forecast")}</h3>
+      <p class="meta-line">${escapeHtml(t("report.meta.forecastPool", { weeks: String(input.forecast.weeksUsed), sims: String(input.forecast.simulations) }))}</p>
       <table>
         <thead><tr><th>Horizon</th><th>P15<br><small>(85% conf.)</small></th><th>P50</th><th>P85</th><th>P95</th></tr></thead>
         <tbody>${forecastTableRows(input.forecast)}</tbody>
       </table>
     </div>
     <div class="chart-card">
-      <h3>Aging WIP — au ${escapeHtml(input.agingWip.asOf)}${helpBtn("agingWip")}</h3>
-      <p class="meta-line">P50 ${input.agingWip.percentiles.p50.toFixed(1)}j · P85 ${input.agingWip.percentiles.p85.toFixed(1)}j · P95 ${input.agingWip.percentiles.p95.toFixed(1)}j · ${input.agingWip.count} en cours</p>
+      <h3>${escapeHtml(t("report.chart.agingWip", { date: input.agingWip.asOf }))}${helpBtn("agingWip")}</h3>
+      <p class="meta-line">${escapeHtml(t("report.meta.agingStats", { p50: input.agingWip.percentiles.p50.toFixed(1), p85: input.agingWip.percentiles.p85.toFixed(1), p95: input.agingWip.percentiles.p95.toFixed(1), count: String(input.agingWip.count) }))}</p>
       <canvas id="agingScatter"></canvas>
     </div>
     <div class="chart-card wide">
-      <h3>Top items par âge${helpBtn("agingWip")}</h3>
+      <h3>${escapeHtml(t("report.chart.agingTopItems"))}${helpBtn("agingWip")}</h3>
       <table>
-        <thead><tr><th>Issue</th><th>Statut</th><th>Âge</th><th>Risque</th></tr></thead>
+        <thead><tr><th>${escapeHtml(t("report.aging.col.issue"))}</th><th>${escapeHtml(t("report.aging.col.status"))}</th><th>${escapeHtml(t("report.aging.col.age"))}</th><th>${escapeHtml(t("report.aging.col.risk"))}</th></tr></thead>
         <tbody>${agingRowsHtml(input.agingWip, input.jiraBaseUrl)}</tbody>
       </table>
     </div>
@@ -1845,25 +1743,25 @@ export function buildRenderedTabs(input: RenderInput): { id: string; label: stri
   });
 
   if (input.scopeSectionHtml) {
-    tabs.push({ id: "scope", label: "Dérive de périmètre", html: input.scopeSectionHtml });
+    tabs.push({ id: "scope", label: t("report.tab.scope"), html: input.scopeSectionHtml });
   }
 
   tabs.push({
     id: "advanced",
-    label: "Avancé",
+    label: t("report.tab.advanced"),
     html: `<div class="panel-grid three">
-    <div class="chart-card"${hide(flags.showNormalized)}><h3>Lead normalisé (réel / estimé)${helpBtn("leadTimeNormalized")}</h3><canvas id="leadNormalizedChart"></canvas></div>
-    <div class="chart-card"${hide(flags.showNormalized)}><h3>Cycle normalisé (réel / estimé)${helpBtn("cycleTimeNormalized")}</h3><canvas id="cycleNormalizedChart"></canvas></div>
-    <div class="chart-card"><h3>Flow efficiency (ratio)${helpBtn("flowEfficiency")}</h3><canvas id="flowEfficiencyChart"></canvas></div>
+    <div class="chart-card"${hide(flags.showNormalized)}><h3>${escapeHtml(t("report.chart.leadNormalized"))}${helpBtn("leadTimeNormalized")}</h3><canvas id="leadNormalizedChart"></canvas></div>
+    <div class="chart-card"${hide(flags.showNormalized)}><h3>${escapeHtml(t("report.chart.cycleNormalized"))}${helpBtn("cycleTimeNormalized")}</h3><canvas id="cycleNormalizedChart"></canvas></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.flowEfficiency"))}${helpBtn("flowEfficiency")}</h3><canvas id="flowEfficiencyChart"></canvas></div>
   </div>
   <div class="panel-grid" style="margin-top: 1rem">
     <div class="chart-card"${hide(flags.showBySize)}>
-      <h3>Lead time par taille (jours)${helpBtn("leadTimeBySize")}</h3>
+      <h3>${escapeHtml(t("report.chart.leadBySizeAdv"))}${helpBtn("leadTimeBySize")}</h3>
       <div class="bucket-selector" id="leadBySizeBuckets"></div>
       <canvas id="leadBySizeChart"></canvas>
     </div>
     <div class="chart-card"${hide(flags.showBySize)}>
-      <h3>Cycle time par taille (jours)${helpBtn("cycleTimeBySize")}</h3>
+      <h3>${escapeHtml(t("report.chart.cycleBySizeAdv"))}${helpBtn("cycleTimeBySize")}</h3>
       <div class="bucket-selector" id="cycleBySizeBuckets"></div>
       <canvas id="cycleBySizeChart"></canvas>
     </div>
@@ -1920,7 +1818,7 @@ export function buildTemplateContext(
   const firstId = filteredTabs[0]?.id ?? "";
   return {
     projectKey: input.projectKey,
-    title: p?.title ?? `Rapport Lean — ${input.projectKey}`,
+    title: p?.title ?? t("report.title.default", { projectKey: input.projectKey }),
     generatedAt: input.generatedAt,
     lastSnapshotDate: input.lastSnapshotDate,
     isSyncStale: input.isSyncStale,
@@ -2022,15 +1920,17 @@ function escapeHtml(s: string): string {
 
 // exporté pour tests unitaires — évite de parser le HTML complet dans les tests
 export function syncMetaLabel(lastSyncAt: string | null): string {
-  if (!lastSyncAt) {return "Données Jira : jamais synchronisé";}
-  return `Données Jira du ${lastSyncAt.slice(0, 16).replace("T", " ")}`;
+  if (!lastSyncAt) {return t("report.syncMeta.neverSynced");}
+  return t("report.syncMeta.lastSync", { datetime: lastSyncAt.slice(0, 16).replace("T", " ") });
 }
 
 // exporté pour tests unitaires — évite de parser le HTML complet dans les tests
 export function staleBannerHtml(isSyncStale: boolean, lastSyncAt: string | null): string {
   if (!isSyncStale) {return "";}
-  const syncRef = lastSyncAt ? `le ${lastSyncAt.slice(0, 10)}` : "jamais effectué";
-  return `<div class="stale-warning">⚠ Données potentiellement périmées — dernier sync ${syncRef}. Lancer npm run sync.</div>`;
+  const syncRef = lastSyncAt
+    ? t("report.stale.syncRef", { date: lastSyncAt.slice(0, 10) })
+    : t("report.stale.neverDone");
+  return `<div class="stale-warning">${escapeHtml(t("report.stale.warning", { syncRef }))}</div>`;
 }
 
 // exporté pour test unitaire (cas trim slash + échappement HTML).
@@ -2050,7 +1950,7 @@ const RISK_CLASS: Record<AgingRisk, string> = {
 // exporté pour test unitaire (vérifier la cellule Issue rend un <a> cliquable).
 export function agingRowsHtml(data: AgingWipSummary, jiraBaseUrl: string): string {
   if (data.issues.length === 0) {
-    return `<tr><td colspan="4">Aucun item en cours.</td></tr>`;
+    return `<tr><td colspan="4">${escapeHtml(t("report.aging.noItems"))}</td></tr>`;
   }
   return data.issues
     .slice(0, 15)
@@ -2090,11 +1990,13 @@ const FLAT_DELTA_THRESHOLD_PCT = 1;
 const VERDICT_PHRASE_LIMIT = 3;
 const TOP3_LIMIT = 3;
 
-const VERDICT_LABELS: Record<VerdictStatus, string> = {
-  alert: "⚠ ALERTE",
-  watch: "◐ VIGILANCE",
-  ok: "✓ SAIN",
-};
+function verdictLabels(): Record<VerdictStatus, string> {
+  return {
+    alert: t("report.verdict.alert"),
+    watch: t("report.verdict.watch"),
+    ok:    t("report.verdict.ok"),
+  };
+}
 
 const SIGNAL_CLS: Record<HealthSignal, string> = {
   red: "red",
@@ -2189,13 +2091,13 @@ export function computeVerdict(cells: KpiCell[]): Verdict {
   const reds = cells.filter((c) => c.signal === "red");
   const oranges = cells.filter((c) => c.signal === "orange");
   if (reds.length === 0 && oranges.length === 0) {
-    return { status: "ok", phrase: "Tous les indicateurs dans la zone verte." };
+    return { status: "ok", phrase: t("report.verdict.allGreen") };
   }
   const dominants = (reds.length > 0 ? reds : oranges).slice(0, VERDICT_PHRASE_LIMIT);
   const parts = dominants.map(
     (c) => `${escapeHtml(c.label)} <strong>${escapeHtml(fmtCellValueWithUnit(c))}</strong>`,
   );
-  const verbe = reds.length > 0 ? "au-dessus du seuil critique" : "en zone de vigilance";
+  const verbe = reds.length > 0 ? t("report.verdict.aboveCritical") : t("report.verdict.inWatch");
   return {
     status: reds.length > 0 ? "alert" : "watch",
     phrase: `${parts.join(" · ")} ${verbe}.`,
@@ -2208,7 +2110,7 @@ export function buildTop3Actions(agingWip: AgingWipSummary, jiraBaseUrl: string)
   const atRisk = agingWip.issues.filter((i) => i.riskLevel === "at-risk").sort(byAgeDesc);
   const top = [...critical, ...atRisk].slice(0, TOP3_LIMIT);
   if (top.length === 0) {
-    return `<div class="action ok"><div class="action-num">// 01</div><div class="action-title">✓ Aucun ticket en zone critique</div><div class="action-detail">Aucun item ne dépasse le seuil P85 du cycle-time historique.</div></div>`;
+    return `<div class="action ok"><div class="action-num">// 01</div><div class="action-title">${escapeHtml(t("report.actions.noIssues"))}</div><div class="action-detail">${escapeHtml(t("report.actions.noBelowP85"))}</div></div>`;
   }
   return top
     .map((iss, idx) => {
@@ -2217,7 +2119,7 @@ export function buildTop3Actions(agingWip: AgingWipSummary, jiraBaseUrl: string)
       const seuil = iss.riskLevel === "critical"
         ? `&gt; P95 (${agingWip.percentiles.p95.toFixed(1)}j)`
         : `&gt; P85 (${agingWip.percentiles.p85.toFixed(1)}j)`;
-      return `<div class="action ${cls}"><div class="action-num">// ${num}</div><div class="action-title">Débloquer ${issueLink(iss.issueKey, jiraBaseUrl)}</div><div class="action-detail">${escapeHtml(iss.status)} · âge <strong>${iss.ageDays.toFixed(1)}j</strong> ${seuil} · ${escapeHtml(iss.riskLevel)}</div></div>`;
+      return `<div class="action ${cls}"><div class="action-num">// ${num}</div><div class="action-title">${escapeHtml(t("report.actions.unblock"))} ${issueLink(iss.issueKey, jiraBaseUrl)}</div><div class="action-detail">${escapeHtml(iss.status)} · ${escapeHtml(t("report.actions.age"))} <strong>${iss.ageDays.toFixed(1)}j</strong> ${seuil} · ${escapeHtml(iss.riskLevel)}</div></div>`;
     })
     .join("");
 }
@@ -2244,7 +2146,9 @@ export function buildScopeAlertBanner(db: Database.Database, scopeData: ScopeCha
 
   const count = alertSprints.reduce((s, n) => s + (scopeData.bySprint[n]?.changedIssues ?? 0), 0);
   const sprintLabel = alertSprints.join(", ");
-  return `<div class="alert-orange">⚠️ Dérive de périmètre détectée — <strong>${count} issue(s)</strong> modifiée(s) après entrée en sprint <span class="alert-detail">(sprint : ${escapeHtml(sprintLabel)})</span></div>`;
+  const banner = t("report.scope.alertBanner", { count: String(count) });
+  const sprintDetail = t("report.scope.alertSprint", { sprint: sprintLabel });
+  return `<div class="alert-orange">${banner} <span class="alert-detail">${escapeHtml(sprintDetail)}</span></div>`;
 }
 
 export function buildScopeChangeChart(scopeData: ScopeChangeResult): string {
@@ -2273,9 +2177,9 @@ export function buildScopeChangeChart(scopeData: ScopeChangeResult): string {
     data: {
       labels: shortLabels,
       datasets: [
-        { label: "Issues modifiées", data: extracted.map((e) => e.changed), backgroundColor: "rgba(224, 49, 49, 0.75)", stack: "scope" },
+        { label: t("report.js.label.scopeChanged"), data: extracted.map((e) => e.changed), backgroundColor: "rgba(224, 49, 49, 0.75)", stack: "scope" },
         {
-          label: "Taux dérive (%)", data: extracted.map((e) => e.ratio), type: "line", yAxisID: "y2",
+          label: t("report.js.label.scopeDriftRate"), data: extracted.map((e) => e.ratio), type: "line", yAxisID: "y2",
           borderColor: "#0bc5ea", backgroundColor: "rgba(11, 197, 234, 0.08)",
           borderWidth: 2, borderDash: [5, 3], pointRadius: 5, pointBackgroundColor: "#0bc5ea",
           tension: 0.3, fill: false,
@@ -2286,8 +2190,8 @@ export function buildScopeChangeChart(scopeData: ScopeChangeResult): string {
       datasets: { bar: { barPercentage: 0.6, categoryPercentage: 0.7 } },
       scales: {
         x: { ticks: { maxRotation: 0, minRotation: 0 } },
-        y:  { stacked: true, min: 0, ticks: { stepSize: 1 }, title: { display: true, text: "Nb issues" } },
-        y2: { position: "right", min: 0, suggestedMax: 110, title: { display: true, text: "Taux dérive (%)" }, grid: { drawOnChartArea: false } },
+        y:  { stacked: true, min: 0, ticks: { stepSize: 1 }, title: { display: true, text: t("report.js.axis.nbIssues") } },
+        y2: { position: "right", min: 0, suggestedMax: 110, title: { display: true, text: t("report.js.axis.driftRate") }, grid: { drawOnChartArea: false } },
       },
     },
   });
@@ -2338,7 +2242,7 @@ export function buildScopeSection(scopeData: ScopeChangeResult, db: Database.Dat
     }).join("");
 
     tableHtml = `<table class="scope-issues-table" id="scopeIssuesTable">
-      <thead><tr><th data-col="0">Clé</th><th data-col="1" class="sort-desc">Sprint</th><th data-col="2">Résumé</th></tr></thead>
+      <thead><tr><th data-col="0">${escapeHtml(t("report.scope.tableKey"))}</th><th data-col="1" class="sort-desc">${escapeHtml(t("report.scope.tableSprint"))}</th><th data-col="2">${escapeHtml(t("report.scope.tableSummary"))}</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
   }
@@ -2346,9 +2250,9 @@ export function buildScopeSection(scopeData: ScopeChangeResult, db: Database.Dat
   const hasData = Object.keys(scopeData.bySprint).length > 0;
 
   return `<section class="scope-section">
-  <div class="actions-head"><h2>Dérive de périmètre par sprint</h2><div class="sep"></div></div>
-  <p class="scope-help">Issues dont la description ou le résumé a changé significativement après le début du sprint. Seuil de détection : similarité texte &lt; 85% (Levenshtein normalisé). Une dérive élevée corrèle avec des sprints ratés et un cycle time long.</p>
-  ${hasData ? "" : `<p class="text-dim">Aucune dérive de périmètre détectée.</p>`}
+  <div class="actions-head"><h2>${escapeHtml(t("report.scope.title"))}</h2><div class="sep"></div></div>
+  <p class="scope-help">${escapeHtml(t("report.scope.help"))}</p>
+  ${hasData ? "" : `<p class="text-dim">${escapeHtml(t("report.scope.noDrift"))}</p>`}
   ${hasData ? `<div class="chart-card"><canvas id="scopeChangeChart"></canvas></div>` : ""}
   ${tableHtml}
   <script>

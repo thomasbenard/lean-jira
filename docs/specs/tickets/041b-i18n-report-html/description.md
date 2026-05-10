@@ -28,4 +28,4 @@ de test. Prérequis : ticket 041a livré (infrastructure `LocaleShape` + `t()` d
 
 ## Statut
 
-**à faire**
+**livré**
