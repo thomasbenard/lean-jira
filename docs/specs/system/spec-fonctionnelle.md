@@ -261,3 +261,19 @@ Si aucune colonne `role:` n'est configurée dans `board.yaml`, aucune snapshot r
 #### Transverse
 
 - **Popovers d'aide** au survol pour chaque métrique (bouton `?` inline).
+
+### Rapport adaptatif selon la méthode d'estimation
+
+Le rapport adapte son contenu en fonction de `metrics.estimation.method` dans `board.yaml` :
+
+| Section | `none` | `t-shirt` | `story-points` | `numeric` | `time` |
+|---|---|---|---|---|---|
+| Throughput pondéré | masqué | masqué | visible (SP) | visible (pts) | visible (j-h) |
+| Lead/Cycle normalisé | masqué | masqué | masqué | masqué | visible |
+| By-size (tableaux + graphiques) | masqué | visible | visible | visible | visible |
+
+Un bandeau `estimation-context` est toujours présent sous l'en-tête, indiquant la méthode active et ses paramètres (seuils de taille pour story-points, etc.).
+
+Quand les métriques normalisées sont visibles (`method: time`), une note explicative signale que ces métriques sont basées sur le ratio temps réel / temps estimé et qu'il est préférable de se fier aux métriques de flux (lead time, cycle time).
+
+En l'absence de section `estimation` dans `board.yaml`, la méthode `time` est appliquée implicitement.

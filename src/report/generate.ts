@@ -99,7 +99,6 @@ export function resolvePersonalization(
 export interface EstimationFlags {
   showWeighted: boolean;
   showNormalized: boolean;
-  showNormalizedNote: boolean;
   showBySize: boolean;
   weightedUnit: "j-h" | "SP" | "pts";
   contextLabel: string;
@@ -111,7 +110,6 @@ export function estimationFlags(est: EstimationConfig): EstimationFlags {
   return {
     showWeighted:       m !== "t-shirt" && m !== "none",
     showNormalized:     m === "time",
-    showNormalizedNote: m === "time",
     showBySize:         m !== "none",
     weightedUnit:       m === "story-points" ? "SP" : m === "numeric" ? "pts" : "j-h",
     contextLabel:
@@ -122,6 +120,8 @@ export function estimationFlags(est: EstimationConfig): EstimationFlags {
       : "Estimation : aucune — métriques by-size désactivées",
   };
 }
+
+function hide(show: boolean): string { return show ? "" : ' style="display:none"'; }
 
 export interface ThresholdPair {
   warn: number;
@@ -569,9 +569,9 @@ export function renderHtml(input: RenderInput): string {
 
   const kpiGridHtml = kpiCells.map(renderKpiCellHtml).join("");
 
-  const flags = estimationFlags(input.estimation ?? { method: "time" });
-  const hide = (show: boolean): string => show ? "" : ' style="display:none"';
-  const bucketLabelsJson = JSON.stringify(getBucketLabels(input.estimation ?? { method: "time" }));
+  const est = input.estimation ?? { method: "time" as const };
+  const flags = estimationFlags(est);
+  const bucketLabelsJson = JSON.stringify(getBucketLabels(est));
 
   const p = input.personalization;
   const excludedTabs = p?.excludedTabs ?? new Set<string>();
@@ -985,6 +985,7 @@ ${show("advanced") ? `<div class="tab-panel${firstTab === "advanced" ? " active"
     <div class="chart-card"${hide(flags.showNormalized)}><h3>Cycle normalisé (réel / estimé)${helpBtn("cycleTimeNormalized")}</h3><canvas id="cycleNormalizedChart"></canvas></div>
     <div class="chart-card"><h3>Flow efficiency (ratio)${helpBtn("flowEfficiency")}</h3><canvas id="flowEfficiencyChart"></canvas></div>
   </div>
+  ${flags.showNormalized ? `<p class="estimation-note">Ces métriques affichent le ratio basé sur les estimations (temps réel / temps estimé). Pour une analyse de flux plus fiable, préférer les métriques de flux (lead time, cycle time).</p>` : ""}
   <div class="panel-grid" style="margin-top: 1rem">
     <div class="chart-card"${hide(flags.showBySize)}>
       <h3>Lead time par taille (jours)${helpBtn("leadTimeBySize")}</h3>
@@ -1755,7 +1756,6 @@ export function buildKpiGridHtml(input: RenderInput): string {
 
 export function buildRenderedTabs(input: RenderInput): { id: string; label: string; html: string }[] {
   const flags = estimationFlags(input.estimation ?? { method: "time" });
-  const hide = (show: boolean): string => show ? "" : ' style="display:none"';
   const tabs: { id: string; label: string; html: string }[] = [];
 
   tabs.push({
@@ -1774,12 +1774,12 @@ export function buildRenderedTabs(input: RenderInput): { id: string; label: stri
     </div>
   </div>
   <div class="panel-grid" style="margin-top: 1rem">
-    <div class="chart-card">
+    <div class="chart-card"${hide(flags.showBySize)}>
       <h3>Lead time par taille — fenêtre du ${escapeHtml(input.lastSnapshotDate)}${helpBtn("leadTimeBySize")}</h3>
       <table><thead><tr><th>Taille</th><th>Count</th><th>Médiane</th><th>P85</th></tr></thead>
       <tbody>${bySizeRows(input.leadBySize)}</tbody></table>
     </div>
-    <div class="chart-card">
+    <div class="chart-card"${hide(flags.showBySize)}>
       <h3>Cycle time par taille${helpBtn("cycleTimeBySize")}</h3>
       <table><thead><tr><th>Taille</th><th>Count</th><th>Médiane</th><th>P85</th></tr></thead>
       <tbody>${bySizeRows(input.cycleBySize)}</tbody></table>
@@ -1852,17 +1852,17 @@ export function buildRenderedTabs(input: RenderInput): { id: string; label: stri
     id: "advanced",
     label: "Avancé",
     html: `<div class="panel-grid three">
-    <div class="chart-card"><h3>Lead normalisé (réel / estimé)${helpBtn("leadTimeNormalized")}</h3><canvas id="leadNormalizedChart"></canvas></div>
-    <div class="chart-card"><h3>Cycle normalisé (réel / estimé)${helpBtn("cycleTimeNormalized")}</h3><canvas id="cycleNormalizedChart"></canvas></div>
+    <div class="chart-card"${hide(flags.showNormalized)}><h3>Lead normalisé (réel / estimé)${helpBtn("leadTimeNormalized")}</h3><canvas id="leadNormalizedChart"></canvas></div>
+    <div class="chart-card"${hide(flags.showNormalized)}><h3>Cycle normalisé (réel / estimé)${helpBtn("cycleTimeNormalized")}</h3><canvas id="cycleNormalizedChart"></canvas></div>
     <div class="chart-card"><h3>Flow efficiency (ratio)${helpBtn("flowEfficiency")}</h3><canvas id="flowEfficiencyChart"></canvas></div>
   </div>
   <div class="panel-grid" style="margin-top: 1rem">
-    <div class="chart-card">
+    <div class="chart-card"${hide(flags.showBySize)}>
       <h3>Lead time par taille (jours)${helpBtn("leadTimeBySize")}</h3>
       <div class="bucket-selector" id="leadBySizeBuckets"></div>
       <canvas id="leadBySizeChart"></canvas>
     </div>
-    <div class="chart-card">
+    <div class="chart-card"${hide(flags.showBySize)}>
       <h3>Cycle time par taille (jours)${helpBtn("cycleTimeBySize")}</h3>
       <div class="bucket-selector" id="cycleBySizeBuckets"></div>
       <canvas id="cycleBySizeChart"></canvas>

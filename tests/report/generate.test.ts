@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { issueLink, agingRowsHtml, buildBucketSeries, buildRoleSeries, syncMetaLabel, staleBannerHtml, computeMovingAvg, renderHtml, isScopeChangeAvailable, buildScopeAlertBanner, buildScopeChangeChart, buildScopeSection } from "../../src/report/generate";
+import { issueLink, agingRowsHtml, buildBucketSeries, buildRoleSeries, syncMetaLabel, staleBannerHtml, computeMovingAvg, renderHtml, isScopeChangeAvailable, buildScopeAlertBanner, buildScopeChangeChart, buildScopeSection, estimationFlags } from "../../src/report/generate";
 import type { AgingWipSummary } from "../../src/metrics/agingWip";
 import type { SnapshotRow } from "../../src/snapshots/compute";
 import type { ScopeChangeResult, SprintScopeStats } from "../../src/metrics/scopeChange";
+import type { EstimationConfig } from "../../src/metrics/types";
 import { createTestDb } from "../helpers/db";
 import { upsertIssues, upsertSprints } from "../../src/db/store";
 import { makeIssue } from "../helpers/seeders";
@@ -94,6 +95,17 @@ function makeRenderInput(): RenderInput {
       byColumn: [],
     },
   };
+}
+
+function makeInput(estimation?: EstimationConfig): RenderInput {
+  return { ...makeRenderInput(), estimation };
+}
+
+function isHidden(html: string, title: string): boolean {
+  return new RegExp(`class="chart-card" style="display:none"[^>]*>\\s*<h3>${title}`).test(html);
+}
+function isVisible(html: string, title: string): boolean {
+  return new RegExp(`class="chart-card">\\s*<h3>${title}`).test(html);
 }
 
 describe("issueLink", () => {
@@ -619,5 +631,170 @@ describe("renderHtml — Bottleneck panel", () => {
   it("panel drill-down absent si byColumn vide", () => {
     const html = renderHtml(makeRenderInput());
     expect(html).not.toContain("Drill-down par colonne");
+  });
+});
+
+// ─── estimationFlags ───────────────────────────────────────────────────────────
+
+describe("estimationFlags — méthode none", () => {
+  it("désactive tout", () => {
+    const f = estimationFlags({ method: "none" });
+    expect(f.showWeighted).toBe(false);
+    expect(f.showNormalized).toBe(false);
+    expect(f.showBySize).toBe(false);
+  });
+
+  it("contextLabel contient 'aucune'", () => {
+    expect(estimationFlags({ method: "none" }).contextLabel).toContain("aucune");
+  });
+});
+
+describe("estimationFlags — méthode t-shirt", () => {
+  it("masque weighted et normalized, active by-size", () => {
+    const f = estimationFlags({ method: "t-shirt", jiraField: "customfield_10200" });
+    expect(f.showWeighted).toBe(false);
+    expect(f.showNormalized).toBe(false);
+    expect(f.showBySize).toBe(true);
+  });
+});
+
+describe("estimationFlags — méthode time", () => {
+  it("tout visible, unit=j-h", () => {
+    const f = estimationFlags({ method: "time" });
+    expect(f.showWeighted).toBe(true);
+    expect(f.showNormalized).toBe(true);
+    expect(f.showBySize).toBe(true);
+    expect(f.weightedUnit).toBe("j-h");
+  });
+});
+
+describe("estimationFlags — méthode story-points", () => {
+  it("showNormalized=false, unit=SP, seuils défaut dans contextLabel", () => {
+    const f = estimationFlags({ method: "story-points" });
+    expect(f.showWeighted).toBe(true);
+    expect(f.showNormalized).toBe(false);
+    expect(f.weightedUnit).toBe("SP");
+    expect(f.contextLabel).toContain("XS<1");
+    expect(f.contextLabel).toContain("M<8");
+  });
+});
+
+describe("estimationFlags — méthode numeric", () => {
+  it("unit=pts, contextLabel contient 'champ custom'", () => {
+    const f = estimationFlags({ method: "numeric", jiraField: "cf", bucketThresholds: { xs: 2, s: 5, m: 10, l: 20 } });
+    expect(f.weightedUnit).toBe("pts");
+    expect(f.contextLabel).toContain("champ custom");
+  });
+});
+
+// ─── renderHtml — masquage conditionnel ───────────────────────────────────────
+
+describe("renderHtml — méthode none", () => {
+  it("throughput pondéré masqué", () => {
+    const html = renderHtml(makeInput({ method: "none" }));
+    expect(isHidden(html, "Throughput pondéré")).toBe(true);
+  });
+
+  it("lead normalisé masqué", () => {
+    const html = renderHtml(makeInput({ method: "none" }));
+    expect(isHidden(html, "Lead normalisé")).toBe(true);
+  });
+
+  it("cycle normalisé masqué", () => {
+    const html = renderHtml(makeInput({ method: "none" }));
+    expect(isHidden(html, "Cycle normalisé")).toBe(true);
+  });
+
+  it("lead by-size masqué", () => {
+    const html = renderHtml(makeInput({ method: "none" }));
+    expect(html).toContain('style="display:none"');
+    expect(html).toMatch(/class="chart-card" style="display:none"[^>]*>\s*\n?\s*<h3>Lead time par taille/);
+  });
+
+  it("bandeau mention aucune", () => {
+    const html = renderHtml(makeInput({ method: "none" }));
+    expect(html).toContain("aucune");
+    expect(html).toContain("estimation-context");
+  });
+});
+
+describe("renderHtml — méthode time (défaut)", () => {
+  it("throughput pondéré visible", () => {
+    const html = renderHtml(makeInput({ method: "time" }));
+    expect(isVisible(html, "Throughput pondéré")).toBe(true);
+    expect(isHidden(html, "Throughput pondéré")).toBe(false);
+  });
+
+  it("lead normalisé visible", () => {
+    const html = renderHtml(makeInput({ method: "time" }));
+    expect(isHidden(html, "Lead normalisé")).toBe(false);
+  });
+
+  it("titre throughput contient 'j-h estimés'", () => {
+    const html = renderHtml(makeInput({ method: "time" }));
+    expect(html).toContain("j-h estimés");
+  });
+
+  it("bandeau toujours présent et contient label 'Estimation : temps'", () => {
+    const html = renderHtml(makeInput({ method: "time" }));
+    expect(html).toContain("estimation-context");
+    expect(html).toContain("Estimation : temps");
+  });
+
+  it("note normalisée contient 'ratio basé sur les estimations'", () => {
+    const html = renderHtml(makeInput({ method: "time" }));
+    expect(html).toContain("ratio basé sur les estimations");
+  });
+
+  it("note normalisée absente pour méthode none", () => {
+    const html = renderHtml(makeInput({ method: "none" }));
+    expect(html).not.toContain("ratio basé sur les estimations");
+  });
+});
+
+describe("renderHtml — méthode t-shirt", () => {
+  it("throughput pondéré masqué", () => {
+    const html = renderHtml(makeInput({ method: "t-shirt", jiraField: "customfield_10200" }));
+    expect(isHidden(html, "Throughput pondéré")).toBe(true);
+  });
+
+  it("by-size visible", () => {
+    const html = renderHtml(makeInput({ method: "t-shirt", jiraField: "customfield_10200" }));
+    expect(html).toMatch(/class="chart-card">\s*\n?\s*<h3>Lead time par taille/);
+  });
+});
+
+describe("renderHtml — méthode story-points", () => {
+  it("titre throughput contient 'SP estimés'", () => {
+    const html = renderHtml(makeInput({ method: "story-points" }));
+    expect(html).toContain("SP estimés");
+  });
+
+  it("lead normalisé masqué", () => {
+    const html = renderHtml(makeInput({ method: "story-points" }));
+    expect(isHidden(html, "Lead normalisé")).toBe(true);
+  });
+
+  it("cycle normalisé masqué", () => {
+    const html = renderHtml(makeInput({ method: "story-points" }));
+    expect(isHidden(html, "Cycle normalisé")).toBe(true);
+  });
+
+  it("bandeau contient seuils SP", () => {
+    const html = renderHtml(makeInput({ method: "story-points" }));
+    expect(html).toContain("XS&lt;1");
+  });
+});
+
+describe("renderHtml — estimation absente (implicite time)", () => {
+  it("estimation undefined → sections normalisées visibles", () => {
+    const html = renderHtml(makeInput(undefined));
+    expect(isHidden(html, "Lead normalisé")).toBe(false);
+    expect(isHidden(html, "Throughput pondéré")).toBe(false);
+  });
+
+  it("estimation undefined → bandeau 'Estimation : temps'", () => {
+    const html = renderHtml(makeInput(undefined));
+    expect(html).toContain("Estimation : temps");
   });
 });

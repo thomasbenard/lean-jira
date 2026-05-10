@@ -18,4 +18,4 @@ En tant que lead technique lisant le rapport lean-jira, je veux que les sections
 
 ## Statut
 
-**à faire**
+**livré**
