@@ -456,3 +456,166 @@ Chaque seuil prend la forme `{ warn: X, crit: Y }`. Absent = aucun signal affich
 > Chemins `logoUrl`, `customCssPath`, `templatePath` résolus depuis le répertoire de `board.yaml`.
 
 ---
+
+## 6. Cas avancés
+
+### Multi-squad — plusieurs rapports depuis une base commune
+
+Si plusieurs squads partagent le même projet Jira mais veulent des rapports distincts :
+
+```bash
+# Squad A
+npm run refresh -- -c config.squad-a.yaml -b board.squad-a.yaml -o report.squad-a.html
+
+# Squad B
+npm run refresh -- -c config.squad-b.yaml -b board.squad-b.yaml -o report.squad-b.html
+```
+
+Chaque squad peut avoir son propre `config.yaml` (projectKey différent) et son propre `board.yaml` (colonnes, cutoffDate, thresholds adaptés).
+
+---
+
+### Personnalisation du rapport HTML
+
+Le rapport est un fichier HTML autonome (aucun serveur requis, partageable par email/Slack).
+
+**Logo et titre :**
+```yaml
+report:
+  title: "Équipe Plateforme — Lean Metrics"
+  logoUrl: "./assets/logo.png"    # embarqué en base64 dans le HTML
+```
+
+**Police personnalisée :**
+```yaml
+report:
+  fontUrl: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"
+```
+
+**CSS additionnel (sans modifier le template) :**
+```yaml
+report:
+  customCssPath: "./my-report.css"
+```
+
+**Masquer des onglets :**
+```yaml
+report:
+  excludeTabs:
+    - roles      # masquer l'onglet "Flux par rôle"
+    - forecast   # masquer l'onglet "Prévision"
+```
+
+**Template Handlebars custom (contrôle total) :**
+```bash
+# Exporter le template par défaut comme point de départ
+npm run report -- --export-template ./my-template
+# Éditer my-template/report.hbs
+```
+```yaml
+report:
+  templatePath: "./my-template/report.hbs"
+```
+
+---
+
+### Mode fake — tester sans connexion Jira
+
+Utile pour tester la configuration ou contribuer au projet sans accès Jira.
+
+```yaml
+# config.fake.yaml
+jira:
+  mode: "fake"
+  frozenNow: "2026-01-15"     # date figée pour output déterministe
+  projectKey: "FAKE"
+  boardId: 1
+db:
+  path: "./lean-jira-fake.db"
+```
+
+```bash
+npm run refresh -- -c config.fake.yaml -b board.fake.yaml -o report.fake.html
+```
+
+Les fixtures JSON dans `src/jira/fixtures/` remplacent l'API. Le forecast Monte Carlo utilise un PRNG seedé par `frozenNow` → output identique à chaque exécution.
+
+---
+
+## 7. Troubleshooting
+
+### Cycle time à 0 ou anormalement bas
+
+**Symptôme :** `cycle-time` retourne 0 ou une médiane de 0 jour, même pour des tickets travaillés plusieurs jours.
+
+**Cause :** `devStart: true` ne matche aucune transition dans l'historique. Les statuts listés dans la colonne `devStart` de `board.yaml` n'apparaissent pas dans les transitions Jira.
+
+**Fix :**
+```bash
+npm run validate    # liste les statuts disponibles en base
+```
+Comparer la liste avec les statuts dans la colonne `devStart: true` de `board.yaml`. Corriger l'orthographe ou le nom.
+
+---
+
+### Métriques role-aware absentes du rapport (onglet "Flux par rôle" masqué)
+
+**Symptôme :** l'onglet "Flux par rôle" n'apparaît pas dans le rapport, ou `stage-time-breakdown` ne retourne aucune donnée.
+
+**Cause :** aucune colonne dans `board.yaml` n'a de champ `role:`.
+
+**Fix :** ajouter `role: dev | qa | po` sur les colonnes concernées (voir [Section 3b](#champ-role--métriques-role-aware)).
+
+---
+
+### Erreur 401 — Auth refusée
+
+**Symptôme :** `npm run sync` échoue avec une erreur 401 ou "Unauthorized".
+
+**Causes possibles et fix :**
+1. Token API expiré → recréer un token dans Jira → mettre à jour `config.yaml`
+2. Mauvais type d'auth → vérifier l'arbre de décision [Section 1](#quel-type-dauth-choisir-)
+3. Jira Cloud domaine custom bloquant Basic → passer au [Bloc 2 gateway](#bloc-2--jira-cloud-domaine-custom-gateway-atlassian)
+
+---
+
+### Throughput anormalement élevé sur une période ancienne
+
+**Symptôme :** un pic de throughput soudain sur une période passée, non corrélé avec l'activité réelle de l'équipe.
+
+**Cause probable :** bulk-close lors d'une migration de workflow Jira (fermeture en masse de tickets à une date précise).
+
+**Fix :** identifier la date du bulk-close dans Jira, puis :
+```yaml
+metrics:
+  cutoffDate: "YYYY-MM-DD"   # date du lendemain du bulk-close
+```
+
+---
+
+### `npm run validate` dit "Base vide"
+
+**Symptôme :**
+```
+Base vide. Lancer npm run sync d'abord.
+```
+
+**Cause :** `validate` a besoin que la table `statuses` soit peuplée par un `sync`.
+
+**Fix :**
+```bash
+npm run sync
+npm run validate
+```
+
+---
+
+### Statut dans `validate` marqué ✗ (introuvable)
+
+**Symptôme :** `validate` liste un statut avec `✗`.
+
+**Cause :** le nom dans `board.yaml` ne correspond pas exactement au nom Jira (casse, accent, espace).
+
+**Fix :** copier le nom exact depuis la liste "Statuts disponibles en base" affichée par `validate`.
+
+---
