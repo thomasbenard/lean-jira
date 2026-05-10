@@ -142,7 +142,7 @@ db:
 
 ---
 
-### Voie A — `autoconfig` (recommandée)
+### 3a. Voie A — `autoconfig` (recommandée)
 
 `autoconfig` interroge l'API Jira et génère `board.yaml` automatiquement.
 
@@ -173,7 +173,7 @@ npm run autoconfig -- --apply
 
 ---
 
-### Voie B — Configuration manuelle
+### 3b. Voie B — Configuration manuelle
 
 ```bash
 cp board.example.yaml board.yaml
