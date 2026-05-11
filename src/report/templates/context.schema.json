@@ -28,6 +28,14 @@
       "type": ["string", "null"],
       "description": "ISO timestamp du dernier sync Jira, ou null si jamais synchronisé"
     },
+    "htmlLang": {
+      "type": "string",
+      "description": "Code langue HTML pour l'attribut lang= (ex: 'en', 'fr'). Utiliser via {{htmlLang}}."
+    },
+    "headerSyncLabelSuffix": {
+      "type": "string",
+      "description": "Suffixe localisé pour le header bar indiquant la date du dernier sync (ex: ' · Jira data: 2026-01-15 00:00'). Vide si jamais synchronisé. Utiliser via {{escapeHtml headerSyncLabelSuffix}}."
+    },
     "staleBannerHtml": {
       "type": "string",
       "description": "Fragment HTML de la bannière 'données périmées'. Vide si données fraîches. Injecter via {{{staleBannerHtml}}}."
@@ -35,6 +43,18 @@
     "top3Html": {
       "type": "string",
       "description": "Fragment HTML de la section 'À traiter // top 3' (aging WIP critique). Injecter via {{{top3Html}}}."
+    },
+    "estimationContextHtml": {
+      "type": "string",
+      "description": "Fragment HTML <p class=\"estimation-context\"> décrivant la méthode d'estimation active. Injecter via {{{estimationContextHtml}}}."
+    },
+    "sectionToProcessLabel": {
+      "type": "string",
+      "description": "Libellé localisé de la section 'À traiter'. Utiliser via {{escapeHtml sectionToProcessLabel}}."
+    },
+    "sectionKpisLabel": {
+      "type": "string",
+      "description": "Libellé localisé de la section 'Indicateurs clés'. Utiliser via {{escapeHtml sectionKpisLabel}}."
     },
     "kpiGridHtml": {
       "type": "string",
@@ -87,7 +107,7 @@
       "description": "Statistiques cycle time globales. Propriétés: median (number), p85 (number), p95 (number), avg (number), count (number)."
     }
   },
-  "required": ["projectKey", "title", "generatedAt", "lastSnapshotDate", "isSyncStale", "lastSyncAt", "staleBannerHtml", "top3Html", "kpiGridHtml", "headerLogoHtml", "fontLinkHtml", "customStyleHtml", "tabs", "kpis", "chartDataJson", "agingWip", "forecast", "cycleStats"],
+  "required": ["projectKey", "title", "generatedAt", "lastSnapshotDate", "isSyncStale", "lastSyncAt", "htmlLang", "headerSyncLabelSuffix", "staleBannerHtml", "top3Html", "estimationContextHtml", "sectionToProcessLabel", "sectionKpisLabel", "kpiGridHtml", "headerLogoHtml", "fontLinkHtml", "customStyleHtml", "tabs", "kpis", "chartDataJson", "agingWip", "forecast", "cycleStats"],
   "additionalProperties": false,
   "_helpers": {
     "description": "Helpers Handlebars enregistrés disponibles dans le template",

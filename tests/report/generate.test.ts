@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { issueLink, agingRowsHtml, buildBucketSeries, buildRoleSeries, syncMetaLabel, staleBannerHtml, computeMovingAvg, renderHtml, isScopeChangeAvailable, buildScopeAlertBanner, buildScopeChangeChart, buildScopeSection, estimationFlags } from "../../src/report/generate";
+import path from "path";
+import { issueLink, agingRowsHtml, buildBucketSeries, buildRoleSeries, syncMetaLabel, staleBannerHtml, computeMovingAvg, renderWithHandlebars, isScopeChangeAvailable, buildScopeAlertBanner, buildScopeChangeChart, buildScopeSection, estimationFlags } from "../../src/report/generate";
 import { initLocale } from "../../src/i18n/index";
 import type { AgingWipSummary } from "../../src/metrics/agingWip";
 import type { SnapshotRow } from "../../src/snapshots/compute";
@@ -11,7 +12,12 @@ import { makeIssue } from "../helpers/seeders";
 
 beforeEach(() => { initLocale("en"); });
 
-type RenderInput = Parameters<typeof renderHtml>[0];
+type RenderInput = Parameters<typeof renderWithHandlebars>[0];
+
+function renderDefault(input: RenderInput): string {
+  const templatePath = path.join(__dirname, "../../src/report/templates/report.hbs");
+  return renderWithHandlebars(input, templatePath);
+}
 
 function makeRenderInput(): RenderInput {
   const empty = { dates: [], series: {} };
@@ -291,16 +297,24 @@ describe("computeMovingAvg", () => {
   });
 });
 
-describe("renderHtml — Cockpit structure", () => {
+describe("renderDefault — template Handlebars embarqué", () => {
+  it("contient class=verdict et class=kpi-grid avec le renderer par défaut", () => {
+    const html = renderDefault(makeRenderInput());
+    expect(html).toContain('class="verdict');
+    expect(html).toContain('class="kpi-grid"');
+  });
+});
+
+describe("renderDefault — Cockpit structure", () => {
   it("contient le bandeau verdict, les actions top-3 et la grille KPI", () => {
-    const html = renderHtml(makeRenderInput());
+    const html = renderDefault(makeRenderInput());
     expect(html).toContain('class="verdict');
     expect(html).toContain('class="actions-grid"');
     expect(html).toContain('class="kpi-grid"');
   });
 
   it("contient les 5 onglets dans l'ordre Livraison → Qualité → Rôles → Forecast → Avancé", () => {
-    const html = renderHtml(makeRenderInput());
+    const html = renderDefault(makeRenderInput());
     const order = ["delivery", "quality", "roles", "forecast", "advanced"];
     let prev = -1;
     for (const id of order) {
@@ -311,13 +325,13 @@ describe("renderHtml — Cockpit structure", () => {
   });
 
   it("onglet Livraison actif par défaut", () => {
-    const html = renderHtml(makeRenderInput());
+    const html = renderDefault(makeRenderInput());
     expect(html).toContain('class="tab active" data-tab="delivery"');
     expect(html).toContain('class="tab-panel active" id="tab-delivery"');
   });
 
   it("panel Livraison contient lead/cycle/throughput/throughputWeighted/wip/cycleHistogram et by-size tables", () => {
-    const html = renderHtml(makeRenderInput());
+    const html = renderDefault(makeRenderInput());
     const start = html.indexOf('id="tab-delivery"');
     const end = html.indexOf('id="tab-quality"');
     const panel = html.slice(start, end);
@@ -328,7 +342,7 @@ describe("renderHtml — Cockpit structure", () => {
   });
 
   it("panel Qualité contient les charts bugs", () => {
-    const html = renderHtml(makeRenderInput());
+    const html = renderDefault(makeRenderInput());
     const start = html.indexOf('id="tab-quality"');
     const end = html.indexOf('id="tab-roles"');
     const panel = html.slice(start, end);
@@ -338,7 +352,7 @@ describe("renderHtml — Cockpit structure", () => {
   });
 
   it("panel Avancé contient lead/cycle normalisés + flow efficiency + by-size charts", () => {
-    const html = renderHtml(makeRenderInput());
+    const html = renderDefault(makeRenderInput());
     const start = html.indexOf('id="tab-advanced"');
     const panel = html.slice(start);
     for (const id of ["leadNormalizedChart", "cycleNormalizedChart", "flowEfficiencyChart", "leadBySizeChart", "cycleBySizeChart"]) {
@@ -347,14 +361,14 @@ describe("renderHtml — Cockpit structure", () => {
   });
 
   it("canvas ids des métriques role-aware présents (panel Rôles)", () => {
-    const html = renderHtml(makeRenderInput());
+    const html = renderDefault(makeRenderInput());
     for (const id of ["stageTimeByRoleChart", "stageTimeShareChart", "wipPerRoleChart", "stageThroughputGapChart", "reworkRatioChart", "reworkByTypeChart", "ftrByRoleChart"]) {
       expect(html).toContain(`id="${id}"`);
     }
   });
 
   it("conserve les fonctionnalités legacy : help-btn, zoom-btn (via initZoom), modal", () => {
-    const html = renderHtml(makeRenderInput());
+    const html = renderDefault(makeRenderInput());
     expect(html).toContain('class="help-btn"');
     expect(html).toContain('class="help-popover"');
     expect(html).toContain("chart-modal-overlay");
@@ -363,14 +377,14 @@ describe("renderHtml — Cockpit structure", () => {
   });
 
   it("ne référence plus le toggle theme ni la classe html.dark", () => {
-    const html = renderHtml(makeRenderInput());
+    const html = renderDefault(makeRenderInput());
     expect(html).not.toContain("themeToggle");
     expect(html).not.toContain("lean-theme");
     expect(html).not.toContain("html.dark");
   });
 
   it("8 cellules KPI rendues avec sparkline canvas", () => {
-    const html = renderHtml(makeRenderInput());
+    const html = renderDefault(makeRenderInput());
     const sparkMatches = html.match(/class="spark"/g) ?? [];
     expect(sparkMatches.length).toBe(8);
     const cellMatches = html.match(/class="kpi-cell/g) ?? [];
@@ -586,7 +600,7 @@ describe("buildScopeSection", () => {
   });
 });
 
-describe("renderHtml — Bottleneck panel", () => {
+describe("renderDefault — Bottleneck panel", () => {
   it("affiche primaryColumn dans le badge si non null", () => {
     const input: RenderInput = {
       ...makeRenderInput(),
@@ -601,12 +615,12 @@ describe("renderHtml — Bottleneck panel", () => {
         byColumn: [{ status: "In Progress", role: "dev", medianDays: 5, count: 1 }],
       },
     };
-    const html = renderHtml(input);
+    const html = renderDefault(input);
     expect(html).toContain("DEV (In Progress)");
   });
 
   it("n'affiche pas de parenthèse si primaryColumn est null", () => {
-    const html = renderHtml(makeRenderInput());
+    const html = renderDefault(makeRenderInput());
     expect(html).not.toMatch(/DEV \(/);
   });
 
@@ -624,7 +638,7 @@ describe("renderHtml — Bottleneck panel", () => {
         byColumn: [{ status: "In Progress", role: "dev", medianDays: 5, count: 20 }],
       },
     };
-    const html = renderHtml(input);
+    const html = renderDefault(input);
     expect(html).toContain("In Progress");
     expect(html).toContain("5.0j");
     expect(html).toContain("(20)");
@@ -632,7 +646,7 @@ describe("renderHtml — Bottleneck panel", () => {
   });
 
   it("panel drill-down absent si byColumn vide", () => {
-    const html = renderHtml(makeRenderInput());
+    const html = renderDefault(makeRenderInput());
     expect(html).not.toContain("Drill-down par colonne");
   });
 });
@@ -692,112 +706,112 @@ describe("estimationFlags — méthode numeric", () => {
 
 // ─── renderHtml — masquage conditionnel ───────────────────────────────────────
 
-describe("renderHtml — méthode none", () => {
+describe("renderDefault — méthode none", () => {
   it("throughput pondéré masqué", () => {
-    const html = renderHtml(makeInput({ method: "none" }));
+    const html = renderDefault(makeInput({ method: "none" }));
     expect(isHidden(html, "Weighted throughput")).toBe(true);
   });
 
   it("lead normalisé masqué", () => {
-    const html = renderHtml(makeInput({ method: "none" }));
+    const html = renderDefault(makeInput({ method: "none" }));
     expect(isHidden(html, "Normalized lead")).toBe(true);
   });
 
   it("cycle normalisé masqué", () => {
-    const html = renderHtml(makeInput({ method: "none" }));
+    const html = renderDefault(makeInput({ method: "none" }));
     expect(isHidden(html, "Normalized cycle")).toBe(true);
   });
 
   it("lead by-size masqué", () => {
-    const html = renderHtml(makeInput({ method: "none" }));
+    const html = renderDefault(makeInput({ method: "none" }));
     expect(html).toContain('style="display:none"');
     expect(html).toMatch(/class="chart-card" style="display:none"[^>]*>\s*\n?\s*<h3>Lead time by size/);
   });
 
   it("bandeau mention aucune", () => {
-    const html = renderHtml(makeInput({ method: "none" }));
+    const html = renderDefault(makeInput({ method: "none" }));
     expect(html).toContain("none");
     expect(html).toContain("estimation-context");
   });
 });
 
-describe("renderHtml — méthode time (défaut)", () => {
+describe("renderDefault — méthode time (défaut)", () => {
   it("throughput pondéré visible", () => {
-    const html = renderHtml(makeInput({ method: "time" }));
+    const html = renderDefault(makeInput({ method: "time" }));
     expect(isVisible(html, "Weighted throughput")).toBe(true);
     expect(isHidden(html, "Weighted throughput")).toBe(false);
   });
 
   it("lead normalisé visible", () => {
-    const html = renderHtml(makeInput({ method: "time" }));
+    const html = renderDefault(makeInput({ method: "time" }));
     expect(isHidden(html, "Normalized lead")).toBe(false);
   });
 
   it("titre throughput contient 'estimated j-h'", () => {
-    const html = renderHtml(makeInput({ method: "time" }));
+    const html = renderDefault(makeInput({ method: "time" }));
     expect(html).toContain("estimated j-h");
   });
 
   it("bandeau toujours présent et contient label 'Estimation : temps'", () => {
-    const html = renderHtml(makeInput({ method: "time" }));
+    const html = renderDefault(makeInput({ method: "time" }));
     expect(html).toContain("estimation-context");
     expect(html).toContain("Estimation: time");
   });
 
   it("note normalisée contient 'ratio based on estimates'", () => {
-    const html = renderHtml(makeInput({ method: "time" }));
+    const html = renderDefault(makeInput({ method: "time" }));
     expect(html).toContain("ratio based on estimates");
   });
 
   it("note normalisée absente pour méthode none", () => {
-    const html = renderHtml(makeInput({ method: "none" }));
+    const html = renderDefault(makeInput({ method: "none" }));
     expect(html).not.toContain("ratio based on estimates");
   });
 });
 
-describe("renderHtml — méthode t-shirt", () => {
+describe("renderDefault — méthode t-shirt", () => {
   it("throughput pondéré masqué", () => {
-    const html = renderHtml(makeInput({ method: "t-shirt", jiraField: "customfield_10200" }));
+    const html = renderDefault(makeInput({ method: "t-shirt", jiraField: "customfield_10200" }));
     expect(isHidden(html, "Weighted throughput")).toBe(true);
   });
 
   it("by-size visible", () => {
-    const html = renderHtml(makeInput({ method: "t-shirt", jiraField: "customfield_10200" }));
+    const html = renderDefault(makeInput({ method: "t-shirt", jiraField: "customfield_10200" }));
     expect(html).toMatch(/class="chart-card">\s*\n?\s*<h3>Lead time by size/);
   });
 });
 
-describe("renderHtml — méthode story-points", () => {
+describe("renderDefault — méthode story-points", () => {
   it("titre throughput contient 'estimated SP'", () => {
-    const html = renderHtml(makeInput({ method: "story-points" }));
+    const html = renderDefault(makeInput({ method: "story-points" }));
     expect(html).toContain("estimated SP");
   });
 
   it("lead normalisé masqué", () => {
-    const html = renderHtml(makeInput({ method: "story-points" }));
+    const html = renderDefault(makeInput({ method: "story-points" }));
     expect(isHidden(html, "Normalized lead")).toBe(true);
   });
 
   it("cycle normalisé masqué", () => {
-    const html = renderHtml(makeInput({ method: "story-points" }));
+    const html = renderDefault(makeInput({ method: "story-points" }));
     expect(isHidden(html, "Normalized cycle")).toBe(true);
   });
 
   it("bandeau contient seuils SP", () => {
-    const html = renderHtml(makeInput({ method: "story-points" }));
+    const html = renderDefault(makeInput({ method: "story-points" }));
     expect(html).toContain("XS&lt;1");
   });
 });
 
-describe("renderHtml — estimation absente (implicite time)", () => {
+describe("renderDefault — estimation absente (implicite time)", () => {
   it("estimation undefined → sections normalisées visibles", () => {
-    const html = renderHtml(makeInput(undefined));
+    const html = renderDefault(makeInput(undefined));
     expect(isHidden(html, "Normalized lead")).toBe(false);
     expect(isHidden(html, "Weighted throughput")).toBe(false);
   });
 
   it("estimation undefined → bandeau 'Estimation : temps'", () => {
-    const html = renderHtml(makeInput(undefined));
+    const html = renderDefault(makeInput(undefined));
     expect(html).toContain("Estimation: time");
   });
 });

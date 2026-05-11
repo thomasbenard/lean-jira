@@ -16,4 +16,4 @@ En tant que développeur maintenant le rapport, je veux supprimer `renderHtml()`
 
 ## Statut
 
-**à faire**
+**livré**

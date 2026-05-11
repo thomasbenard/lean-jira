@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="{{htmlLang}}">
 <head>
 <meta charset="utf-8">
 <title>{{escapeHtml title}}</title>
@@ -171,9 +171,10 @@
     margin: 0 0 0.8rem 0; font-size: 0.78rem; letter-spacing: 0.14em;
     text-transform: uppercase; color: var(--text-dim); font-weight: 500;
   }
-  .chart-card canvas { max-height: 220px; }
-  .chart-card.wide { grid-column: 1 / -1; }
-  .chart-card.wide canvas { max-height: 320px; }
+  .chart-wrap { position: relative; height: 220px; }
+  .chart-card.wide { grid-column: 1 / -1; margin-bottom: 1rem; }
+  .chart-card.wide .chart-wrap { height: 320px; }
+  .bn-bars-col .bn-label { min-width: 10rem; }
   .meta-line { font-size: 0.8rem; color: var(--text-dim); margin: 0.5rem 0 1rem; font-family: "IBM Plex Mono"; }
 
   table { width: 100%; border-collapse: collapse; font-family: "IBM Plex Mono"; font-size: 0.82rem; background: var(--panel); }
@@ -195,6 +196,14 @@
   .role-stats { display: flex; gap: 1.2rem; margin-top: 0.5rem; }
   .role-stat .v { font-family: "IBM Plex Mono"; font-size: 1.4rem; font-weight: 500; color: #fff; }
   .role-stat .l { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; }
+
+  .bn-bars { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.8rem; }
+  .bn-row { display: flex; align-items: center; gap: 0.75rem; }
+  .bn-label { font-family: "IBM Plex Mono"; font-size: 0.78rem; min-width: 5rem; }
+  .bn-rank { color: var(--text-dim); font-weight: 400; }
+  .bn-bar-bg { flex: 1; height: 10px; background: var(--panel-2); border-radius: 2px; overflow: hidden; }
+  .bn-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s ease; }
+  .bn-pct { font-family: "IBM Plex Mono"; font-size: 0.75rem; color: var(--text-dim); min-width: 2.5rem; text-align: right; }
 
   .bucket-selector { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
   .bucket-btn { padding: 0.25rem 0.6rem; border-radius: 2px; border: 1px solid var(--line); background: var(--panel-2); cursor: pointer; font-size: 0.75rem; color: var(--text-dim); font-family: "IBM Plex Mono"; }
@@ -270,21 +279,21 @@
 <body>
 <header class="bar">
   <span class="logo">{{{headerLogoHtml}}}{{escapeHtml title}} // FLOW.OPS</span>
-  <span class="meta">GEN {{escapeHtml generatedAt}} · SNAPSHOT {{escapeHtml lastSnapshotDate}}</span>
+  <span class="meta">GEN {{escapeHtml generatedAt}} · SNAPSHOT {{escapeHtml lastSnapshotDate}}{{escapeHtml headerSyncLabelSuffix}}</span>
 </header>
 <main>
 {{{verdictHtml}}}
 
 {{{staleBannerHtml}}}
 {{{scopeAlertHtml}}}
-
+{{{estimationContextHtml}}}
 <section class="actions">
-  <div class="actions-head"><h2>À traiter // top 3</h2><div class="sep"></div></div>
+  <div class="actions-head"><h2>{{escapeHtml sectionToProcessLabel}}</h2><div class="sep"></div></div>
   <div class="actions-grid">{{{top3Html}}}</div>
 </section>
 
 <section class="kpi-section">
-  <div class="actions-head"><h2>Indicateurs clés</h2><div class="sep"></div></div>
+  <div class="actions-head"><h2>{{escapeHtml sectionKpisLabel}}</h2><div class="sep"></div></div>
   <div class="kpi-grid">{{{kpiGridHtml}}}</div>
 </section>
 
@@ -666,6 +675,23 @@ lineChart("ftrByRoleChart", CHARTS.ftrByRole, [
   { key: "po",  label: "FTR po",  color: COLOR_PO  },
 ]);
 
+(function renderBottleneckScores() {
+  const ctx = document.getElementById("bottleneckScoresChart");
+  if (!ctx || !CHARTS.bottleneckScores || CHARTS.bottleneckScores.dates.length === 0) return;
+  new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: CHARTS.bottleneckScores.dates,
+      datasets: [
+        { label: "Dev", data: CHARTS.bottleneckScores.series["dev"], borderColor: COLOR_DEV, backgroundColor: "transparent", tension: 0.3, pointRadius: 2 },
+        { label: "QA",  data: CHARTS.bottleneckScores.series["qa"],  borderColor: COLOR_QA,  backgroundColor: "transparent", tension: 0.3, pointRadius: 2 },
+        { label: "PO",  data: CHARTS.bottleneckScores.series["po"],  borderColor: COLOR_PO,  backgroundColor: "transparent", tension: 0.3, pointRadius: 2 },
+      ],
+    },
+    options: { ...baseOpts, scales: { ...baseOpts.scales, y: { ...baseOpts.scales.y, min: 0, max: 1, title: { display: true, text: "Bottleneck score" } } } },
+  });
+})();
+
 lineChart("reworkRatioChart", CHARTS.handoffReworkRatio, [
   { key: "reworkRatio", label: "Taux de rework", color: "#ef4444" },
 ], true);
@@ -757,6 +783,7 @@ lineChart("reworkRatioChart", CHARTS.handoffReworkRatio, [
     wipPerRoleChart: "wipPerRole", stageThroughputGapChart: "stageThroughputGap",
     reworkRatioChart: "handoffRework", reworkByTypeChart: "handoffRework",
     ftrByRoleChart: "firstTimeRight",
+    bottleneckScoresChart: "bottleneckAnalysis",
   };
 
   document.body.insertAdjacentHTML('beforeend', [

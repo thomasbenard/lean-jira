@@ -10,7 +10,7 @@ import {
 import type { AgingWipSummary } from "../../src/metrics/agingWip";
 import type { ForecastSummary } from "../../src/metrics/forecast";
 
-type RenderInput = Parameters<typeof import("../../src/report/generate").renderHtml>[0];
+type RenderInput = Parameters<typeof import("../../src/report/generate").renderWithHandlebars>[0];
 
 function makeRenderInput(overrides: Partial<RenderInput> = {}): RenderInput {
   const empty = { dates: [], series: {} };
@@ -37,6 +37,7 @@ function makeRenderInput(overrides: Partial<RenderInput> = {}): RenderInput {
       bugBacklog: empty, stageTimeByRole: empty, stageTimeByRoleP85: empty,
       stageTimeShare: empty, wipPerRole: empty, stageThroughputNet: empty,
       handoffReworkRatio: empty, handoffReworkByType: empty, ftrByRole: empty,
+      bottleneckScores: empty,
     },
     leadBySize: {},
     cycleBySize: {},
@@ -53,6 +54,15 @@ function makeRenderInput(overrides: Partial<RenderInput> = {}): RenderInput {
     } as ForecastSummary,
     histogram: [],
     cycleStats: { median: 0, p85: 0, p95: 0, avg: 0, count: 0 },
+    bottleneck: {
+      count: 0, primaryBottleneck: null, primaryColumn: null, recommendation: "",
+      byRole: {
+        dev: { score: 0, rank: 3, dominantSignal: "combined" as const, dominantColumn: null, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
+        qa:  { score: 0, rank: 3, dominantSignal: "combined" as const, dominantColumn: null, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
+        po:  { score: 0, rank: 3, dominantSignal: "combined" as const, dominantColumn: null, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
+      },
+      byColumn: [],
+    },
     ...overrides,
   };
 }

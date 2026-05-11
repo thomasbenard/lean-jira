@@ -48,7 +48,7 @@
 | [041a](041a-i18n-infra-cli/description.md) | i18n infrastructure + traduction messages CLI | livré |
 | [041b](041b-i18n-report-html/description.md) | Traduction rapport HTML (labels + help texts) | livré |
 | [041c](041c-i18n-readme/description.md) | Réécriture README en anglais | livré |
-| [042](042-supprimer-renderhtml-hbs-defaut/description.md) | Supprimer renderHtml() (~1025 lignes) et faire de report.hbs le renderer par défaut | à faire |
+| [042](042-supprimer-renderhtml-hbs-defaut/description.md) | Supprimer renderHtml() (~1025 lignes) et faire de report.hbs le renderer par défaut | livré |
 | [043](043-bottleneck-column-drilldown/description.md) | Identifier la colonne (statut) dominante au sein du rôle bottleneck | livré |
 | [044](044-bottleneck-column-chart/description.md) | Drill-down par colonne Jira : médiane jours + nb tickets par statut dans onglet Rôles | livré |
 | [045](045-vue-par-sprint-rapport/description.md) | Toggle semaines/sprints pour métriques débit dans le rapport HTML | à faire |

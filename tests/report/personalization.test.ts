@@ -2,12 +2,17 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { resolvePersonalization, renderHtml } from "../../src/report/generate";
+import { resolvePersonalization, renderWithHandlebars } from "../../src/report/generate";
 import type { AgingWipSummary } from "../../src/metrics/agingWip";
 import type { ForecastSummary } from "../../src/metrics/forecast";
 
-type RenderInput = Parameters<typeof renderHtml>[0];
+type RenderInput = Parameters<typeof renderWithHandlebars>[0];
 
+
+function renderDefault(input: RenderInput): string {
+  const templatePath = path.join(__dirname, "../../src/report/templates/report.hbs");
+  return renderWithHandlebars(input, templatePath);
+}
 function makeRenderInput(overrides: Partial<RenderInput> = {}): RenderInput {
   const empty = { dates: [], series: {} };
   return {
@@ -180,7 +185,7 @@ describe("resolvePersonalization", () => {
 
 describe("renderHtml — personnalisation", () => {
   it("remplace le titre dans <title> et le header", () => {
-    const html = renderHtml(makeRenderInput({
+    const html = renderDefault(makeRenderInput({
       personalization: {
         title: "Équipe Plateforme",
         excludedTabs: new Set(),
@@ -191,12 +196,12 @@ describe("renderHtml — personnalisation", () => {
   });
 
   it("conserve le titre par défaut si absent (Lean Report — projectKey)", () => {
-    const html = renderHtml(makeRenderInput());
+    const html = renderDefault(makeRenderInput());
     expect(html).toContain("<title>Lean Report — TEST</title>");
   });
 
   it("injecte le logo dans le header", () => {
-    const html = renderHtml(makeRenderInput({
+    const html = renderDefault(makeRenderInput({
       personalization: {
         logoDataUri: "data:image/png;base64,ABC==",
         excludedTabs: new Set(),
@@ -206,13 +211,13 @@ describe("renderHtml — personnalisation", () => {
   });
 
   it("n'injecte pas de <img> si logoDataUri absent", () => {
-    const html = renderHtml(makeRenderInput());
+    const html = renderDefault(makeRenderInput());
     expect(html).not.toContain("<img");
   });
 
   it("remplace le <link> Google Fonts par fontLinkHtml fourni", () => {
     const customFont = '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">';
-    const html = renderHtml(makeRenderInput({
+    const html = renderDefault(makeRenderInput({
       personalization: {
         fontLinkHtml: customFont,
         excludedTabs: new Set(),
@@ -223,13 +228,13 @@ describe("renderHtml — personnalisation", () => {
   });
 
   it("conserve IBM Plex si fontLinkHtml absent", () => {
-    const html = renderHtml(makeRenderInput());
+    const html = renderDefault(makeRenderInput());
     expect(html).toContain("IBM+Plex");
   });
 
   it("injecte CSS custom dans un second bloc <style> après le premier", () => {
     const css = ":root { --bg: #ffffff; }";
-    const html = renderHtml(makeRenderInput({
+    const html = renderDefault(makeRenderInput({
       personalization: {
         customCss: css,
         excludedTabs: new Set(),
@@ -242,7 +247,7 @@ describe("renderHtml — personnalisation", () => {
   });
 
   it("exclut l'onglet roles de la barre de navigation et du contenu", () => {
-    const html = renderHtml(makeRenderInput({
+    const html = renderDefault(makeRenderInput({
       personalization: {
         excludedTabs: new Set(["roles"]),
       },
@@ -252,7 +257,7 @@ describe("renderHtml — personnalisation", () => {
   });
 
   it("n'affiche aucune barre d'onglets si tous les onglets sont exclus", () => {
-    const html = renderHtml(makeRenderInput({
+    const html = renderDefault(makeRenderInput({
       personalization: {
         excludedTabs: new Set(["delivery", "quality", "roles", "forecast", "advanced"]),
       },
@@ -262,7 +267,7 @@ describe("renderHtml — personnalisation", () => {
   });
 
   it("décale la classe active si le premier onglet est exclu", () => {
-    const html = renderHtml(makeRenderInput({
+    const html = renderDefault(makeRenderInput({
       personalization: {
         excludedTabs: new Set(["delivery"]),
       },
