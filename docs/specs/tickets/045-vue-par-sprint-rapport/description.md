@@ -16,4 +16,4 @@ Dans `generate.ts`, calculer live les métriques de débit pour chaque sprint te
 
 ## Statut
 
-**à faire**
+**livré**

@@ -9,6 +9,9 @@ import { forecastMetric, type ForecastSummary } from "../metrics/forecast";
 import { cycleTimeMetric } from "../metrics/cycleTime";
 import { scopeChangeMetric, type ScopeChangeResult } from "../metrics/scopeChange";
 import { bottleneckAnalysisMetric, type BottleneckAnalysisResult, type RoleKey } from "../metrics/bottleneckAnalysis";
+import { throughputMetric } from "../metrics/throughput";
+import { bugThroughputMetric } from "../metrics/bugThroughput";
+import { throughputWeightedMetric } from "../metrics/throughputWeighted";
 import { getLastSyncDate } from "../db/store";
 import { now } from "../clock";
 import { t, getCurrentLocale, type LocaleShape, type LocaleCode } from "../i18n/index";
@@ -170,6 +173,54 @@ interface SnapshotRow {
   value: number;
 }
 
+export interface SprintChartSeries {
+  labels: string[];
+  series: Record<string, number[]>;
+  hasActiveSprint: boolean;
+}
+
+interface SprintRow { name: string; state: string; start_date: string; end_date: string | null }
+
+export function buildSprintSeries(
+  db: Database.Database,
+  config: MetricConfig,
+  sprints: SprintRow[],
+): {
+  throughput: SprintChartSeries;
+  bugThroughput: SprintChartSeries;
+  throughputWeighted: SprintChartSeries;
+} {
+  const labels: string[] = [];
+  const thrCounts: number[] = [];
+  const bugCounts: number[] = [];
+  const wgtDays: number[] = [];
+
+  const hasActive = sprints.length > 0 && sprints[sprints.length - 1].state === "active";
+
+  for (const sprint of sprints) {
+    const isActive = sprint.state === "active";
+    const windowEnd = sprint.end_date ?? now().toISOString().slice(0, 10);
+    const cfg: MetricConfig = { ...config, cutoffDate: sprint.start_date, windowEndDate: windowEnd };
+
+    labels.push(isActive ? `${sprint.name} (en cours)` : sprint.name);
+
+    const thrResult = throughputMetric.compute(db, cfg);
+    thrCounts.push(thrResult.byWeek.reduce((s, w) => s + w.count, 0));
+
+    const bugResult = bugThroughputMetric.compute(db, cfg);
+    bugCounts.push(bugResult.byWeek.reduce((s, w) => s + w.count, 0));
+
+    const wgtResult = throughputWeightedMetric.compute(db, cfg);
+    wgtDays.push(wgtResult.byWeek.reduce((s, w) => s + w.estimatedDays, 0));
+  }
+
+  return {
+    throughput: { labels, series: { count: thrCounts }, hasActiveSprint: hasActive },
+    bugThroughput: { labels, series: { count: bugCounts }, hasActiveSprint: hasActive },
+    throughputWeighted: { labels, series: { estimatedDays: wgtDays }, hasActiveSprint: hasActive },
+  };
+}
+
 interface BucketStats {
   count: number;
   median: number;
@@ -201,6 +252,16 @@ export function generateReport(
   if (snapshots.length === 0) {
     throw new Error("Aucun snapshot. Lancer `npm run snapshots` d'abord.");
   }
+
+  const sprintRows = db.prepare(`
+    SELECT name, state, start_date, end_date
+    FROM sprints
+    WHERE start_date IS NOT NULL
+    ORDER BY start_date ASC
+  `).all() as SprintRow[];
+  const sprintCharts = sprintRows.length > 0
+    ? buildSprintSeries(db, config, sprintRows)
+    : null;
 
   // Pré-grouper par metric_name pour un parcours O(N) au lieu de O(N×M).
   const byMetric = new Map<string, SnapshotRow[]>();
@@ -324,6 +385,7 @@ export function generateReport(
     personalization: resolvedPersonalization,
     estimation: config.estimation,
     bottleneck,
+    sprintCharts,
   };
 
   const resolvedTemplatePath = personalization?.templatePath
@@ -428,6 +490,11 @@ interface RenderInput {
   personalization?: ResolvedPersonalization;
   estimation?: EstimationConfig;
   bottleneck: BottleneckAnalysisResult;
+  sprintCharts: {
+    throughput: SprintChartSeries;
+    bugThroughput: SprintChartSeries;
+    throughputWeighted: SprintChartSeries;
+  } | null;
 }
 
 function buildHistogram(values: number[]): HistogramBin[] {
@@ -590,6 +657,8 @@ export function buildRenderedTabs(input: RenderInput): { id: string; label: stri
     html: `<div class="panel-grid">
     <div class="chart-card"><h3>${escapeHtml(t("report.chart.leadTime"))}${helpBtn("leadTime")}</h3><div class="chart-wrap"><canvas id="leadTimeChart"></canvas></div></div>
     <div class="chart-card"><h3>${escapeHtml(t("report.chart.cycleTime"))}${helpBtn("cycleTime")}</h3><div class="chart-wrap"><canvas id="cycleTimeChart"></canvas></div></div>
+  </div>
+  <div class="panel-grid" style="margin-top: 1rem">
     <div class="chart-card"><h3>${escapeHtml(t("report.chart.throughput"))}${helpBtn("throughput")}</h3><div class="chart-wrap"><canvas id="throughputChart"></canvas></div></div>
     <div class="chart-card"${hide(flags.showWeighted)}><h3>${escapeHtml(t("report.chart.throughputWeighted", { unit: flags.weightedUnit }))}${helpBtn("throughputWeighted")}</h3><div class="chart-wrap"><canvas id="throughputWeightedChart"></canvas></div></div>
     <div class="chart-card"><h3>${escapeHtml(t("report.chart.wip"))}${helpBtn("wip")}</h3><div class="chart-wrap"><canvas id="wipChart"></canvas></div></div>
@@ -737,6 +806,8 @@ export interface TemplateContext {
   tabs: { id: string; label: string; html: string; active: boolean }[];
   kpis: Record<string, number | null>;
   chartDataJson: string;
+  sprintChartsJson: string;
+  hasSprintCharts: boolean;
   agingWip: AgingWipSummary;
   forecast: ForecastSummary;
   cycleStats: { median: number; p85: number; p95: number; avg: number; count: number };
@@ -778,6 +849,8 @@ export function buildTemplateContext(
     tabs: filteredTabs.map((t) => ({ ...t, active: t.id === firstId })),
     kpis: input.kpis,
     chartDataJson,
+    sprintChartsJson: input.sprintCharts !== null ? JSON.stringify(input.sprintCharts) : "null",
+    hasSprintCharts: input.sprintCharts !== null,
     agingWip: input.agingWip,
     forecast: input.forecast,
     cycleStats: input.cycleStats,

@@ -149,7 +149,7 @@
   .kpi-delta.flat { color: var(--text-dim); }
   canvas.spark { position: absolute; right: 0.8rem; bottom: 0.8rem; width: 90px; height: 26px; opacity: 0.85; max-width: 90px; max-height: 26px; }
 
-  .tabs { display: flex; gap: 0; margin: 2rem 0 1rem; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .tabs { display: flex; gap: 0; margin: 2rem 0 1rem; border-bottom: 1px solid var(--line); flex-wrap: wrap; align-items: flex-end; }
   .tab {
     padding: 0.65rem 1.1rem; cursor: pointer; border: none; background: transparent;
     color: var(--text-dim); font-family: "IBM Plex Mono"; font-size: 0.78rem; letter-spacing: 0.12em;
@@ -160,6 +160,16 @@
   .tab.active { color: var(--cyan); border-bottom-color: var(--cyan); }
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
+  .chart-toggle { display: inline-flex; margin-left: auto; align-self: center; margin-bottom: 6px; }
+  .toggle-btn {
+    padding: 0.22rem 0.7rem; border: 1px solid var(--line); background: transparent;
+    color: var(--text-dim); font-family: "IBM Plex Mono"; font-size: 0.72rem; letter-spacing: 0.08em;
+    cursor: pointer; transition: background 0.1s, color 0.1s, border-color 0.1s;
+  }
+  .toggle-btn:first-child { border-radius: 3px 0 0 3px; }
+  .toggle-btn:not(:first-child) { margin-left: -1px; border-radius: 0 3px 3px 0; }
+  .toggle-btn.active { background: var(--cyan); color: var(--bg); border-color: var(--cyan); font-weight: 500; }
+  .toggle-btn:hover:not(.active) { color: var(--text); border-color: var(--text-dim); }
 
   .panel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
   .panel-grid.three { grid-template-columns: 1fr 1fr 1fr; }
@@ -302,6 +312,12 @@
   {{#each tabs}}
   <button class="tab{{#if active}} active{{/if}}" data-tab="{{id}}">{{label}}</button>
   {{/each}}
+  {{#if hasSprintCharts}}
+  <div class="chart-toggle" id="debit-toggle">
+    <button class="toggle-btn active" data-view="week">Semaines</button>
+    <button class="toggle-btn" data-view="sprint">Sprints</button>
+  </div>
+  {{/if}}
 </div>
 {{/if}}
 
@@ -366,6 +382,7 @@ const AGING = _D.aging;
 const LEAD_BY_SIZE = _D.leadBySize;
 const CYCLE_BY_SIZE = _D.cycleBySize;
 const BUCKET_LABELS_MAP = {"XS":"XS (<0.5j)","S":"S (0.5-1j)","M":"M (1-3j)","L":"L (3-5j)","XL":"XL (≥5j)","BUG":"BUG","UNESTIMATED":"UNESTIMATED"};
+const SPRINT_CHARTS = {{{sprintChartsJson}}};
 
 const COLOR_MEDIAN = "#00e0d4";
 const COLOR_P85 = "#ff8a3d";
@@ -407,19 +424,32 @@ function buildTrendDataset(trendData) {
 
 function lineChart(canvasId, series, datasets, withTrend) {
   const ctx = document.getElementById(canvasId);
-  if (!ctx || !series || series.dates.length === 0) return;
+  if (!ctx || !series || series.dates.length === 0) return null;
   const builtDatasets = datasets.map(function(d) {
-    return { label: d.label, data: series.series[d.key], borderColor: d.color, backgroundColor: d.color + "22", tension: 0.2, pointRadius: 2 };
+    return { label: d.label, data: series.series[d.key], borderColor: d.color, backgroundColor: d.color + "22", tension: 0.2, pointRadius: 2, _seriesKey: d.key };
   });
   if (withTrend) {
     const trend = buildTrendDataset(computeMovingAvg(series.series[datasets[0].key] || []));
     if (trend) builtDatasets.push(trend);
   }
-  new Chart(ctx, {
+  return new Chart(ctx, {
     type: "line",
     data: { labels: series.dates, datasets: builtDatasets },
     options: baseOpts,
   });
+}
+
+function updateChart(chart, labels, seriesData) {
+  if (!chart) return;
+  chart.data.labels = labels;
+  var keys = Object.keys(seriesData);
+  for (var i = 0; i < keys.length && i < chart.data.datasets.length; i++) {
+    chart.data.datasets[i].data = seriesData[keys[i]];
+  }
+  if (chart.data.datasets.length > keys.length) {
+    chart.data.datasets[chart.data.datasets.length - 1].data = labels.map(function() { return null; });
+  }
+  chart.update("none");
 }
 
 lineChart("leadTimeChart", CHARTS.leadTime, [
@@ -430,18 +460,51 @@ lineChart("cycleTimeChart", CHARTS.cycleTime, [
   { key: "median", label: "Médiane", color: COLOR_MEDIAN },
   { key: "p85", label: "P85", color: COLOR_P85 },
 ], true);
-lineChart("throughputChart", CHARTS.throughput, [
+var _throughputChart = lineChart("throughputChart", CHARTS.throughput, [
   { key: "count", label: "Issues livrées", color: COLOR_COUNT },
 ], true);
-lineChart("throughputWeightedChart", CHARTS.throughputWeighted, [
+var _throughputWeightedChart = lineChart("throughputWeightedChart", CHARTS.throughputWeighted, [
   { key: "estimatedDays", label: "Jours-personnes", color: COLOR_DAYS },
 ], true);
 lineChart("wipChart", CHARTS.wip, [
   { key: "count", label: "WIP", color: COLOR_DAYS },
 ], true);
-lineChart("bugThroughputChart", CHARTS.bugThroughput, [
+var _bugThroughputChart = lineChart("bugThroughputChart", CHARTS.bugThroughput, [
   { key: "count", label: "Bugs", color: "#ef4444" },
 ], true);
+
+(function initDebitToggle() {
+  var toggle = document.getElementById("debit-toggle");
+  if (!toggle || !SPRINT_CHARTS) return;
+  var _thrOrig = _throughputChart ? _throughputChart.data.datasets.map(function(d) { return d.data; }) : null;
+  var _wgtOrig = _throughputWeightedChart ? _throughputWeightedChart.data.datasets.map(function(d) { return d.data; }) : null;
+  var _bugOrig = _bugThroughputChart ? _bugThroughputChart.data.datasets.map(function(d) { return d.data; }) : null;
+  toggle.addEventListener("click", function(e) {
+    var btn = e.target.closest(".toggle-btn");
+    if (!btn) return;
+    var view = btn.dataset.view;
+    toggle.querySelectorAll(".toggle-btn").forEach(function(b) { b.classList.toggle("active", b === btn); });
+    switchDebitView(view);
+  });
+  function restoreChart(chart, dates, origDatasets) {
+    if (!chart || !origDatasets) return;
+    chart.data.labels = dates;
+    origDatasets.forEach(function(data, i) { chart.data.datasets[i].data = data; });
+    chart.update("none");
+  }
+  function switchDebitView(view) {
+    if (view === "sprint") {
+      updateChart(_throughputChart, SPRINT_CHARTS.throughput.labels, SPRINT_CHARTS.throughput.series);
+      updateChart(_throughputWeightedChart, SPRINT_CHARTS.throughputWeighted.labels, SPRINT_CHARTS.throughputWeighted.series);
+      updateChart(_bugThroughputChart, SPRINT_CHARTS.bugThroughput.labels, SPRINT_CHARTS.bugThroughput.series);
+    } else {
+      restoreChart(_throughputChart, CHARTS.throughput.dates, _thrOrig);
+      restoreChart(_throughputWeightedChart, CHARTS.throughputWeighted.dates, _wgtOrig);
+      restoreChart(_bugThroughputChart, CHARTS.bugThroughput.dates, _bugOrig);
+    }
+  }
+})();
+
 lineChart("bugCycleTimeChart", CHARTS.bugCycleTime, [
   { key: "median", label: "Médiane", color: COLOR_MEDIAN },
   { key: "p85", label: "P85", color: COLOR_P85 },

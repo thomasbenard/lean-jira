@@ -273,6 +273,8 @@ Each graph includes a trend curve (4-week moving average). KPIs configured with 
 display a color-coded health signal (green / orange / red). The "Flow by role" section is silently
 hidden if no `role:` column is configured in `board.yaml`.
 
+A **Semaines / Sprints** toggle appears in the tab bar when sprints with a `start_date` are present in the database. It switches the throughput, weighted throughput, and bug throughput charts between the default weekly view and a per-sprint aggregated view. The active sprint (if any) is included with its partial count and labelled "(en cours)".
+
 ---
 
 ## Development
