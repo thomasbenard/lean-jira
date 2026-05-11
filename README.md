@@ -1,25 +1,29 @@
 # lean-jira
 
-CLI qui synchronise un board Jira Kanban, calcule des métriques de flux Lean et génère un rapport HTML interactif avec tendances temporelles.
+> 🇫🇷 [Version française](README.fr.md)
 
-**Cas d'usage** : équipe Agile/Kanban qui veut piloter par les données sans dépendre d'un outil BI tiers.
+CLI that syncs a Jira Kanban board, computes Lean flow metrics and generates an
+interactive HTML report with time trends.
 
----
-
-## Ce que ça produit
-
-- **Métriques de flux** : lead time, cycle time, throughput, WIP, flow efficiency, aging WIP, forecast Monte Carlo
-- **Métriques qualité** : bug cycle time, bug ratio, bug backlog, allocation dev/bugs
-- **Métriques role-aware** : temps par rôle (dev/QA/PO), WIP par rôle, gaps de flux, taux de rework, first-time-right
-- **Rapport HTML autonome** : graphes de tendances Chart.js, signaux de santé KPI, forecast, liens Jira cliquables — aucun serveur requis
+**Use case**: Agile/Kanban team that wants data-driven management without depending
+on a third-party BI tool.
 
 ---
 
-## Prérequis
+## What it produces
+
+- **Flow metrics**: lead time, cycle time, throughput, WIP, flow efficiency, aging WIP, Monte Carlo forecast
+- **Quality metrics**: bug cycle time, bug ratio, bug backlog, dev/bug allocation
+- **Role-aware metrics**: time per role (dev/QA/PO), WIP per role, flow gaps, rework rate, first-time-right
+- **Standalone HTML report**: Chart.js trend graphs, KPI health signals, forecast, clickable Jira links — no server required
+
+---
+
+## Prerequisites
 
 - Node.js 18+
-- Token API Jira (Basic auth ou Atlassian Cloud via gateway)
-- Accès en lecture à un projet Jira avec board Kanban
+- Jira API token (Basic auth or Atlassian Cloud via gateway)
+- Read access to a Jira project with a Kanban board
 
 ---
 
@@ -35,14 +39,14 @@ npm install
 
 ## Configuration
 
-La configuration est séparée en deux fichiers :
+Configuration is split into two files:
 
-| Fichier | Rôle | Versionnable |
+| File | Role | Versionable |
 |---|---|---|
-| `config.yaml` | Secrets Jira + chemin DB | Non (gitignoré) |
-| `board.yaml` | Définition du board + métriques | Oui |
+| `config.yaml` | Jira secrets + DB path | No (gitignored) |
+| `board.yaml` | Board definition + metrics | Yes |
 
-> Pour une configuration pas-à-pas complète (auth, board, validation, troubleshooting) : **[→ Guide de configuration](docs/configuration.md)**
+> For a complete step-by-step guide (auth, board, validation, troubleshooting): **[→ Configuration guide](docs/configuration.md)**
 
 ### 1. `config.yaml`
 
@@ -54,36 +58,45 @@ cp config.example.yaml config.yaml
 jira:
   baseUrl: "https://your-company.atlassian.net"
   email: "you@company.com"
-  apiToken: "YOUR_API_TOKEN"   # Jira → Profil → Sécurité → Créer un token API
+  apiToken: "YOUR_API_TOKEN"   # Jira → Profile → Security → Create API token
   projectKey: "PROJ"
-  boardId: 42                  # Visible dans l'URL du board Jira
-  name: "Ma Squad"             # Optionnel — affiché dans le titre du rapport
+  boardId: 42                  # Visible in the Jira board URL
+  name: "My Squad"             # Optional — shown in the report header
 
 db:
   path: "./lean-jira.db"
 ```
 
-> **Atlassian Cloud avec domaine custom** : si l'auth Basic est bloquée, utiliser le gateway Atlassian :
+> **Atlassian Cloud with custom domain**: if Basic auth is blocked, use the Atlassian gateway:
 > ```yaml
 > baseUrl: "https://api.atlassian.com/ex/jira/<cloudId>/"
-> frontendUrl: "https://your-company.atlassian.net"   # obligatoire ici, sert aux liens du rapport
+> frontendUrl: "https://your-company.atlassian.net"   # required here, used for report links
 > ```
-> Récupérer `cloudId` via `GET https://<your-domain>/_edge/tenant_info`.
+> Retrieve `cloudId` via `GET https://<your-domain>/_edge/tenant_info`.
 
 ### 2. `board.yaml`
 
-**Option A — génération automatique depuis l'API Jira** (recommandée pour démarrer) :
+**Option A — auto-generation from the Jira API** (recommended to get started):
 
 ```bash
-npm run autoconfig                   # Affiche le YAML inféré sur stdout (dry-run)
-npm run autoconfig -- --apply        # Écrit board.yaml (backup → board.yaml.bak si existant)
+npm run autoconfig                   # Prints inferred YAML to stdout (dry-run)
+npm run autoconfig -- --apply        # Writes board.yaml (backup → board.yaml.bak if exists)
 ```
 
-`autoconfig` interroge directement l'API Jira et n'a pas besoin d'un `sync` préalable. Si une base SQLite existe déjà, les statuts historiques renommés (présents dans les transitions mais absents de l'API courante) sont automatiquement ajoutés en `legacyStatuses`. Pour bénéficier de cet enrichissement sur une nouvelle install, lancer un `sync` puis relancer `autoconfig --apply`.
+`autoconfig` queries the Jira API directly and does not need a prior `sync`. If a SQLite
+database already exists, legacy renamed statuses (present in transition history but absent
+from the current API) are automatically added as `legacyStatuses`. To benefit from this
+enrichment on a fresh install, run `sync` first then re-run `autoconfig --apply`.
 
-`autoconfig` infère le type de chaque colonne intermédiaire : `queue` si le nom contient un mot-clé connu (review, validation, QA, attente, staging, approval…), sinon `active`. Le `devStart: true` est positionné sur la première colonne `active`. La méthode d'estimation (`metrics.estimation`) est détectée depuis le champ configuré sur le board Jira : `timeoriginalestimate` → `time`, `customfield_10016` → `story-points`, champ custom inconnu → `numeric` (avec avertissement d'envisager `t-shirt`). En mode `--apply`, une estimation déjà configurée dans `board.yaml` est préservée. Toujours revoir et ajuster manuellement après génération.
+`autoconfig` infers the type of each intermediate column: `queue` if the name contains a
+known keyword (review, validation, QA, staging, approval…), otherwise `active`. `devStart: true`
+is set on the first `active` column. The estimation method (`metrics.estimation`) is detected
+from the field configured on the Jira board: `timeoriginalestimate` → `time`,
+`customfield_10016` → `story-points`, unknown custom field → `numeric` (with a warning to
+consider `t-shirt`). In `--apply` mode, an estimation already configured in `board.yaml` is
+preserved. Always review and adjust manually after generation.
 
-**Option B — configuration manuelle** :
+**Option B — manual configuration**:
 
 ```bash
 cp board.example.yaml board.yaml
@@ -92,82 +105,84 @@ cp board.example.yaml board.yaml
 ```yaml
 board:
   columns:
-    - name: "À faire"
-      type: todo              # début du lead time
+    - name: "To Do"
+      type: todo              # start of lead time
 
-    - name: "Développement"
+    - name: "Development"
       type: active
-      devStart: true          # début du cycle time
-      role: dev               # optionnel : métriques role-aware
+      devStart: true          # start of cycle time
+      role: dev               # optional: role-aware metrics
 
     - name: "Review"
-      type: queue             # temps d'attente (flow-efficiency)
+      type: queue             # wait time (flow-efficiency)
       role: qa
 
     - name: "Done"
       type: done
 
-  # Statuts renommés absents de l'API Jira courante (historique uniquement)
+  # Renamed statuses absent from the current Jira API (history only)
   # legacyDoneStatuses:
   #   - "Delivered"
 
 metrics:
-  cutoffDate: "2024-01-01"    # ignorer les issues livrées avant cette date
+  cutoffDate: "2024-01-01"    # ignore issues delivered before this date
   bugIssueTypes:
     - "Bug"
 
-  # Signaux de santé KPI dans le rapport (optionnel)
+  # KPI health signals in the report (optional)
   # healthThresholds:
   #   leadTimeMedianDays:     { warn: 5,    crit: 10   }
   #   cycleTimeMedianDays:    { warn: 3,    crit: 7    }
-  #   throughputWeekly:       { warn: 3,    crit: 1    }   # plus haut = mieux
+  #   throughputWeekly:       { warn: 3,    crit: 1    }   # higher = better
   #   wipCount:               { warn: 5,    crit: 8    }
   #   bugCycleTimeMedianDays: { warn: 3,    crit: 7    }
   #   bugRatio:               { warn: 0.20, crit: 0.40 }
 
-# Personnalisation du rapport HTML (optionnel)
+# HTML report customization (optional)
 # report:
-#   title: "Équipe Plateforme"             # Remplace "Rapport Lean — {projectKey}" dans le titre et l'en-tête
-#   logoUrl: "./assets/logo.png"           # Chemin local (embarqué en base64) ou URL http(s)
-#   fontUrl: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"  # Remplace IBM Plex
-#   customCssPath: "./my-report.css"       # CSS injecté après le style défaut (priorité cascade)
-#   excludeTabs:                           # Onglets à masquer : delivery, quality, roles, forecast, advanced
+#   title: "Platform Team"                 # Replaces "Lean Report — {projectKey}" in title and header
+#   logoUrl: "./assets/logo.png"           # Local path (embedded as base64) or http(s) URL
+#   fontUrl: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"  # Replaces IBM Plex
+#   customCssPath: "./my-report.css"       # CSS injected after default styles (normal cascade)
+#   excludeTabs:                           # Tabs to hide: delivery, quality, roles, forecast, advanced
 #     - roles
 #     - forecast
-#   templatePath: "./report.hbs"           # Template Handlebars custom (remplace le rendu HTML intégral)
+#   templatePath: "./report.hbs"           # Custom Handlebars template (replaces the built-in HTML renderer)
 ```
 
-#### Types de colonnes
+#### Column types
 
-| `type` | Rôle dans les métriques |
+| `type` | Role in metrics |
 |---|---|
-| `todo` | Début du **lead time** |
-| `active` + `devStart: true` | Début du **cycle time** |
-| `active` | "Touch time" pour **flow efficiency** + WIP |
-| `queue` | "Queue time" pour **flow efficiency** + WIP |
-| `done` | Définit la **livraison équipe** (`done_at`) |
+| `todo` | Start of **lead time** |
+| `active` + `devStart: true` | Start of **cycle time** |
+| `active` | "Touch time" for **flow efficiency** + WIP |
+| `queue` | "Queue time" for **flow efficiency** + WIP |
+| `done` | Defines **team delivery** (`done_at`) |
 
-Le champ optionnel `role: dev | qa | po` active les métriques role-aware (stage time, WIP par rôle, throughput gap, rework, first-time-right). Les colonnes sans `role` sont silencieusement ignorées par ces métriques.
+The optional `role: dev | qa | po` field enables role-aware metrics (stage time, WIP per role,
+throughput gap, rework, first-time-right). Columns without `role` are silently ignored by
+these metrics.
 
 ---
 
-## Utilisation
+## Usage
 
-### Workflow standard
-
-```bash
-npm run sync        # Pull Jira → SQLite (issues, transitions, sprints, statuts)
-npm run snapshots   # Calcule l'historique hebdomadaire (prérequis rapport)
-npm run report      # Génère ./report.html
-```
-
-Ou en une commande :
+### Standard workflow
 
 ```bash
-npm run refresh     # sync → snapshots → report (arrêt sur erreur)
+npm run sync        # Pull Jira → SQLite (issues, transitions, sprints, statuses)
+npm run snapshots   # Compute weekly history (required before report)
+npm run report      # Generate ./report.html
 ```
 
-`refresh` accepte les mêmes options que `report`. Pour plusieurs squads avec des configs et rapports distincts :
+Or in a single command:
+
+```bash
+npm run refresh     # sync → snapshots → report (stops on error)
+```
+
+`refresh` accepts the same options as `report`. To generate separate reports per squad:
 
 ```bash
 npm run refresh -- -c config.keck.yaml    -b board.yaml -o report.keck.html
@@ -175,111 +190,115 @@ npm run refresh -- -c config.kepler.yaml  -b board.yaml -o report.kepler.html
 npm run refresh -- -c config.james-webb.yaml -b board.yaml -o report.james-webb.html
 ```
 
-### Commandes individuelles
+### Individual commands
 
 ```bash
-# Métriques en CLI
-npm run metrics                          # Toutes les métriques
-npm run metrics -- -m cycle-time         # Une seule métrique
-npm run metrics -- -m cycle-time --json  # Sortie JSON brute
-npm run metrics -- --include-outliers    # Sans filtre Tukey
-npm run metrics:raw                      # Alias de --include-outliers
+# CLI metrics
+npm run metrics                          # All metrics
+npm run metrics -- -m cycle-time         # Single metric
+npm run metrics -- -m cycle-time --json  # Raw JSON output
+npm run metrics -- --include-outliers    # Without Tukey filter
+npm run metrics:raw                      # Alias for --include-outliers
 
-# Lister les noms des métriques disponibles
+# List available metric names
 npx ts-node src/main.ts list-metrics
 
-# Rapport HTML
-npm run report                           # Sortie : ./report.html
-npm run report -- -o /tmp/rapport.html   # Chemin personnalisé
-npm run report -- --export-template ./my-template  # Exporte le template Handlebars par défaut dans ./my-template/
+# HTML report
+npm run report                           # Output: ./report.html
+npm run report -- -o /tmp/report.html    # Custom path
+npm run report -- --export-template ./my-template  # Export default Handlebars template into ./my-template/
 
-# Validation de la config
-npm run validate    # Vérifie que les statuts du board.yaml existent en base
+# Config validation
+npm run validate    # Checks that board.yaml statuses exist in the database
 ```
 
-### Options communes
+### Common options
 
-| Option | Description | Disponible sur |
+| Option | Description | Available on |
 |---|---|---|
-| `-c, --config <path>` | Chemin vers `config.yaml` (défaut : `./config.yaml`) | Toutes les commandes |
-| `-b, --board-config <path>` | Chemin vers `board.yaml` (défaut : `./board.yaml`) | `metrics`, `snapshots`, `report`, `refresh`, `validate-config`, `autoconfig` |
-| `-o, --output <path>` | Fichier HTML de sortie (défaut : `./report.html`) | `report`, `refresh` |
-| `--export-template <dir>` | Exporte `report.hbs` + `context.schema.json` dans `<dir>` et quitte | `report` |
+| `-c, --config <path>` | Path to `config.yaml` (default: `./config.yaml`) | All commands |
+| `-b, --board-config <path>` | Path to `board.yaml` (default: `./board.yaml`) | `metrics`, `snapshots`, `report`, `refresh`, `validate-config`, `autoconfig` |
+| `-o, --output <path>` | HTML output file (default: `./report.html`) | `report`, `refresh` |
+| `--export-template <dir>` | Export `report.hbs` + `context.schema.json` into `<dir>` and exit | `report` |
 
 ---
 
-## Catalogue des métriques
+## Metric catalog
 
-| Métrique | Ce que ça mesure |
+| Metric | What it measures |
 |---|---|
-| `lead-time` | Entrée todo → livraison équipe |
-| `cycle-time` | Début dev actif → livraison équipe |
-| `lead-time-by-size` / `cycle-time-by-size` | Idem, par bucket de taille (XS/S/M/L/XL/BUG) |
-| `lead-time-normalized` / `cycle-time-normalized` | Ratio réel / estimation (détecte les dérives de chiffrage) |
-| `bug-cycle-time` | Cycle time des bugs uniquement |
-| `throughput` | Issues livrées par semaine |
-| `bug-throughput` | Bugs livrés par semaine |
-| `throughput-weighted` | Jours-personnes estimés livrés par semaine |
-| `wip` | WIP courant dans le sprint actif |
-| `flow-efficiency` | % temps actif vs total (actif + queue) |
-| `aging-wip` | Âge du WIP courant vs percentiles historiques |
-| `forecast` | Monte Carlo P15/P50/P85/P95 sur 1/2/4/8 semaines |
-| `dev-time-allocation` | Split cycle time features vs bugs par semaine |
-| `bug-backlog` | Bugs ouverts + flux net hebdomadaire |
-| `stage-time-breakdown` | Temps médian par rôle (dev/QA/PO) |
-| `wip-per-role` | WIP courant par rôle |
-| `stage-throughput-gap` | Flux net (entrées − sorties) par rôle par semaine |
-| `handoff-rework` | % tickets avec retour arrière entre rôles |
-| `first-time-right` | % tickets traversant chaque rôle en un seul passage |
-| `scope-change-rate` | % issues dont description/estimation/sprint a changé après entrée en sprint (dérive de périmètre) |
+| `lead-time` | Todo entry → team delivery |
+| `cycle-time` | Active dev start → team delivery |
+| `lead-time-by-size` / `cycle-time-by-size` | Same, per size bucket (XS/S/M/L/XL/BUG) |
+| `lead-time-normalized` / `cycle-time-normalized` | Actual / estimate ratio (detects estimation drift) |
+| `bug-cycle-time` | Cycle time for bugs only |
+| `throughput` | Issues delivered per week |
+| `bug-throughput` | Bugs delivered per week |
+| `throughput-weighted` | Estimated person-days delivered per week |
+| `wip` | Current WIP in the active sprint |
+| `flow-efficiency` | % active time vs total (active + queue) |
+| `aging-wip` | Current WIP age vs historical percentiles |
+| `forecast` | Monte Carlo P15/P50/P85/P95 over 1/2/4/8 weeks |
+| `dev-time-allocation` | Cycle time split features vs bugs per week |
+| `bug-backlog` | Open bugs + weekly net flow |
+| `stage-time-breakdown` | Median time per role (dev/QA/PO) |
+| `wip-per-role` | Current WIP per role |
+| `stage-throughput-gap` | Net flow (in − out) per role per week |
+| `handoff-rework` | % tickets with backward transitions between roles |
+| `first-time-right` | % tickets passing each role in a single pass |
+| `scope-change-rate` | % issues whose description/estimate/sprint changed after sprint entry (scope drift) |
+| `bottleneck-analysis` | Priority bottleneck per role (Theory of Constraints, composite score 0–1) |
 
-**Notes** :
-- Toutes les métriques de durée produisent : moyenne, médiane (P50), P85, P95
-- Les outliers extrêmes sont filtrés par défaut (méthode Tukey Q3 + 1,5 × IQR) ; utiliser `--include-outliers` pour les conserver
-- **Livraison = team-done** : `done_at` = première transition vers un statut dont `statusCategory.key = done` (ou listé dans `board.legacyDoneStatuses`). Le champ Jira `resolutiondate` n'est pas utilisé.
-- **Durées en jours ouvrés** (lundi–vendredi) via `workingDaysBetween()`
-- `lead-time` et `cycle-time` partagent la même population : tickets ayant à la fois traversé `todoStatuses` et `devStartStatuses`. Garantit `lead_time ≥ cycle_time` par ticket. `bug-cycle-time` est exempté (les bugs sautent souvent TODO).
-
----
-
-## Rapport HTML
-
-Le rapport est un fichier autonome (Chart.js chargé depuis CDN, aucune dépendance serveur, partageable par email ou Slack).
-
-**5 sections** :
-1. **Livraison** — KPIs, graphes lead/cycle time, throughput, WIP, distribution, par taille, métriques normalisées
-2. **Bugs & dette qualité** — bug throughput, bug cycle time, allocation dev, bug backlog (barres net flow + courbe open count)
-3. **Capacité & prévision** — forecast Monte Carlo, aging WIP avec liens Jira cliquables
-4. **Flux par rôle** — stage time, WIP par rôle, throughput gap, rework, first-time-right
-5. **Scope change** — barres empilées par sprint (description / story points / reprogrammation) + taux de dérive, table des issues modifiées avec liens Jira cliquables ; bannière d'alerte orange si dérive détectée sur le sprint actif ou précédent ; section absente si la base n'a pas été migrée (ticket 031)
-
-Chaque graphe inclut une courbe de tendance (moyenne mobile 4 semaines). Les KPIs configurés avec `healthThresholds` affichent un signal de santé coloré (vert / orange / rouge). La section "Flux par rôle" est masquée silencieusement si aucune colonne `role:` n'est configurée dans `board.yaml`.
+**Notes**:
+- All duration metrics produce: mean, median (P50), P85, P95
+- Extreme outliers are filtered by default (Tukey Q3 + 1.5 × IQR method); use `--include-outliers` to keep them
+- **Delivery = team-done**: `done_at` = first transition to a status with `statusCategory.key = done` (or listed in `board.legacyDoneStatuses`). The Jira `resolutiondate` field is not used.
+- **Durations in working days** (Monday–Friday) via `workingDaysBetween()`
+- `lead-time` and `cycle-time` share the same population: tickets that have passed through both `todoStatuses` and `devStartStatuses`. Guarantees `lead_time ≥ cycle_time` per ticket. `bug-cycle-time` is exempt (bugs often skip TODO).
 
 ---
 
-## Développement
+## HTML report
+
+The report is a standalone file (Chart.js loaded from CDN, no server dependency, shareable by email or Slack).
+
+**5 sections**:
+1. **Delivery** — KPIs, lead/cycle time graphs, throughput, WIP, distribution, by size, normalized metrics
+2. **Bugs & quality debt** — bug throughput, bug cycle time, dev allocation, bug backlog (net flow bars + open count curve)
+3. **Capacity & forecast** — Monte Carlo forecast, aging WIP with clickable Jira links
+4. **Flow by role** — stage time, WIP per role, throughput gap, rework, first-time-right
+5. **Scope change** — stacked bars per sprint (description / story points / rescheduling) + drift rate, table of changed issues with clickable Jira links; orange alert banner if drift detected on current or previous sprint; section absent if the database has not been migrated (ticket 031)
+
+Each graph includes a trend curve (4-week moving average). KPIs configured with `healthThresholds`
+display a color-coded health signal (green / orange / red). The "Flow by role" section is silently
+hidden if no `role:` column is configured in `board.yaml`.
+
+---
+
+## Development
 
 ```bash
 npm run build           # Compile TypeScript → ./dist
-npm start               # Lance le build compilé
+npm start               # Run compiled build
 
-npm test                # Tests unitaires (Vitest)
+npm test                # Unit tests (Vitest)
 npm run test:watch      # Watch mode
-npm run test:coverage   # Couverture
+npm run test:coverage   # Coverage
 
 npm run lint            # ESLint
-npm run lint:fix        # ESLint avec corrections automatiques
+npm run lint:fix        # ESLint with auto-fix
 ```
 
-### Ajouter une métrique
+### Adding a metric
 
-1. Créer `src/metrics/<name>.ts` implémentant `Metric<T>`
-2. Pour les métriques de durée jusqu'à livraison, utiliser `buildDeliveredCte(config.doneStatuses)` depuis `utils.ts` — jamais `issues.resolved_at`
-3. Enregistrer dans `ALL_METRICS` dans `src/metrics/index.ts`
-4. Vérifier que la forme de résultat est reconnue par `extractStats` dans `snapshots/compute.ts` (sinon ajouter une branche explicite)
-5. Si la métrique est non-déterministe (Monte Carlo) ou ne doit pas être backfillée, ajouter un skip explicite dans `snapshots/compute.ts`
+1. Create `src/metrics/<name>.ts` implementing `Metric<T>`
+2. For duration metrics to delivery, use `buildDeliveredCte(config.doneStatuses)` from `utils.ts` — never `issues.resolved_at`
+3. Register in `ALL_METRICS` in `src/metrics/index.ts`
+4. Verify the result shape is recognized by `extractStats` in `snapshots/compute.ts` (add an explicit branch if not)
+5. If the metric is non-deterministic (Monte Carlo) or should not be backfilled, add an explicit skip in `snapshots/compute.ts`
 
-Voir `docs/coding-standards.md` pour les conventions complètes (TDD obligatoire, TypeScript strict, plugin pattern, etc.) et `CLAUDE.md` pour l'architecture détaillée.
+See `docs/coding-standards.md` for full conventions (mandatory TDD, strict TypeScript, plugin pattern, etc.)
+and `CLAUDE.md` for the detailed architecture.
 
 ---
 
@@ -289,19 +308,19 @@ Voir `docs/coding-standards.md` pour les conventions complètes (TDD obligatoire
 Jira REST API v2
       │
       ▼
-src/jira/client.ts      ← Axios, pagination, 200ms entre pages
+src/jira/client.ts      ← Axios, pagination, 200ms between pages
       │
       ▼
-src/sync.ts             ← Orchestration : statuts, sprints, issues, transitions
+src/sync.ts             ← Orchestration: statuses, sprints, issues, transitions
       │
       ▼
-src/db/store.ts         ← better-sqlite3, WAL, transactions atomiques
+src/db/store.ts         ← better-sqlite3, WAL, atomic transactions
       │
    SQLite
       │
       ├── src/metrics/          ← Plugin registry (ALL_METRICS)
-      ├── src/snapshots/        ← Backfill historique hebdo (metric_snapshots)
-      └── src/report/           ← Rendu HTML autonome (Chart.js CDN)
+      ├── src/snapshots/        ← Weekly history backfill (metric_snapshots)
+      └── src/report/           ← Standalone HTML renderer (Chart.js CDN)
 ```
 
-**Stack** : Node.js · TypeScript 6 · better-sqlite3 · Axios · Commander.js · Chart.js
+**Stack**: Node.js · TypeScript 6 · better-sqlite3 · Axios · Commander.js · Chart.js
