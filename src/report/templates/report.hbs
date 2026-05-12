@@ -486,6 +486,18 @@ var _bugThroughputChart = lineChart("bugThroughputChart", CHARTS.bugThroughput, 
     toggle.querySelectorAll(".toggle-btn").forEach(function(b) { b.classList.toggle("active", b === btn); });
     switchDebitView(view);
   });
+  var _sprintTickCb = function(val) {
+    return typeof val === "string" && val.length > 14 ? val.slice(0, 13) + "…" : val;
+  };
+  function applySprintXAxis(charts, isSprint) {
+    charts.forEach(function(chart) {
+      if (!chart) return;
+      chart.options.scales.x = isSprint
+        ? { ticks: { maxRotation: 45, minRotation: 45, callback: _sprintTickCb } }
+        : {};
+      chart.update("none");
+    });
+  }
   function restoreChart(chart, dates, origDatasets) {
     if (!chart || !origDatasets) return;
     chart.data.labels = dates;
@@ -493,14 +505,17 @@ var _bugThroughputChart = lineChart("bugThroughputChart", CHARTS.bugThroughput, 
     chart.update("none");
   }
   function switchDebitView(view) {
+    var debitCharts = [_throughputChart, _throughputWeightedChart, _bugThroughputChart];
     if (view === "sprint") {
       updateChart(_throughputChart, SPRINT_CHARTS.throughput.labels, SPRINT_CHARTS.throughput.series);
       updateChart(_throughputWeightedChart, SPRINT_CHARTS.throughputWeighted.labels, SPRINT_CHARTS.throughputWeighted.series);
       updateChart(_bugThroughputChart, SPRINT_CHARTS.bugThroughput.labels, SPRINT_CHARTS.bugThroughput.series);
+      applySprintXAxis(debitCharts, true);
     } else {
       restoreChart(_throughputChart, CHARTS.throughput.dates, _thrOrig);
       restoreChart(_throughputWeightedChart, CHARTS.throughputWeighted.dates, _wgtOrig);
       restoreChart(_bugThroughputChart, CHARTS.bugThroughput.dates, _bugOrig);
+      applySprintXAxis(debitCharts, false);
     }
   }
 })();
