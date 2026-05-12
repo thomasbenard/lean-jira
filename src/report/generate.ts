@@ -257,8 +257,9 @@ export function generateReport(
     SELECT name, state, start_date, end_date
     FROM sprints
     WHERE start_date IS NOT NULL
+      AND (end_date IS NULL OR end_date >= ?)
     ORDER BY start_date ASC
-  `).all() as SprintRow[];
+  `).all(config.cutoffDate) as SprintRow[];
   const sprintCharts = sprintRows.length > 0
     ? buildSprintSeries(db, config, sprintRows)
     : null;
