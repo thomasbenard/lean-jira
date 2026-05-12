@@ -91,12 +91,15 @@ export interface LocaleShape {
   "report.chart.leadTime": string;
   "report.chart.cycleTime": string;
   "report.chart.throughput": string;
+  "report.chart.throughput.sprint": string;
   "report.chart.throughputWeighted": string;
+  "report.chart.throughputWeighted.sprint": string;
   "report.chart.wip": string;
   "report.chart.cycleHistogram": string;
   "report.chart.leadBySize": string;
   "report.chart.cycleBySize": string;
   "report.chart.bugThroughput": string;
+  "report.chart.bugThroughput.sprint": string;
   "report.chart.bugCycleTime": string;
   "report.chart.devTimeAllocation": string;
   "report.chart.bugBacklog": string;

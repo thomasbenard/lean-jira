@@ -660,8 +660,8 @@ export function buildRenderedTabs(input: RenderInput): { id: string; label: stri
     <div class="chart-card"><h3>${escapeHtml(t("report.chart.cycleTime"))}${helpBtn("cycleTime")}</h3><div class="chart-wrap"><canvas id="cycleTimeChart"></canvas></div></div>
   </div>
   <div class="panel-grid" style="margin-top: 1rem">
-    <div class="chart-card"><h3>${escapeHtml(t("report.chart.throughput"))}${helpBtn("throughput")}</h3><div class="chart-wrap"><canvas id="throughputChart"></canvas></div></div>
-    <div class="chart-card"${hide(flags.showWeighted)}><h3>${escapeHtml(t("report.chart.throughputWeighted", { unit: flags.weightedUnit }))}${helpBtn("throughputWeighted")}</h3><div class="chart-wrap"><canvas id="throughputWeightedChart"></canvas></div></div>
+    <div class="chart-card"><h3><span class="chart-title-text" id="throughputChartTitle">${escapeHtml(t("report.chart.throughput"))}</span>${helpBtn("throughput")}</h3><div class="chart-wrap"><canvas id="throughputChart"></canvas></div></div>
+    <div class="chart-card"${hide(flags.showWeighted)}><h3><span class="chart-title-text" id="throughputWeightedChartTitle">${escapeHtml(t("report.chart.throughputWeighted", { unit: flags.weightedUnit }))}</span>${helpBtn("throughputWeighted")}</h3><div class="chart-wrap"><canvas id="throughputWeightedChart"></canvas></div></div>
     <div class="chart-card"><h3>${escapeHtml(t("report.chart.wip"))}${helpBtn("wip")}</h3><div class="chart-wrap"><canvas id="wipChart"></canvas></div></div>
     <div class="chart-card wide">
       <h3>${escapeHtml(t("report.chart.cycleHistogram"))}${helpBtn("cycleHistogram")}</h3>
@@ -687,7 +687,7 @@ export function buildRenderedTabs(input: RenderInput): { id: string; label: stri
     id: "quality",
     label: t("report.tab.quality"),
     html: `<div class="panel-grid">
-    <div class="chart-card"><h3>${escapeHtml(t("report.chart.bugThroughput"))}${helpBtn("bugThroughput")}</h3><div class="chart-wrap"><canvas id="bugThroughputChart"></canvas></div></div>
+    <div class="chart-card"><h3><span class="chart-title-text" id="bugThroughputChartTitle">${escapeHtml(t("report.chart.bugThroughput"))}</span>${helpBtn("bugThroughput")}</h3><div class="chart-wrap"><canvas id="bugThroughputChart"></canvas></div></div>
     <div class="chart-card"><h3>${escapeHtml(t("report.chart.bugCycleTime"))}${helpBtn("bugCycleTime")}</h3><div class="chart-wrap"><canvas id="bugCycleTimeChart"></canvas></div></div>
     <div class="chart-card"><h3>${escapeHtml(t("report.chart.devTimeAllocation"))}${helpBtn("devTimeAllocation")}</h3><div class="chart-wrap"><canvas id="devTimeAllocationChart"></canvas></div></div>
     <div class="chart-card"><h3>${escapeHtml(t("report.chart.bugBacklog"))}${helpBtn("bugBacklog")}</h3><div class="chart-wrap"><canvas id="bugBacklogChart"></canvas></div></div>
@@ -808,6 +808,7 @@ export interface TemplateContext {
   kpis: Record<string, number | null>;
   chartDataJson: string;
   sprintChartsJson: string;
+  sprintChartTitlesJson: string;
   hasSprintCharts: boolean;
   agingWip: AgingWipSummary;
   forecast: ForecastSummary;
@@ -851,6 +852,11 @@ export function buildTemplateContext(
     kpis: input.kpis,
     chartDataJson,
     sprintChartsJson: input.sprintCharts !== null ? JSON.stringify(input.sprintCharts) : "null",
+    sprintChartTitlesJson: JSON.stringify({
+      throughput:        t("report.chart.throughput.sprint"),
+      throughputWeighted: t("report.chart.throughputWeighted.sprint", { unit: estimationFlags(input.estimation ?? { method: "time" }).weightedUnit }),
+      bugThroughput:     t("report.chart.bugThroughput.sprint"),
+    }),
     hasSprintCharts: input.sprintCharts !== null,
     agingWip: input.agingWip,
     forecast: input.forecast,

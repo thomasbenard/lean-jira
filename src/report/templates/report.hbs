@@ -383,6 +383,7 @@ const LEAD_BY_SIZE = _D.leadBySize;
 const CYCLE_BY_SIZE = _D.cycleBySize;
 const BUCKET_LABELS_MAP = {"XS":"XS (<0.5j)","S":"S (0.5-1j)","M":"M (1-3j)","L":"L (3-5j)","XL":"XL (≥5j)","BUG":"BUG","UNESTIMATED":"UNESTIMATED"};
 const SPRINT_CHARTS = {{{sprintChartsJson}}};
+const SPRINT_CHART_TITLES = {{{sprintChartTitlesJson}}};
 
 const COLOR_MEDIAN = "#00e0d4";
 const COLOR_P85 = "#ff8a3d";
@@ -504,6 +505,24 @@ var _bugThroughputChart = lineChart("bugThroughputChart", CHARTS.bugThroughput, 
     origDatasets.forEach(function(data, i) { chart.data.datasets[i].data = data; });
     chart.update("none");
   }
+  var _debitTitleIds = [
+    ["throughputChartTitle",         "throughput"],
+    ["throughputWeightedChartTitle", "throughputWeighted"],
+    ["bugThroughputChartTitle",      "bugThroughput"],
+  ];
+  function updateDebitTitles(isSprint) {
+    _debitTitleIds.forEach(function(pair) {
+      var el = document.getElementById(pair[0]);
+      if (el && SPRINT_CHART_TITLES && SPRINT_CHART_TITLES[pair[1]]) {
+        el.textContent = isSprint ? SPRINT_CHART_TITLES[pair[1]] : el.dataset.weekTitle;
+      }
+    });
+  }
+  // Mémoriser les titres semaine au premier rendu
+  _debitTitleIds.forEach(function(pair) {
+    var el = document.getElementById(pair[0]);
+    if (el) el.dataset.weekTitle = el.textContent;
+  });
   function switchDebitView(view) {
     var debitCharts = [_throughputChart, _throughputWeightedChart, _bugThroughputChart];
     if (view === "sprint") {
@@ -511,11 +530,13 @@ var _bugThroughputChart = lineChart("bugThroughputChart", CHARTS.bugThroughput, 
       updateChart(_throughputWeightedChart, SPRINT_CHARTS.throughputWeighted.labels, SPRINT_CHARTS.throughputWeighted.series);
       updateChart(_bugThroughputChart, SPRINT_CHARTS.bugThroughput.labels, SPRINT_CHARTS.bugThroughput.series);
       applySprintXAxis(debitCharts, true);
+      updateDebitTitles(true);
     } else {
       restoreChart(_throughputChart, CHARTS.throughput.dates, _thrOrig);
       restoreChart(_throughputWeightedChart, CHARTS.throughputWeighted.dates, _wgtOrig);
       restoreChart(_bugThroughputChart, CHARTS.bugThroughput.dates, _bugOrig);
       applySprintXAxis(debitCharts, false);
+      updateDebitTitles(false);
     }
   }
 })();

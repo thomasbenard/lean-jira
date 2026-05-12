@@ -112,10 +112,10 @@ function makeInput(estimation?: EstimationConfig): RenderInput {
 }
 
 function isHidden(html: string, title: string): boolean {
-  return new RegExp(`class="chart-card" style="display:none"[^>]*>\\s*<h3>${title}`).test(html);
+  return new RegExp(`class="chart-card" style="display:none"[^>]*>\\s*<h3>(?:<span[^>]*>)?${title}`).test(html);
 }
 function isVisible(html: string, title: string): boolean {
-  return new RegExp(`class="chart-card">\\s*<h3>${title}`).test(html);
+  return new RegExp(`class="chart-card">\\s*<h3>(?:<span[^>]*>)?${title}`).test(html);
 }
 
 describe("issueLink", () => {
