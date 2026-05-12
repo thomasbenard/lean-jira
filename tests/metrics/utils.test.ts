@@ -473,13 +473,13 @@ describe("fetchDeliveredTransitions", () => {
     expect(rows).toHaveLength(0);
   });
 
-  it("issue sans transition todo → exclue", () => {
+  it("issue sans transition todo → incluse (filtre todo supprimé)", () => {
     seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1" }), [
       { to: "In Progress", at: "2025-01-08T09:00:00Z" },
       { to: "Done",        at: "2025-01-13T09:00:00Z" },
     ]);
     const rows = fetchDeliveredTransitions(db, TEST_CONFIG);
-    expect(rows).toHaveLength(0);
+    expect(rows).toHaveLength(2); // In Progress + Done dans la fenêtre cycle
   });
 
   it("cutoffDate après done_at → population vide → retourne []", () => {

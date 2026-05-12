@@ -16,7 +16,6 @@ export const cycleTimeNormalizedMetric: Metric<CycleTimeNormalizedResult> = {
       return { count: 0, avgDays: 0, medianDays: 0, p85Days: 0, p95Days: 0,
         excludedOutliers: 0, unit: "ratio (cycle réel / estimé)", disabled: true } as CycleTimeNormalizedResult & { disabled: true };
     }
-    const todoPh = placeholders(config.todoStatuses);
     const devStartPh = placeholders(config.devStartStatuses);
     const delivered = buildDeliveredCte(config.doneStatuses);
     const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
@@ -33,7 +32,6 @@ export const cycleTimeNormalizedMetric: Metric<CycleTimeNormalizedResult> = {
         AND i.original_estimate_seconds > 0
         ${excludeSql} ${bugSql}
         ${cutoffSql} ${endSql}
-        AND EXISTS (SELECT 1 FROM transitions t2 WHERE t2.issue_key = t.issue_key AND t2.to_status IN (${todoPh}))
       GROUP BY t.issue_key, d.done_at
     `).all(
       ...delivered.args,
@@ -42,7 +40,6 @@ export const cycleTimeNormalizedMetric: Metric<CycleTimeNormalizedResult> = {
       ...bugArgs,
       ...cutoffArgs,
       ...endArgs,
-      ...config.todoStatuses,
     ) as { started_at: string; done_at: string; original_estimate_seconds: number }[];
 
     const ratios: number[] = [];

@@ -37,7 +37,6 @@ export const flowEfficiencyMetric: Metric<FlowEfficiencySummary> = {
     const queue = config.queueStatuses ?? [];
     if (active.length === 0) {return emptyResult();}
 
-    const todoPh = placeholders(config.todoStatuses);
     const devStartPh = placeholders(config.devStartStatuses);
     const delivered = buildDeliveredCte(config.doneStatuses);
     const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
@@ -54,7 +53,6 @@ export const flowEfficiencyMetric: Metric<FlowEfficiencySummary> = {
         JOIN delivered d ON d.issue_key = t.issue_key
         WHERE t.to_status IN (${devStartPh})
           ${excludeSql} ${cutoffSql} ${endSql}
-          AND EXISTS (SELECT 1 FROM transitions t2 WHERE t2.issue_key = t.issue_key AND t2.to_status IN (${todoPh}))
         GROUP BY i.key, d.done_at
       )
       SELECT e.key, e.resolved_at, e.started_at, tr.to_status, tr.transitioned_at
@@ -69,7 +67,6 @@ export const flowEfficiencyMetric: Metric<FlowEfficiencySummary> = {
       ...excludeArgs,
       ...cutoffArgs,
       ...endArgs,
-      ...config.todoStatuses,
     ) as { key: string; resolved_at: string; started_at: string; to_status: string; transitioned_at: string }[];
 
     // Grouper les transitions par issue en mémoire

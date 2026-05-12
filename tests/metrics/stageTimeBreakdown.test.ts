@@ -87,13 +87,13 @@ describe("stageTimeBreakdownMetric.compute", () => {
     expect(result.byRole.qa.avgDays).toBe(1);
   });
 
-  it("exclut ticket sans transition todoStatus (hors population cycle-time)", () => {
+  it("inclut ticket sans transition todoStatus (filtre todo supprimé)", () => {
     seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1" }), [
       { to: "In Progress", at: "2025-01-08T09:00:00Z" },
       { to: "Done",        at: "2025-01-14T09:00:00Z" },
     ]);
     const result = stageTimeBreakdownMetric.compute(db, ROLE_CONFIG);
-    expect(result.count).toBe(0);
+    expect(result.count).toBe(1);
   });
 
   it("exclut ticket où done_at < started_at (anomalie données)", () => {

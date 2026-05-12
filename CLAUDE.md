@@ -93,7 +93,7 @@ Jira REST API v2 (ou fixtures JSON) → SQLite (WAL) → metric computations →
 
 ## Key invariants
 
-**Population consistency**: `lead-time` and `cycle-time` (and their by-size / normalized variants) filter to issues that have **both** a `todoStatuses` transition **and** a `devStartStatuses` transition. This guarantees `lead_time ≥ cycle_time` per issue and makes percentiles comparable. `bug-cycle-time` is exempt (bugs often skip TODO).
+**Population consistency**: `cycle-time` (and its by-size / normalized variants), `flow-efficiency`, `aging-wip`, `dev-time-allocation`, and `fetchDeliveredTransitions` filter to issues that have a `devStartStatuses` transition. The previous `todoStatuses` EXISTS filter was removed — analysis showed only 1% of issues skip TODO on the target board, making the constraint have negligible benefit while complicating the population definition. `lead-time` still requires `todoStatuses` (it is the measurement start point, not a filter).
 
 **Duration unit**: all durations in **working days** (Mon–Fri) via `workingDaysBetween()` in `utils.ts`. Snapshot window boundaries (`cutoffDate ± N days`) stay in calendar days.
 

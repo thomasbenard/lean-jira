@@ -72,13 +72,13 @@ describe("devTimeAllocationMetric.compute", () => {
     expect(result.byWeek).toHaveLength(0);
   });
 
-  it("issue sans todo exclue", () => {
+  it("issue sans todo incluse (filtre todo supprimé)", () => {
     seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1", issueType: "Story" }), [
       { to: "In Progress", at: "2025-01-08T09:00:00Z" },
       { to: "Done",        at: "2025-01-10T09:00:00Z" },
     ]);
     const result = devTimeAllocationMetric.compute(db, TEST_CONFIG);
-    expect(result.byWeek).toHaveLength(0);
+    expect(result.byWeek).toHaveLength(1);
   });
 
   it("distribution multi-semaine : 13j bug W02→W04 réparti 5+5+3 sur 3 semaines", () => {

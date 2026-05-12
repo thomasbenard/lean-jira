@@ -37,7 +37,6 @@ export const agingWipMetric: Metric<AgingWipSummary> = {
 
     const inProgressPh = placeholders(config.inProgressStatuses);
     const devStartPh = placeholders(config.devStartStatuses);
-    const todoPh = placeholders(config.todoStatuses);
 
     // Items en cours à la date "asOf" : dernier statut connu avant now ∈ inProgressStatuses,
     // pas encore team-done (done_at depuis transitions, pas resolved_at Jira).
@@ -93,7 +92,6 @@ export const agingWipMetric: Metric<AgingWipSummary> = {
         AND d.done_at <= ?
         ${cutoffSql}
         ${excludeSql}
-        AND EXISTS (SELECT 1 FROM transitions t2 WHERE t2.issue_key = t.issue_key AND t2.to_status IN (${todoPh}))
       GROUP BY t.issue_key, d.done_at
     `).all(
       ...delivered.args,
@@ -101,7 +99,6 @@ export const agingWipMetric: Metric<AgingWipSummary> = {
       nowIso,
       ...cutoffArgs,
       ...excludeArgs,
-      ...config.todoStatuses,
     ) as { started_at: string; done_at: string }[];
 
     const histDays: number[] = [];

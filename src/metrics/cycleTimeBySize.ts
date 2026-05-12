@@ -23,7 +23,6 @@ export const cycleTimeBySizeMetric: Metric<CycleTimeBySizeResult> = {
     "Cycle-time par bucket de taille (1er 'Développement en cours' -> 1er statut team-done). Exclut attente backlog, design et queue post-dev.",
 
   compute(db: Database.Database, config: MetricConfig): CycleTimeBySizeResult {
-    const todoPh = placeholders(config.todoStatuses);
     const devStartPh = placeholders(config.devStartStatuses);
     const delivered = buildDeliveredCte(config.doneStatuses);
     const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
@@ -38,7 +37,6 @@ export const cycleTimeBySizeMetric: Metric<CycleTimeBySizeResult> = {
       JOIN delivered d ON d.issue_key = t.issue_key
       WHERE t.to_status IN (${devStartPh})
         ${excludeSql} ${cutoffSql} ${endSql}
-        AND EXISTS (SELECT 1 FROM transitions t2 WHERE t2.issue_key = t.issue_key AND t2.to_status IN (${todoPh}))
       GROUP BY t.issue_key, d.done_at
     `).all(
       ...delivered.args,
@@ -46,7 +44,6 @@ export const cycleTimeBySizeMetric: Metric<CycleTimeBySizeResult> = {
       ...excludeArgs,
       ...cutoffArgs,
       ...endArgs,
-      ...config.todoStatuses,
     ) as {
       issue_key: string;
       started_at: string;

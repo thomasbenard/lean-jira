@@ -35,14 +35,14 @@ describe("cycleTimeMetric.compute", () => {
     expect(result.medianDays).toBe(2);
   });
 
-  it("exclut une issue sans transition todoStatus (pas dans la population)", () => {
-    // Transition In Progress → Done mais pas de "To Do"
+  it("inclut une issue sans transition todoStatus (filtre todo supprimé)", () => {
+    // Transition In Progress → Done sans "To Do" : désormais incluse dans la population
     seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1" }), [
       { to: "In Progress", at: "2025-01-08T09:00:00Z" },
       { to: "Done",        at: "2025-01-10T09:00:00Z" },
     ]);
     const result = cycleTimeMetric.compute(db, TEST_CONFIG);
-    expect(result.count).toBe(0);
+    expect(result.count).toBe(1);
   });
 
   it("exclut une issue sans transition devStartStatus", () => {
