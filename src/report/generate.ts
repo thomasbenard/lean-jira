@@ -2,7 +2,7 @@ import type Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import Handlebars from "handlebars";
-import { BUCKET_LABELS, BUCKET_ORDER, placeholders } from "../metrics/utils";
+import { BUCKET_LABELS, BUCKET_ORDER, placeholders, percentile } from "../metrics/utils";
 import { type MetricConfig, type EstimationConfig } from "../metrics/types";
 import { agingWipMetric, type AgingWipSummary, type AgingWipIssue, type AgingRisk } from "../metrics/agingWip";
 import { forecastMetric, type ForecastSummary } from "../metrics/forecast";
@@ -139,12 +139,69 @@ export interface ThresholdPair {
 }
 
 export interface HealthThresholds {
+  mode?: "static" | "dynamic";
+  windowWeeks?: number;
   leadTimeMedianDays?: ThresholdPair;
   cycleTimeMedianDays?: ThresholdPair;
   throughputWeekly?: ThresholdPair;
   wipCount?: ThresholdPair;
   bugCycleTimeMedianDays?: ThresholdPair;
   bugRatio?: ThresholdPair;
+}
+
+const DYNAMIC_MIN_WEEKS = 4;
+
+export function computeDynamicThresholds(
+  snapshots: SnapshotRow[],
+  windowWeeks: number,
+): Omit<HealthThresholds, "mode" | "windowWeeks"> {
+  const cutoff = now();
+  cutoff.setDate(cutoff.getDate() - windowWeeks * 7);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const inWindow = snapshots.filter((s) => s.snapshot_date >= cutoffStr);
+
+  function series(metric: string, bucket: string, stat: string): number[] {
+    return inWindow
+      .filter((s) => s.metric_name === metric && s.bucket === bucket && s.stat === stat)
+      .map((s) => s.value)
+      .sort((a, b) => a - b);
+  }
+
+  function threshold(metric: string, bucket: string, stat: string, warnPct: number, critPct: number): ThresholdPair | undefined {
+    const sorted = series(metric, bucket, stat);
+    if (sorted.length < DYNAMIC_MIN_WEEKS) { return undefined; }
+    return { warn: percentile(sorted, warnPct), crit: percentile(sorted, critPct) };
+  }
+
+  return {
+    leadTimeMedianDays:     threshold("lead-time",          "", "median", 50, 85),
+    cycleTimeMedianDays:    threshold("cycle-time",         "", "median", 50, 85),
+    bugCycleTimeMedianDays: threshold("bug-cycle-time",     "", "median", 50, 85),
+    wipCount:               threshold("wip",                "", "count",  50, 85),
+    bugRatio:               threshold("dev-time-allocation","", "bugRatio", 50, 85),
+    throughputWeekly:       threshold("throughput",         "", "count",  50, 15),
+  };
+}
+
+export function resolveThresholds(
+  config: HealthThresholds | undefined,
+  snapshots: SnapshotRow[],
+): Omit<HealthThresholds, "mode" | "windowWeeks"> {
+  if (!config) { return {}; }
+  const mode: string = config.mode ?? "static";
+  if (mode !== "static" && mode !== "dynamic") {
+    console.warn(`[report] healthThresholds.mode inconnu "${mode}", fallback "static".`);
+  }
+  if (mode !== "dynamic") { return config; }
+  const dynamic = computeDynamicThresholds(snapshots, config.windowWeeks ?? 12);
+  return {
+    leadTimeMedianDays:     config.leadTimeMedianDays     ?? dynamic.leadTimeMedianDays,
+    cycleTimeMedianDays:    config.cycleTimeMedianDays    ?? dynamic.cycleTimeMedianDays,
+    throughputWeekly:       config.throughputWeekly       ?? dynamic.throughputWeekly,
+    wipCount:               config.wipCount               ?? dynamic.wipCount,
+    bugCycleTimeMedianDays: config.bugCycleTimeMedianDays ?? dynamic.bugCycleTimeMedianDays,
+    bugRatio:               config.bugRatio               ?? dynamic.bugRatio,
+  };
 }
 
 export type HealthSignal = "green" | "orange" | "red" | "none";
@@ -380,7 +437,7 @@ export function generateReport(
       avg: cycleTime.avgDays,
       count: cycleTime.count,
     },
-    healthThresholds,
+    healthThresholds: resolveThresholds(healthThresholds, snapshots),
     scopeAlertHtml,
     scopeSectionHtml,
     personalization: resolvedPersonalization,

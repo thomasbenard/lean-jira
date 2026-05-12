@@ -431,16 +431,31 @@ Ouvrir `report.html` dans un navigateur. Si les métriques semblent incorrectes 
 
 **`healthThresholds` — détail :**
 
-| Clé | Direction | Unité | Description |
+| Clé | Type | Défaut | Description |
 |---|---|---|---|
-| `leadTimeMedianDays` | bas = mieux | jours ouvrés | Médiane lead time |
-| `cycleTimeMedianDays` | bas = mieux | jours ouvrés | Médiane cycle time |
-| `throughputWeekly` | haut = mieux | issues/semaine | Throughput hebdo moyen |
-| `wipCount` | bas = mieux | issues | WIP courant |
-| `bugCycleTimeMedianDays` | bas = mieux | jours ouvrés | Médiane cycle time bugs |
-| `bugRatio` | bas = mieux | ratio 0–1 | Part des bugs dans les livraisons |
+| `mode` | `"static"` \| `"dynamic"` | `"static"` | Mode de calcul des seuils |
+| `windowWeeks` | number | `12` | Fenêtre historique en semaines (mode `dynamic` uniquement) |
+| `leadTimeMedianDays` | `{ warn, crit }` | — | Médiane lead time (bas = mieux) |
+| `cycleTimeMedianDays` | `{ warn, crit }` | — | Médiane cycle time (bas = mieux) |
+| `throughputWeekly` | `{ warn, crit }` | — | Throughput hebdo moyen (haut = mieux) |
+| `wipCount` | `{ warn, crit }` | — | WIP courant (bas = mieux) |
+| `bugCycleTimeMedianDays` | `{ warn, crit }` | — | Médiane cycle time bugs (bas = mieux) |
+| `bugRatio` | `{ warn, crit }` | — | Part des bugs dans les livraisons (bas = mieux) |
 
-Chaque seuil prend la forme `{ warn: X, crit: Y }`. Absent = aucun signal affiché.
+**Mode `static`** (défaut) : les seuils `{ warn, crit }` sont utilisés tels quels. Absent = aucun signal.
+
+**Mode `dynamic`** : les seuils sont calculés automatiquement depuis les `windowWeeks` dernières semaines de `metric_snapshots`. Pour chaque KPI : `warn = P50` (médiane historique), `crit = P85` (pour métriques bas = mieux) ou `P15` (pour throughput). Minimum 4 semaines de données requis — en-dessous, le signal reste absent. Un `{ warn, crit }` défini explicitement dans `healthThresholds` pour un KPI donné prend le dessus sur la valeur dynamique pour ce KPI uniquement.
+
+```yaml
+# Exemple mode dynamique avec override throughput
+metrics:
+  healthThresholds:
+    mode: dynamic
+    windowWeeks: 12
+    throughputWeekly:   # override : on connaît le minimum attendu
+      warn: 3
+      crit: 1
+```
 
 #### Section `report:` (dans `board.yaml`)
 

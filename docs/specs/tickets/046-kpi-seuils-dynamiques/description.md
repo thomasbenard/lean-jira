@@ -24,4 +24,4 @@ Le calcul est fait dans `generate.ts` au moment du rendu, sans modifier la DB ni
 
 ## Statut
 
-**à faire**
+**livré**
