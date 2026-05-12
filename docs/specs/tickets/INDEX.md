@@ -52,3 +52,4 @@
 | [043](043-bottleneck-column-drilldown/description.md) | Identifier la colonne (statut) dominante au sein du rôle bottleneck | livré |
 | [044](044-bottleneck-column-chart/description.md) | Drill-down par colonne Jira : médiane jours + nb tickets par statut dans onglet Rôles | livré |
 | [045](045-vue-par-sprint-rapport/description.md) | Toggle semaines/sprints pour métriques débit dans le rapport HTML | livré |
+| [046](046-kpi-seuils-dynamiques/description.md) | Seuils de santé KPI configurables : statique (board.yaml) ou dynamique (P50/P85 historiques) | à faire |
