@@ -6,7 +6,7 @@ import type Database from "better-sqlite3";
 import { sync } from "./sync";
 import { openDb, getDoneStatusNames, getAllStatuses, getDistinctTransitionStatuses } from "./db/store";
 import { runAllMetrics, runMetric, ALL_METRICS } from "./metrics/index";
-import { BUCKET_LABELS, BUCKET_ORDER } from "./metrics/utils";
+import { BUCKET_LABELS, BUCKET_ORDER, percentile, SECONDS_PER_DAY, getDefaultThresholds } from "./metrics/utils";
 import { backfillSnapshots } from "./snapshots/compute";
 import { generateReport, exportDefaultTemplate, type HealthThresholds, type ReportPersonalization } from "./report/generate";
 import { type MetricConfig, type EstimationConfig, type EstimationMethod, type EstimationBucketThresholds, resolveEstimationField } from "./metrics/types";
@@ -306,6 +306,50 @@ export function inferBoardColumns(
 
     return column;
   });
+}
+
+const CALIBRATION_MIN_ISSUES = 30;
+
+function calibrateThresholds(
+  db: Database.Database,
+  method: EstimationMethod,
+): EstimationBucketThresholds | null {
+  let values: number[];
+
+  if (method === "time") {
+    const rows = db.prepare(
+      `SELECT original_estimate_seconds * 1.0 / ? AS val
+       FROM issues
+       WHERE original_estimate_seconds IS NOT NULL AND original_estimate_seconds > 0
+       ORDER BY val`,
+    ).all(SECONDS_PER_DAY) as { val: number }[];
+    values = rows.map((r) => r.val);
+  } else if (method === "story-points") {
+    const rows = db.prepare(
+      `SELECT story_points AS val FROM issues
+       WHERE story_points IS NOT NULL AND story_points > 0
+       ORDER BY val`,
+    ).all() as { val: number }[];
+    values = rows.map((r) => r.val);
+  } else {
+    return null;
+  }
+
+  if (values.length < CALIBRATION_MIN_ISSUES) { return null; }
+
+  const round = method === "time"
+    ? (v: number) => Math.max(0.1, Math.round(v * 2) / 2)
+    : (v: number) => Math.max(1, Math.round(v));
+
+  const xs = round(percentile(values, 25));
+  const s  = round(percentile(values, 50));
+  const m  = round(percentile(values, 75));
+  const l  = round(percentile(values, 90));
+
+  // Percentiles non-strictement croissants = distribution trop plate pour calibrer
+  if (xs >= s || s >= m || m >= l) { return null; }
+
+  return { xs, s, m, l };
 }
 
 export function inferEstimationConfig(
@@ -683,9 +727,10 @@ program
     }
 
     let unresolvable: string[] = [];
+    let db: Database.Database | null = null;
     const dbPath = path.resolve(jiraConfig.db.path);
     if (fs.existsSync(dbPath)) {
-      const db = openDb(dbPath);
+      db = openDb(dbPath);
       unresolvable = enrichWithLegacyStatuses(columns, boardConfig, allStatuses, db).unresolvable;
       for (const name of unresolvable) {
         warnings.push(`⚠ Statut legacy non assignable automatiquement : "${name}" — ajouter manuellement comme legacyStatus dans la bonne colonne`);
@@ -696,6 +741,17 @@ program
 
     const detectedEstimation = inferEstimationConfig(boardConfig);
     warnings.push(...buildEstimationWarnings(detectedEstimation, boardConfig));
+
+    const calibrated = db !== null ? calibrateThresholds(db, detectedEstimation.method) : null;
+    const defaults = getDefaultThresholds(detectedEstimation.method);
+    if (calibrated !== null) {
+      detectedEstimation.bucketThresholds = calibrated;
+      warnings.push("ℹ bucketThresholds calibrés sur les données réelles de la DB.");
+    } else if (defaults !== undefined) {
+      detectedEstimation.bucketThresholds = defaults;
+      const reason = db === null ? "DB absente" : `< ${CALIBRATION_MIN_ISSUES} issues estimées`;
+      warnings.push(`ℹ bucketThresholds: valeurs par défaut (${reason}).`);
+    }
 
     if (opts.apply) {
       console.warn(t("autoconfig.applying", { path: opts.boardConfig }));

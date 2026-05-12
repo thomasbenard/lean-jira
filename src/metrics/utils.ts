@@ -130,6 +130,10 @@ const DEFAULT_THRESHOLDS: Partial<Record<EstimationMethod, EstimationBucketThres
   "story-points":  { xs: 1,   s: 3, m: 8,  l: 13 },
 };
 
+export function getDefaultThresholds(method: EstimationMethod): EstimationBucketThresholds | undefined {
+  return DEFAULT_THRESHOLDS[method];
+}
+
 function resolveThresholds(estimation: EstimationConfig): EstimationBucketThresholds {
   const defaults = DEFAULT_THRESHOLDS[estimation.method];
   if (!defaults && !estimation.bucketThresholds) {
