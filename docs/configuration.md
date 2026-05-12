@@ -164,6 +164,7 @@ npm run autoconfig -- --apply
 - Pose `devStart: true` sur la première colonne `active`
 - Détecte les colonnes "queue" par mots-clés : review, validation, valider, attente, wait, waiting, approval, approuver, staging, qa…
 - Si une base SQLite existe déjà : ajoute les statuts renommés dans `legacyDoneStatuses`
+- Calcule les `bucketThresholds` (seuils XS/S/M/L) par percentiles P25/P50/P75/P90 sur les données d'estimation réelles (≥ 30 issues estimées requises) ; fallback sur des valeurs par défaut sinon
 
 **Ce qu'il faut toujours vérifier manuellement après génération :**
 - Le `devStart: true` est sur la bonne colonne (début du travail actif réel)
@@ -427,7 +428,7 @@ Ouvrir `report.html` dans un navigateur. Si les métriques semblent incorrectes 
 | `excludeIssueTypes[]` | string[] | Non | `[]` | Types Jira exclus de toutes les métriques |
 | `scopeChangeGracePeriodHours` | number | Non | — | Délai (en heures) après entrée en sprint avant lequel un changement de scope n'est pas comptabilisé |
 | `healthThresholds` | object | Non | — | Seuils des signaux de santé KPI dans le rapport (voir ci-dessous) |
-| `estimation` | object | Non | `{ method: "time" }` | Méthode d'estimation utilisée (voir `board.example.yaml`) |
+| `estimation` | object | Non | `{ method: "time" }` | Méthode d'estimation utilisée (voir `board.example.yaml`). `bucketThresholds` générés automatiquement par `autoconfig` (calibrés sur données réelles ou valeurs par défaut) |
 
 **`healthThresholds` — détail :**
 
