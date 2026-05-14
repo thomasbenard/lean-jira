@@ -122,6 +122,7 @@ export const fr: LocaleShape = {
   "report.chart.reworkRatio":         "Taux de rework",
   "report.chart.reworkByType":        "Reworks par type",
   "report.chart.bottleneckScores":    "Évolution scores bottleneck",
+  "report.chart.reworkCost":         "Coût du rework (jours ouvrés)",
   "report.chart.forecastMonteCarlo":  "Forecast Monte Carlo",
   "report.chart.agingWip":            "Aging WIP — au {{date}}",
   "report.chart.agingTopItems":       "Top items par âge",

@@ -111,6 +111,7 @@ export interface LocaleShape {
   "report.chart.reworkRatio": string;
   "report.chart.reworkByType": string;
   "report.chart.bottleneckScores": string;
+  "report.chart.reworkCost": string;
   "report.chart.forecastMonteCarlo": string;
   "report.chart.agingWip": string;
   "report.chart.agingTopItems": string;

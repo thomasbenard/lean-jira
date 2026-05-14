@@ -353,6 +353,7 @@ export function generateReport(
     handoffReworkByType: buildRoleSeries(metricRows("handoff-rework"), ["qaToDev", "poToQa", "poDev"], "count"),
     ftrByRole: buildRoleSeries(metricRows("first-time-right"), ["dev", "qa", "po"], "ftrRate"),
     bottleneckScores: buildRoleSeries(metricRows("bottleneck-analysis"), ["dev", "qa", "po"], "score"),
+    reworkCost: buildSeries(metricRows("rework-cost"), "", ["totalReworkDays", "reworkCostRatio", "reworkedCount"]),
   };
 
   const lastDate = snapshots[snapshots.length - 1].snapshot_date;
@@ -378,6 +379,8 @@ export function generateReport(
     ftrDev: pickValue(latestRows, "first-time-right", "dev", "ftrRate"),
     ftrQa:  pickValue(latestRows, "first-time-right", "qa",  "ftrRate"),
     ftrPo:  pickValue(latestRows, "first-time-right", "po",  "ftrRate"),
+    reworkTotalDays:  pickValue(latestRows, "rework-cost", "", "totalReworkDays"),
+    reworkCostRatio:  pickValue(latestRows, "rework-cost", "", "reworkCostRatio"),
   };
 
   const leadBySize = latestBySize(latestRows.filter((r) => r.metric_name === "lead-time-by-size"));
@@ -770,6 +773,7 @@ export function buildRenderedTabs(input: RenderInput): { id: string; label: stri
     <div class="chart-card"><h3>${escapeHtml(t("report.chart.reworkRatio"))}${helpBtn("handoffRework")}</h3><div class="chart-wrap"><canvas id="reworkRatioChart"></canvas></div></div>
     <div class="chart-card wide"><h3>${escapeHtml(t("report.chart.reworkByType"))}${helpBtn("handoffRework")}</h3><div class="chart-wrap"><canvas id="reworkByTypeChart"></canvas></div></div>
     <div class="chart-card wide"><h3>${escapeHtml(t("report.chart.bottleneckScores"))}${helpBtn("bottleneckAnalysis")}</h3><div class="chart-wrap"><canvas id="bottleneckScoresChart"></canvas></div></div>
+    <div class="chart-card wide"><h3>${escapeHtml(t("report.chart.reworkCost"))}${helpBtn("reworkCost")}</h3><div class="chart-wrap"><canvas id="reworkCostChart"></canvas></div></div>
   </div>`,
   });
 
