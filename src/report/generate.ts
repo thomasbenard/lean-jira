@@ -663,7 +663,7 @@ function buildColumnDrilldownHtml(b: BottleneckAnalysisResult): string {
         <span class="bn-pct mono">${c.medianDays.toFixed(1)}j <span class="bn-rank">(${c.count})</span></span>
       </div>`;
   }).join("");
-  return `<div class="chart-card wide">
+  return `<div class="chart-card">
     <h3>${escapeHtml(t("report.chart.columnDrilldown"))}${helpBtn("bottleneckAnalysis")}</h3>
     <div class="bn-bars bn-bars-col">${rows}</div>
   </div>`;
@@ -723,7 +723,7 @@ export function buildRenderedTabs(input: RenderInput): { id: string; label: stri
     <div class="chart-card"><h3><span class="chart-title-text" id="throughputChartTitle">${escapeHtml(t("report.chart.throughput"))}</span>${helpBtn("throughput")}</h3><div class="chart-wrap"><canvas id="throughputChart"></canvas></div></div>
     <div class="chart-card"${hide(flags.showWeighted)}><h3><span class="chart-title-text" id="throughputWeightedChartTitle">${escapeHtml(t("report.chart.throughputWeighted", { unit: flags.weightedUnit }))}</span>${helpBtn("throughputWeighted")}</h3><div class="chart-wrap"><canvas id="throughputWeightedChart"></canvas></div></div>
     <div class="chart-card"><h3>${escapeHtml(t("report.chart.wip"))}${helpBtn("wip")}</h3><div class="chart-wrap"><canvas id="wipChart"></canvas></div></div>
-    <div class="chart-card wide">
+    <div class="chart-card">
       <h3>${escapeHtml(t("report.chart.cycleHistogram"))}${helpBtn("cycleHistogram")}</h3>
       <p class="meta-line">${escapeHtml(t("report.meta.cycleStats", { count: String(input.cycleStats.count), median: input.cycleStats.median.toFixed(1), p85: input.cycleStats.p85.toFixed(1), p95: input.cycleStats.p95.toFixed(1), avg: input.cycleStats.avg.toFixed(1) }))}</p>
       <div class="chart-wrap"><canvas id="cycleHistogramChart"></canvas></div>
