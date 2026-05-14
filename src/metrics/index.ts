@@ -21,6 +21,7 @@ import { wipPerRoleMetric } from "./wipPerRole";
 import { stageThroughputGapMetric } from "./stageThroughputGap";
 import { handoffReworkMetric } from "./handoffRework";
 import { firstTimeRightMetric } from "./firstTimeRight";
+import { reworkCostMetric } from "./reworkCost";
 import { scopeChangeMetric } from "./scopeChange";
 import { bottleneckAnalysisMetric } from "./bottleneckAnalysis";
 
@@ -47,6 +48,7 @@ const ALL_METRICS = [
   stageThroughputGapMetric,
   handoffReworkMetric,
   firstTimeRightMetric,
+  reworkCostMetric,
   scopeChangeMetric,
   bottleneckAnalysisMetric,
 ];

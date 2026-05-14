@@ -16,4 +16,4 @@ Nouvelle métrique `rework-cost` : pour chaque ticket livré de la population cy
 
 ## Statut
 
-**à faire**
+**livré**

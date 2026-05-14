@@ -179,6 +179,7 @@ Basés sur l'estimation initiale (`originalEstimate`) de l'issue (1 jour = 8 h) 
 | `stage-throughput-gap` | Entrées et sorties par rôle par semaine ISO. `devNet = devIn − devOut`. Net positif = accumulation d'inventaire dans ce rôle. Fenêtre 30j en snapshot, complète en CLI. | Toutes transitions sur la période |
 | `handoff-rework` | % de tickets retournant en arrière entre rôles (`reworkRatio`), nombre moyen de reworks par ticket (`avgReworks`), et décompte par type (qaToDev, poToQa, poDev). | Population cycle-time, rolling 30j |
 | `first-time-right` | % de tickets traversant chaque rôle en un seul passage continu (`ftrRate`). Complément de `handoff-rework` : KPI lisible par rôle. | Population cycle-time, rolling 30j |
+| `rework-cost` | Coût en jours-ouvrés des passes rework (2e passe ou + dans un même rôle). `totalReworkDays`, `reworkCostRatio`, `avgReworkDaysPerReworkedTicket`. Vue hebdo proportionnelle et vue sprint. | Population cycle-time, rolling 30j |
 | `scope-change-rate` | % d'issues dont la description, l'estimation ou l'affectation de sprint a changé après entrée en sprint. Détecte la dérive de périmètre US post-engagement. | Toutes issues avec historique Sprint dans `issue_field_changes` |
 
 **Invariant lead/cycle** : les métriques `lead-time` et `cycle-time` (et leurs variantes) filtrent sur les issues ayant **à la fois** une transition `todoStatuses` et une transition `devStartStatuses`, ce qui garantit `lead_time ≥ cycle_time` par issue et rend les percentiles comparables.

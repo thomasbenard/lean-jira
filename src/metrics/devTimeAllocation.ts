@@ -34,7 +34,7 @@ function accumulateWeeks(
   }
 }
 
-function distributeAcrossWeeks(startedAt: string, doneAt: string, totalDays: number): Map<string, number> {
+export function distributeAcrossWeeks(startedAt: string, doneAt: string, totalDays: number): Map<string, number> {
   const result = new Map<string, number>();
   if (totalDays <= 0) {return result;}
   const doneWeek = isoWeek(doneAt);

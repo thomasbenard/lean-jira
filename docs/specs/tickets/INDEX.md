@@ -53,4 +53,4 @@
 | [044](044-bottleneck-column-chart/description.md) | Drill-down par colonne Jira : médiane jours + nb tickets par statut dans onglet Rôles | livré |
 | [045](045-vue-par-sprint-rapport/description.md) | Toggle semaines/sprints pour métriques débit dans le rapport HTML | livré |
 | [046](046-kpi-seuils-dynamiques/description.md) | Seuils de santé KPI configurables : statique (board.yaml) ou dynamique (P50/P85 historiques) | livré |
-| [047](047-rework-cost/description.md) | Coût en jours-ouvrés des retraitements par semaine et par sprint | à faire |
+| [047](047-rework-cost/description.md) | Coût en jours-ouvrés des retraitements par semaine et par sprint | livré |

@@ -1274,6 +1274,51 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
     "p95Days": 5.722222222222222,
     "unit": "ratio (lead réel / estimé)",
   },
+  "rework-cost": {
+    "avgReworkDaysPerReworkedTicket": 2.6249999999999996,
+    "bySprint": [
+      {
+        "reworkDays": 3.2916666666666665,
+        "reworkedIssues": 1,
+        "sprintId": 5,
+        "sprintName": "Sprint 5",
+      },
+      {
+        "reworkDays": 3.2916666666666665,
+        "reworkedIssues": 1,
+        "sprintId": 6,
+        "sprintName": "Sprint 6",
+      },
+      {
+        "reworkDays": 1.2916666666666667,
+        "reworkedIssues": 1,
+        "sprintId": 7,
+        "sprintName": "Sprint 7",
+      },
+    ],
+    "byWeek": [
+      {
+        "reworkDays": 3.2916666666666665,
+        "reworkedIssues": 1,
+        "week": "2025-W45",
+      },
+      {
+        "reworkDays": 3.2916666666666665,
+        "reworkedIssues": 1,
+        "week": "2025-W47",
+      },
+      {
+        "reworkDays": 1.2916666666666667,
+        "reworkedIssues": 1,
+        "week": "2025-W49",
+      },
+    ],
+    "count": 36,
+    "reworkCostRatio": 0.3165829145728643,
+    "reworkRatio": 0.08333333333333333,
+    "reworkedCount": 3,
+    "totalReworkDays": 7.874999999999999,
+  },
   "scope-change-rate": {
     "bySprint": {
       "Sprint 1": {

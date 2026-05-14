@@ -9,6 +9,7 @@ import { type WipPerRoleResult } from "../metrics/wipPerRole";
 import { type StageThroughputGapResult } from "../metrics/stageThroughputGap";
 import { type HandoffReworkResult } from "../metrics/handoffRework";
 import { type FirstTimeRightResult } from "../metrics/firstTimeRight";
+import { type ReworkCostResult } from "../metrics/reworkCost";
 import { type BottleneckAnalysisResult } from "../metrics/bottleneckAnalysis";
 import { now } from "../clock";
 
@@ -167,6 +168,15 @@ export function extractStats(date: string, metricName: string, result: Record<st
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "featureDays", value: totalFeature });
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "bugDays", value: totalBug });
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "bugRatio", value: r.avgBugRatio });
+  // doit précéder "reworkRatio" et "byWeek" — ReworkCostResult contient les deux
+  } else if ("totalReworkDays" in result) {
+    const r = result as unknown as ReworkCostResult;
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "count", value: r.count });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "reworkedCount", value: r.reworkedCount });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "reworkRatio", value: r.reworkRatio });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "totalReworkDays", value: r.totalReworkDays });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "avgReworkDays", value: r.avgReworkDaysPerReworkedTicket });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "reworkCostRatio", value: r.reworkCostRatio });
   } else if ("reworkRatio" in result) {
     const r = result as unknown as HandoffReworkResult;
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "count", value: r.count });

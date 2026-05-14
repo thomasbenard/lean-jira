@@ -550,6 +550,44 @@ avgPasses[R] = totalPasses[R]   / eligible[R]    (mean sur eligibles seuls)
 
 ---
 
+### `rework-cost`
+
+**Définition** : coût en jours-ouvrés des passes rework — passages de rang ≥ 2 dans un même rôle pour un même ticket. Complète `handoff-rework` (fréquence) et `first-time-right` (taux) en quantifiant le coût économique.
+
+**Population** : identique à `cycle-time` (`fetchDeliveredTransitions` + `groupByIssue`).
+
+**Détection des passes** :
+```
+Une passe = bloc contigu de transitions vers des statuts du même rôle.
+Statut hors rôle (ni dev, ni qa, ni po) → réinitialise currentRole = null.
+Passe rework = passe 2+ dans un même rôle.
+
+Diverge de handoff-rework (qui préserve prevRole à travers les statuts hors rôle).
+Converge avec first-time-right (même reset sur statut hors rôle).
+```
+
+**Durée d'une passe** : `workingDaysBetween(passStart, passEnd)` en jours-ouvrés. `todoStatuses` automatiquement exclus (temps entre blocs, jamais dans un bloc). Passes de 0 j-ouvrés ignorées.
+
+**Distribution hebdomadaire** : `distributeAcrossWeeks(passStart, passEnd, days)` — même logique que `dev-time-allocation`. Chaque semaine ISO reçoit `min(5, remaining)` jours.
+
+**Attribution sprint** : bloc rework attribué au sprint dont `start_date ≤ passEnd ≤ end_date`. Si aucun sprint ne couvre, le bloc est compté dans les agrégats globaux mais absent de `bySprint`.
+
+**Calculs** :
+```
+reworkedCount          = count(issues avec ≥ 1 passe rework)
+reworkRatio            = reworkedCount / count
+totalReworkDays        = somme jours-ouvrés de toutes les passes rework
+avgReworkDays          = totalReworkDays / reworkedCount  (0 si reworkedCount = 0)
+reworkCostRatio        = totalReworkDays / reworkedCycleTimeDays
+                         reworkedCycleTimeDays = somme cycle-time des tickets reworkés uniquement
+```
+
+**Snapshot** : fenêtre 30 jours rolling. Stocke : `count`, `reworkedCount`, `reworkRatio`, `totalReworkDays`, `avgReworkDays`, `reworkCostRatio`.
+
+**Sortie** : `{ count, reworkedCount, reworkRatio, totalReworkDays, avgReworkDaysPerReworkedTicket, reworkCostRatio, byWeek[], bySprint[] }`.
+
+---
+
 ### `scope-change-rate`
 
 **Définition** : % d'issues dont **la description ou le résumé** ont changé significativement après entrée en sprint. Mesure la dérive de périmètre **textuelle uniquement** — Story Points et changements de sprint NE sont PAS surveillés (malgré le nom).
