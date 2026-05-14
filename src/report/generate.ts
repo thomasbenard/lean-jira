@@ -764,7 +764,7 @@ export function buildRenderedTabs(input: RenderInput): { id: string; label: stri
   </div>
   ${buildBottleneckPanelHtml(input.bottleneck)}
   ${buildColumnDrilldownHtml(input.bottleneck)}
-  <div class="panel-grid">
+  <div class="panel-grid" style="margin-top: 1rem">
     <div class="chart-card"><h3>${escapeHtml(t("report.chart.stageTimeByRole"))}${helpBtn("stageTimeBreakdown")}</h3><div class="chart-wrap"><canvas id="stageTimeByRoleChart"></canvas></div></div>
     <div class="chart-card"><h3>${escapeHtml(t("report.chart.stageTimeShare"))}${helpBtn("stageTimeBreakdown")}</h3><div class="chart-wrap"><canvas id="stageTimeShareChart"></canvas></div></div>
     <div class="chart-card"><h3>${escapeHtml(t("report.chart.wipPerRole"))}${helpBtn("wipPerRole")}</h3><div class="chart-wrap"><canvas id="wipPerRoleChart"></canvas></div></div>
