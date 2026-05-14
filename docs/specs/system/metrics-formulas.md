@@ -692,10 +692,10 @@ score(role) = (rankStageTime + rankNetFlow + rankRework + rankFtr) / 4
 **Ranking entre rôles** : tri par `score` décroissant, tiebreak alphabétique stable (`dev < po < qa`). `rank = 1` = bottleneck primaire.
 
 **Colonnes par rôle (`byColumn`)** :
-- Pour chaque issue livrée, on accumule le `workingDaysBetween(start, end)` passé dans chaque statut tagué (`dev` ∪ `qa` ∪ `po`). Une fenêtre `end ≤ start` (timestamps égaux) est ignorée silencieusement.
-- Pour chaque statut accumulé : `{ status, role, medianDays: statsFromDays(arr, false).medianDays, count }`.
-- Tri **par rôle** (`dev → qa → po`), puis `medianDays` décroissant, tiebreak alphabétique sur `status`.
-- `dominantColumn` (par rôle) = première entrée du rôle dans `byColumn` triée → statut avec la médiane la plus haute, tiebreak alphabétique.
+- Pour chaque issue livrée, on accumule le `workingDaysBetween(start, end)` passé dans chaque statut tagué (`dev` ∪ `qa` ∪ `po`), en utilisant le nom de colonne `board.yaml` via `statusToColumnName[status] ?? status`. Plusieurs statuts Jira appartenant à la même colonne board sont **poolés** : leurs durées sont agrégées avant calcul de la médiane. Une fenêtre `end ≤ start` (timestamps égaux) est ignorée silencieusement.
+- Pour chaque colonne accumulée : `{ column, role, medianDays: statsFromDays(arr, false).medianDays, count }`.
+- Tri **par rôle** (`dev → qa → po`), puis `medianDays` décroissant, tiebreak alphabétique sur `column`.
+- `dominantColumn` (par rôle) = première entrée du rôle dans `byColumn` triée → colonne board.yaml avec la médiane la plus haute, tiebreak alphabétique.
 - `primaryColumn` = `dominantColumns[primaryBottleneck]`.
 
 **Snapshot** : stocke par rôle `score` et `rank` (bucket `"dev"` / `"qa"` / `"po"`), plus `count` (bucket `""`). `byColumn`, `primaryColumn`, `dominantColumn`, `recommendation` ne sont pas snapshottés (live uniquement).
