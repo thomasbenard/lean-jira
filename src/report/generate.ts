@@ -663,7 +663,7 @@ function buildColumnDrilldownHtml(b: BottleneckAnalysisResult): string {
         <span class="bn-pct mono">${c.medianDays.toFixed(1)}j <span class="bn-rank">(${c.count})</span></span>
       </div>`;
   }).join("");
-  return `<div class="chart-card">
+  return `<div class="chart-card" style="margin-bottom: 1rem">
     <h3>${escapeHtml(t("report.chart.columnDrilldown"))}${helpBtn("bottleneckAnalysis")}</h3>
     <div class="bn-bars bn-bars-col">${rows}</div>
   </div>`;
@@ -764,7 +764,7 @@ export function buildRenderedTabs(input: RenderInput): { id: string; label: stri
   </div>
   ${buildBottleneckPanelHtml(input.bottleneck)}
   ${buildColumnDrilldownHtml(input.bottleneck)}
-  <div class="panel-grid" style="margin-top: 1rem">
+  <div class="panel-grid">
     <div class="chart-card"><h3>${escapeHtml(t("report.chart.stageTimeByRole"))}${helpBtn("stageTimeBreakdown")}</h3><div class="chart-wrap"><canvas id="stageTimeByRoleChart"></canvas></div></div>
     <div class="chart-card"><h3>${escapeHtml(t("report.chart.stageTimeShare"))}${helpBtn("stageTimeBreakdown")}</h3><div class="chart-wrap"><canvas id="stageTimeShareChart"></canvas></div></div>
     <div class="chart-card"><h3>${escapeHtml(t("report.chart.wipPerRole"))}${helpBtn("wipPerRole")}</h3><div class="chart-wrap"><canvas id="wipPerRoleChart"></canvas></div></div>
