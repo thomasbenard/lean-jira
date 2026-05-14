@@ -31,7 +31,7 @@ export interface RoleBottleneckScore {
 }
 
 export interface ColumnStat {
-  status: string;
+  column: string;
   role: RoleKey;
   medianDays: number;
   count: number;
@@ -237,8 +237,9 @@ export const bottleneckAnalysisMetric: Metric<BottleneckAnalysisResult> = {
           // end <= start possible si deux transitions ont le même timestamp → colonne absente de byColumn (0j non significatif)
           if (end > start) {
             const days = workingDaysBetween(start, end);
-            let arr = columnDays.get(t.to_status);
-            if (!arr) {arr = []; columnDays.set(t.to_status, arr);}
+            const colName = config.statusToColumnName?.[t.to_status] ?? t.to_status;
+            let arr = columnDays.get(colName);
+            if (!arr) {arr = []; columnDays.set(colName, arr);}
             arr.push(days);
           }
         }
@@ -300,13 +301,14 @@ export const bottleneckAnalysisMetric: Metric<BottleneckAnalysisResult> = {
     ];
     const byColumn: ColumnStat[] = [];
     for (const { role, statuses } of roleStatuses) {
+      const colNames = [...new Set(statuses.map((s) => config.statusToColumnName?.[s] ?? s))];
       const cols: ColumnStat[] = [];
-      for (const status of statuses) {
-        const days = columnDays.get(status);
+      for (const colName of colNames) {
+        const days = columnDays.get(colName);
         if (!days || days.length === 0) {continue;}
-        cols.push({ status, role, medianDays: statsFromDays(days, false).medianDays, count: days.length });
+        cols.push({ column: colName, role, medianDays: statsFromDays(days, false).medianDays, count: days.length });
       }
-      cols.sort((a, b) => b.medianDays - a.medianDays || a.status.localeCompare(b.status));
+      cols.sort((a, b) => b.medianDays - a.medianDays || a.column.localeCompare(b.column));
       byColumn.push(...cols);
     }
 
@@ -314,7 +316,7 @@ export const bottleneckAnalysisMetric: Metric<BottleneckAnalysisResult> = {
     const dominantColumns: Record<RoleKey, string | null> = { dev: null, qa: null, po: null };
     for (const c of byColumn) {
       if (dominantColumns[c.role] !== null) {continue;}
-      dominantColumns[c.role] = c.status;
+      dominantColumns[c.role] = c.column;
     }
 
     const byRole: Record<RoleKey, RoleBottleneckScore> = {} as Record<RoleKey, RoleBottleneckScore>;

@@ -25,4 +25,4 @@ champ sur `ColumnStat` (breaking interne, aucun consommateur externe).
 
 ## Statut
 
-**à faire**
+**livré**

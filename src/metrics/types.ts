@@ -56,6 +56,9 @@ export interface MetricConfig {
   scopeChangeGracePeriodHours?: number;
   // Méthode d'estimation active. Défaut { method: "time" } injecté par buildMetricConfig().
   estimation: EstimationConfig;
+  // Mapping statut Jira → nom de colonne board.yaml. Construit par buildMetricConfig().
+  // Absent dans les tests unitaires qui ne passent pas de board complet.
+  statusToColumnName?: Record<string, string>;
 }
 
 // Contrat que chaque métrique doit implémenter

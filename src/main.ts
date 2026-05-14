@@ -218,6 +218,13 @@ export function buildMetricConfig(db: Database.Database, app: AppConfig, opts: {
     console.warn(t("autoconfig.wip.stripped", { count: totalRemoved, names: all.join(", ") }));
   }
 
+  const statusToColumnName: Record<string, string> = {};
+  for (const col of app.board.columns) {
+    for (const s of [...col.statuses, ...(col.legacyStatuses ?? [])]) {
+      statusToColumnName[s] = col.name;
+    }
+  }
+
   return {
     todoStatuses: derived.todoStatuses,
     devStartStatuses: derived.devStartStatuses,
@@ -234,6 +241,7 @@ export function buildMetricConfig(db: Database.Database, app: AppConfig, opts: {
     excludeIssueTypes: app.metrics?.excludeIssueTypes ?? [],
     scopeChangeGracePeriodHours: app.metrics?.scopeChangeGracePeriodHours,
     estimation: app.metrics?.estimation ?? { method: "time" },
+    statusToColumnName,
   };
 }
 

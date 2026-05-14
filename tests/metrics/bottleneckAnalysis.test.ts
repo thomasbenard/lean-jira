@@ -146,8 +146,9 @@ const TWO_DEV_COL_CONFIG: MetricConfig = {
 };
 
 describe("bottleneckAnalysisMetric.compute — dominantColumn / primaryColumn", () => {
-  it("dominantColumn identifie le statut le plus lent dans dev", () => {
+  it("dominantColumn identifie la colonne la plus lente dans dev (fallback = statut brut sans mapping)", () => {
     // In Progress : Jan 8→Jan 15 ≈ 5j ouvrés ; Code Review : Jan 15→Jan 16 ≈ 1j
+    // Sans statusToColumnName → fallback sur nom du statut
     seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1" }), [
       { to: "To Do",       at: "2025-01-06T09:00:00Z" },
       { to: "In Progress", at: "2025-01-08T09:00:00Z" },
@@ -207,8 +208,8 @@ describe("bottleneckAnalysisMetric.compute — byColumn", () => {
     const result = bottleneckAnalysisMetric.compute(db, TWO_DEV_COL_CONFIG);
     const devCols = result.byColumn.filter((c) => c.role === "dev");
     expect(devCols.length).toBe(2);
-    expect(devCols[0].status).toBe("In Progress");
-    expect(devCols[1].status).toBe("Code Review");
+    expect(devCols[0].column).toBe("In Progress");
+    expect(devCols[1].column).toBe("Code Review");
     expect(devCols[0].medianDays).toBeGreaterThan(devCols[1].medianDays);
   });
 
@@ -224,7 +225,7 @@ describe("bottleneckAnalysisMetric.compute — byColumn", () => {
       { to: "Done",        at: "2025-01-15T09:00:00Z" },
     ]);
     const result = bottleneckAnalysisMetric.compute(db, TWO_DEV_COL_CONFIG);
-    const inProgress = result.byColumn.find((c) => c.status === "In Progress");
+    const inProgress = result.byColumn.find((c) => c.column === "In Progress");
     expect(inProgress?.count).toBe(2);
   });
 
@@ -236,7 +237,7 @@ describe("bottleneckAnalysisMetric.compute — byColumn", () => {
       { to: "Done",        at: "2025-01-15T09:00:00Z" },
     ]);
     const result = bottleneckAnalysisMetric.compute(db, TWO_DEV_COL_CONFIG);
-    const codeReview = result.byColumn.find((c) => c.status === "Code Review");
+    const codeReview = result.byColumn.find((c) => c.column === "Code Review");
     expect(codeReview).toBeUndefined();
   });
 
@@ -256,7 +257,7 @@ describe("bottleneckAnalysisMetric.compute — byColumn", () => {
     const result = bottleneckAnalysisMetric.compute(db, TWO_DEV_COL_CONFIG);
     const devCols = result.byColumn.filter((c) => c.role === "dev");
     // "Code Review" < "In Progress" alphabétiquement → premier en cas d'égalité
-    expect(devCols[0].status).toBe("Code Review");
+    expect(devCols[0].column).toBe("Code Review");
   });
 
   it("colonne avec transition instantanée absente de byColumn", () => {
@@ -268,7 +269,7 @@ describe("bottleneckAnalysisMetric.compute — byColumn", () => {
       { to: "Done",        at: "2025-01-15T09:00:00Z" }, // même instant que Code Review → 0j
     ]);
     const result = bottleneckAnalysisMetric.compute(db, TWO_DEV_COL_CONFIG);
-    const codeReview = result.byColumn.find((c) => c.status === "Code Review");
+    const codeReview = result.byColumn.find((c) => c.column === "Code Review");
     expect(codeReview).toBeUndefined();
   });
 
@@ -289,5 +290,96 @@ describe("bottleneckAnalysisMetric.compute — byColumn", () => {
     expect(result.byColumn.length).toBe(2);
     expect(result.byColumn[0].role).toBe("dev");
     expect(result.byColumn[1].role).toBe("qa");
+  });
+});
+
+describe("bottleneckAnalysisMetric.compute — groupement par colonne board (statusToColumnName)", () => {
+  it("deux statuts dans la même colonne board sont poolés en une seule entrée byColumn", () => {
+    // Ticket 1 : 2j "In Progress" + 3j "Code Review" → tous deux dans colonne "Dev"
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1" }), [
+      { to: "To Do",       at: "2025-01-06T09:00:00Z" },
+      { to: "In Progress", at: "2025-01-08T09:00:00Z" },
+      { to: "Code Review", at: "2025-01-10T09:00:00Z" },
+      { to: "Done",        at: "2025-01-15T09:00:00Z" },
+    ]);
+    // Ticket 2 : 1j "In Progress" + 4j "Code Review" → même colonne "Dev"
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-2" }), [
+      { to: "To Do",       at: "2025-01-06T09:00:00Z" },
+      { to: "In Progress", at: "2025-01-08T09:00:00Z" },
+      { to: "Code Review", at: "2025-01-09T09:00:00Z" },
+      { to: "Done",        at: "2025-01-15T09:00:00Z" },
+    ]);
+    const config: MetricConfig = {
+      ...TEST_CONFIG,
+      devStatuses: ["In Progress", "Code Review"],
+      qaStatuses: [],
+      poStatuses: [],
+      statusToColumnName: { "In Progress": "Dev", "Code Review": "Dev" },
+    };
+    const result = bottleneckAnalysisMetric.compute(db, config);
+    const devCols = result.byColumn.filter((c) => c.role === "dev");
+    expect(devCols.length).toBe(1);
+    expect(devCols[0].column).toBe("Dev");
+    expect(devCols[0].count).toBeGreaterThanOrEqual(2);
+  });
+
+  it("deux statuts dans colonnes distinctes du même rôle créent deux entrées byColumn", () => {
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1" }), [
+      { to: "To Do",       at: "2025-01-06T09:00:00Z" },
+      { to: "In Progress", at: "2025-01-08T09:00:00Z" },
+      { to: "Code Review", at: "2025-01-10T09:00:00Z" },
+      { to: "Done",        at: "2025-01-15T09:00:00Z" },
+    ]);
+    const config: MetricConfig = {
+      ...TEST_CONFIG,
+      devStatuses: ["In Progress", "Code Review"],
+      qaStatuses: [],
+      poStatuses: [],
+      statusToColumnName: { "In Progress": "Développement", "Code Review": "Revue" },
+    };
+    const result = bottleneckAnalysisMetric.compute(db, config);
+    const devCols = result.byColumn.filter((c) => c.role === "dev");
+    expect(devCols.length).toBe(2);
+    expect(devCols.map((c) => c.column)).toContain("Développement");
+    expect(devCols.map((c) => c.column)).toContain("Revue");
+  });
+
+  it("statut sans entrée dans statusToColumnName utilise son propre nom (fallback)", () => {
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1" }), [
+      { to: "To Do",       at: "2025-01-06T09:00:00Z" },
+      { to: "In Progress", at: "2025-01-08T09:00:00Z" },
+      { to: "Done",        at: "2025-01-15T09:00:00Z" },
+    ]);
+    const config: MetricConfig = {
+      ...TEST_CONFIG,
+      devStatuses: ["In Progress"],
+      qaStatuses: [],
+      poStatuses: [],
+      statusToColumnName: {}, // mapping vide → fallback sur statut brut
+    };
+    const result = bottleneckAnalysisMetric.compute(db, config);
+    const devCols = result.byColumn.filter((c) => c.role === "dev");
+    expect(devCols.length).toBe(1);
+    expect(devCols[0].column).toBe("In Progress");
+  });
+
+  it("dominantColumn reflète le nom de colonne board (pas le statut Jira)", () => {
+    // "In Progress" domine largement → dominantColumn = "Dev" (le nom de la colonne board)
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1" }), [
+      { to: "To Do",       at: "2025-01-06T09:00:00Z" },
+      { to: "In Progress", at: "2025-01-08T09:00:00Z" },
+      { to: "Code Review", at: "2025-01-15T09:00:00Z" },
+      { to: "Done",        at: "2025-01-16T09:00:00Z" },
+    ]);
+    const config: MetricConfig = {
+      ...TEST_CONFIG,
+      devStatuses: ["In Progress", "Code Review"],
+      qaStatuses: [],
+      poStatuses: [],
+      statusToColumnName: { "In Progress": "Dev", "Code Review": "Dev" },
+    };
+    const result = bottleneckAnalysisMetric.compute(db, config);
+    // Les deux statuts sont dans "Dev" → une seule colonne → dominantColumn = "Dev"
+    expect(result.byRole.dev.dominantColumn).toBe("Dev");
   });
 });

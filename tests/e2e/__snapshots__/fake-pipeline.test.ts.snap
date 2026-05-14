@@ -79,33 +79,33 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
   "bottleneck-analysis": {
     "byColumn": [
       {
+        "column": "Development",
         "count": 38,
         "medianDays": 4,
         "role": "dev",
-        "status": "In Progress",
       },
       {
+        "column": "Code Review",
         "count": 10,
         "medianDays": 3,
         "role": "dev",
-        "status": "In Review",
       },
       {
+        "column": "QA Testing",
         "count": 12,
         "medianDays": 2.2916666666666665,
         "role": "qa",
-        "status": "In QA",
       },
       {
+        "column": "PO Validation",
         "count": 2,
         "medianDays": 1,
         "role": "po",
-        "status": "Awaiting PO",
       },
     ],
     "byRole": {
       "dev": {
-        "dominantColumn": "In Progress",
+        "dominantColumn": "Development",
         "dominantSignal": "accumulation",
         "rank": 1,
         "score": 0.875,
@@ -117,7 +117,7 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         },
       },
       "po": {
-        "dominantColumn": "Awaiting PO",
+        "dominantColumn": "PO Validation",
         "dominantSignal": "accumulation",
         "rank": 3,
         "score": 0,
@@ -129,7 +129,7 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
         },
       },
       "qa": {
-        "dominantColumn": "In QA",
+        "dominantColumn": "QA Testing",
         "dominantSignal": "ftr",
         "rank": 2,
         "score": 0.375,
@@ -143,7 +143,7 @@ exports[`pipeline fake — golden output > toutes les métriques produisent un o
     },
     "count": 36,
     "primaryBottleneck": "dev",
-    "primaryColumn": "In Progress",
+    "primaryColumn": "Development",
     "recommendation": "Réduire les entrées en dev ou augmenter la capacité disponible à ce stage.",
   },
   "bug-backlog": {

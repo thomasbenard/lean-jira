@@ -613,7 +613,7 @@ describe("renderDefault — Bottleneck panel", () => {
           qa:  { score: 0.3, rank: 2, dominantSignal: "combined" as const, dominantColumn: null, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
           po:  { score: 0,   rank: 3, dominantSignal: "combined" as const, dominantColumn: null, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
         },
-        byColumn: [{ status: "In Progress", role: "dev", medianDays: 5, count: 1 }],
+        byColumn: [{ column: "In Progress", role: "dev", medianDays: 5, count: 1 }],
       },
     };
     const html = renderDefault(input);
@@ -636,7 +636,7 @@ describe("renderDefault — Bottleneck panel", () => {
           qa:  { score: 0.3, rank: 2, dominantSignal: "combined" as const, dominantColumn: null, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
           po:  { score: 0,   rank: 3, dominantSignal: "combined" as const, dominantColumn: null, signals: { stageTimeMedianDays: 0, avgNetFlow: 0, reworkInboundRate: 0, ftrPenalty: 0 } },
         },
-        byColumn: [{ status: "In Progress", role: "dev", medianDays: 5, count: 20 }],
+        byColumn: [{ column: "In Progress", role: "dev", medianDays: 5, count: 20 }],
       },
     };
     const html = renderDefault(input);

@@ -658,7 +658,7 @@ function buildColumnDrilldownHtml(b: BottleneckAnalysisResult): string {
     const pct = maxMedian > 0 ? Math.max(1, Math.round((c.medianDays / maxMedian) * 100)) : 1;
     const color = ROLE_CSS_COLOR[c.role];
     return `<div class="bn-row">
-        <span class="bn-label">${escapeHtml(c.status)} <span class="bn-rank">${escapeHtml(c.role.toUpperCase())}</span></span>
+        <span class="bn-label">${escapeHtml(c.column)} <span class="bn-rank">${escapeHtml(c.role.toUpperCase())}</span></span>
         <div class="bn-bar-bg"><div class="bn-bar-fill" style="width:${pct}%;background:${color}"></div></div>
         <span class="bn-pct mono">${c.medianDays.toFixed(1)}j <span class="bn-rank">(${c.count})</span></span>
       </div>`;
