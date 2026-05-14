@@ -12,6 +12,9 @@ import { bottleneckAnalysisMetric, type BottleneckAnalysisResult, type RoleKey }
 import { throughputMetric } from "../metrics/throughput";
 import { bugThroughputMetric } from "../metrics/bugThroughput";
 import { throughputWeightedMetric } from "../metrics/throughputWeighted";
+import { handoffReworkMetric } from "../metrics/handoffRework";
+import { firstTimeRightMetric } from "../metrics/firstTimeRight";
+import { reworkCostMetric } from "../metrics/reworkCost";
 import { getLastSyncDate } from "../db/store";
 import { now } from "../clock";
 import { t, getCurrentLocale, type LocaleShape, type LocaleCode } from "../i18n/index";
@@ -278,6 +281,58 @@ export function buildSprintSeries(
   };
 }
 
+export function buildRolesSprintSeries(
+  db: Database.Database,
+  config: MetricConfig,
+  sprints: SprintRow[],
+): {
+  ftrByRole: SprintChartSeries;
+  handoffReworkRatio: SprintChartSeries;
+  handoffReworkByType: SprintChartSeries;
+  reworkCost: SprintChartSeries;
+} {
+  const labels: string[] = [];
+  const ftrDev: number[] = [];
+  const ftrQa: number[] = [];
+  const ftrPo: number[] = [];
+  const reworkRatioArr: number[] = [];
+  const qaToDevArr: number[] = [];
+  const poToQaArr: number[] = [];
+  const poDevArr: number[] = [];
+  const reworkDaysArr: number[] = [];
+
+  const hasActive = sprints.length > 0 && sprints[sprints.length - 1].state === "active";
+
+  for (const sprint of sprints) {
+    const isActive = sprint.state === "active";
+    const windowEnd = sprint.end_date ?? now().toISOString().slice(0, 10);
+    const cfg: MetricConfig = { ...config, cutoffDate: sprint.start_date, windowEndDate: windowEnd };
+
+    labels.push(isActive ? `${sprint.name} (en cours)` : sprint.name);
+
+    const ftr = firstTimeRightMetric.compute(db, cfg);
+    ftrDev.push(ftr.ftrByRole.dev.ftrRate);
+    ftrQa.push(ftr.ftrByRole.qa.ftrRate);
+    ftrPo.push(ftr.ftrByRole.po.ftrRate);
+
+    const handoff = handoffReworkMetric.compute(db, cfg);
+    reworkRatioArr.push(handoff.reworkRatio);
+    qaToDevArr.push(handoff.byReworkType.qaToDev);
+    poToQaArr.push(handoff.byReworkType.poToQa);
+    poDevArr.push(handoff.byReworkType.poDev);
+
+    const rework = reworkCostMetric.compute(db, cfg);
+    reworkDaysArr.push(rework.totalReworkDays);
+  }
+
+  return {
+    ftrByRole: { labels, series: { dev: ftrDev, qa: ftrQa, po: ftrPo }, hasActiveSprint: hasActive },
+    handoffReworkRatio: { labels, series: { reworkRatio: reworkRatioArr }, hasActiveSprint: hasActive },
+    handoffReworkByType: { labels, series: { qaToDev: qaToDevArr, poToQa: poToQaArr, poDev: poDevArr }, hasActiveSprint: hasActive },
+    reworkCost: { labels, series: { totalReworkDays: reworkDaysArr }, hasActiveSprint: hasActive },
+  };
+}
+
 interface BucketStats {
   count: number;
   median: number;
@@ -319,6 +374,9 @@ export function generateReport(
   `).all(config.cutoffDate) as SprintRow[];
   const sprintCharts = sprintRows.length > 0
     ? buildSprintSeries(db, config, sprintRows)
+    : null;
+  const rolesSprintCharts = sprintRows.length > 0
+    ? buildRolesSprintSeries(db, config, sprintRows)
     : null;
 
   // Pré-grouper par metric_name pour un parcours O(N) au lieu de O(N×M).
@@ -447,6 +505,7 @@ export function generateReport(
     estimation: config.estimation,
     bottleneck,
     sprintCharts,
+    rolesSprintCharts,
   };
 
   const resolvedTemplatePath = personalization?.templatePath
@@ -555,6 +614,12 @@ interface RenderInput {
     throughput: SprintChartSeries;
     bugThroughput: SprintChartSeries;
     throughputWeighted: SprintChartSeries;
+  } | null;
+  rolesSprintCharts: {
+    ftrByRole: SprintChartSeries;
+    handoffReworkRatio: SprintChartSeries;
+    handoffReworkByType: SprintChartSeries;
+    reworkCost: SprintChartSeries;
   } | null;
 }
 
@@ -871,6 +936,7 @@ export interface TemplateContext {
   sprintChartsJson: string;
   sprintChartTitlesJson: string;
   hasSprintCharts: boolean;
+  rolesSprintChartsJson: string;
   agingWip: AgingWipSummary;
   forecast: ForecastSummary;
   cycleStats: { median: number; p85: number; p95: number; avg: number; count: number };
@@ -919,6 +985,7 @@ export function buildTemplateContext(
       bugThroughput:     t("report.chart.bugThroughput.sprint"),
     }),
     hasSprintCharts: input.sprintCharts !== null,
+    rolesSprintChartsJson: input.rolesSprintCharts !== null ? JSON.stringify(input.rolesSprintCharts) : "null",
     agingWip: input.agingWip,
     forecast: input.forecast,
     cycleStats: input.cycleStats,

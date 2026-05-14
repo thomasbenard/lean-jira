@@ -384,6 +384,7 @@ const CYCLE_BY_SIZE = _D.cycleBySize;
 const BUCKET_LABELS_MAP = {"XS":"XS (<0.5j)","S":"S (0.5-1j)","M":"M (1-3j)","L":"L (3-5j)","XL":"XL (≥5j)","BUG":"BUG","UNESTIMATED":"UNESTIMATED"};
 const SPRINT_CHARTS = {{{sprintChartsJson}}};
 const SPRINT_CHART_TITLES = {{{sprintChartTitlesJson}}};
+const ROLES_SPRINT_CHARTS = {{{rolesSprintChartsJson}}};
 
 const COLOR_MEDIAN = "#00e0d4";
 const COLOR_P85 = "#ff8a3d";
@@ -408,12 +409,12 @@ function computeMovingAvg(values, windowSize) {
   });
 }
 
-function buildTrendDataset(trendData) {
+function buildTrendDataset(trendData, color, label) {
   if (!trendData.some(function(v) { return v !== null; })) return null;
   return {
-    label: "Tendance",
+    label: label || "Tendance",
     data: trendData,
-    borderColor: "#64748b88",
+    borderColor: (color || "#64748b") + "88",
     backgroundColor: "transparent",
     borderWidth: 1.5,
     borderDash: [6, 4],
@@ -430,8 +431,15 @@ function lineChart(canvasId, series, datasets, withTrend) {
     return { label: d.label, data: series.series[d.key], borderColor: d.color, backgroundColor: d.color + "22", tension: 0.2, pointRadius: 2, _seriesKey: d.key };
   });
   if (withTrend) {
-    const trend = buildTrendDataset(computeMovingAvg(series.series[datasets[0].key] || []));
-    if (trend) builtDatasets.push(trend);
+    const multiRole = datasets.length > 1;
+    datasets.forEach(function(d) {
+      const trend = buildTrendDataset(
+        computeMovingAvg(series.series[d.key] || []),
+        d.color,
+        multiRole ? d.label + " (tend.)" : "Tendance",
+      );
+      if (trend) builtDatasets.push(trend);
+    });
   }
   return new Chart(ctx, {
     type: "line",
@@ -444,11 +452,9 @@ function updateChart(chart, labels, seriesData) {
   if (!chart) return;
   chart.data.labels = labels;
   var keys = Object.keys(seriesData);
-  for (var i = 0; i < keys.length && i < chart.data.datasets.length; i++) {
-    chart.data.datasets[i].data = seriesData[keys[i]];
-  }
-  if (chart.data.datasets.length > keys.length) {
-    chart.data.datasets[chart.data.datasets.length - 1].data = labels.map(function() { return null; });
+  var nullArr = labels.map(function() { return null; });
+  for (var i = 0; i < chart.data.datasets.length; i++) {
+    chart.data.datasets[i].data = i < keys.length ? seriesData[keys[i]] : nullArr;
   }
   chart.update("none");
 }
@@ -476,10 +482,19 @@ var _bugThroughputChart = lineChart("bugThroughputChart", CHARTS.bugThroughput, 
 
 (function initDebitToggle() {
   var toggle = document.getElementById("debit-toggle");
-  if (!toggle || !SPRINT_CHARTS) return;
+  if (!toggle) return;
+  // Debit charts existent avant l'IIFE → capture immédiate.
   var _thrOrig = _throughputChart ? _throughputChart.data.datasets.map(function(d) { return d.data; }) : null;
   var _wgtOrig = _throughputWeightedChart ? _throughputWeightedChart.data.datasets.map(function(d) { return d.data; }) : null;
   var _bugOrig = _bugThroughputChart ? _bugThroughputChart.data.datasets.map(function(d) { return d.data; }) : null;
+  // Roles charts définis plus bas dans le script → capture paresseuse au 1er passage sprint.
+  var _ftrOrig = null, _reworkRatioOrig = null, _reworkByTypeOrig = null, _reworkCostOrig = null;
+  function saveRolesOriginals() {
+    if (!_ftrOrig && _ftrChart) { _ftrOrig = _ftrChart.data.datasets.map(function(d) { return d.data; }); }
+    if (!_reworkRatioOrig && _reworkRatioChart) { _reworkRatioOrig = _reworkRatioChart.data.datasets.map(function(d) { return d.data; }); }
+    if (!_reworkByTypeOrig && _reworkByTypeChart) { _reworkByTypeOrig = _reworkByTypeChart.data.datasets.map(function(d) { return d.data; }); }
+    if (!_reworkCostOrig && _reworkCostChart) { _reworkCostOrig = _reworkCostChart.data.datasets.map(function(d) { return d.data; }); }
+  }
   toggle.addEventListener("click", function(e) {
     var btn = e.target.closest(".toggle-btn");
     if (!btn) return;
@@ -505,6 +520,22 @@ var _bugThroughputChart = lineChart("bugThroughputChart", CHARTS.bugThroughput, 
     origDatasets.forEach(function(data, i) { chart.data.datasets[i].data = data; });
     chart.update("none");
   }
+  // Met à jour données + recalcule tendances pour datasets supplémentaires.
+  function updateChartWithTrend(chart, labels, seriesData) {
+    if (!chart) return;
+    chart.data.labels = labels;
+    var keys = Object.keys(seriesData);
+    var nullArr = labels.map(function() { return null; });
+    for (var i = 0; i < chart.data.datasets.length; i++) {
+      if (i < keys.length) {
+        chart.data.datasets[i].data = seriesData[keys[i]];
+      } else {
+        var srcKey = keys[i - keys.length];
+        chart.data.datasets[i].data = srcKey ? computeMovingAvg(seriesData[srcKey] || []) : nullArr;
+      }
+    }
+    chart.update("none");
+  }
   var _debitTitleIds = [
     ["throughputChartTitle",         "throughput"],
     ["throughputWeightedChartTitle", "throughputWeighted"],
@@ -524,18 +555,32 @@ var _bugThroughputChart = lineChart("bugThroughputChart", CHARTS.bugThroughput, 
     if (el) el.dataset.weekTitle = el.textContent;
   });
   function switchDebitView(view) {
-    var debitCharts = [_throughputChart, _throughputWeightedChart, _bugThroughputChart];
+    var allCharts = [_throughputChart, _throughputWeightedChart, _bugThroughputChart,
+                     _ftrChart, _reworkRatioChart, _reworkByTypeChart, _reworkCostChart];
     if (view === "sprint") {
-      updateChart(_throughputChart, SPRINT_CHARTS.throughput.labels, SPRINT_CHARTS.throughput.series);
-      updateChart(_throughputWeightedChart, SPRINT_CHARTS.throughputWeighted.labels, SPRINT_CHARTS.throughputWeighted.series);
-      updateChart(_bugThroughputChart, SPRINT_CHARTS.bugThroughput.labels, SPRINT_CHARTS.bugThroughput.series);
-      applySprintXAxis(debitCharts, true);
+      saveRolesOriginals();
+      if (SPRINT_CHARTS) {
+        updateChartWithTrend(_throughputChart, SPRINT_CHARTS.throughput.labels, SPRINT_CHARTS.throughput.series);
+        updateChartWithTrend(_throughputWeightedChart, SPRINT_CHARTS.throughputWeighted.labels, SPRINT_CHARTS.throughputWeighted.series);
+        updateChartWithTrend(_bugThroughputChart, SPRINT_CHARTS.bugThroughput.labels, SPRINT_CHARTS.bugThroughput.series);
+      }
+      if (ROLES_SPRINT_CHARTS) {
+        updateChartWithTrend(_ftrChart, ROLES_SPRINT_CHARTS.ftrByRole.labels, ROLES_SPRINT_CHARTS.ftrByRole.series);
+        updateChartWithTrend(_reworkRatioChart, ROLES_SPRINT_CHARTS.handoffReworkRatio.labels, ROLES_SPRINT_CHARTS.handoffReworkRatio.series);
+        updateChart(_reworkByTypeChart, ROLES_SPRINT_CHARTS.handoffReworkByType.labels, ROLES_SPRINT_CHARTS.handoffReworkByType.series);
+        updateChartWithTrend(_reworkCostChart, ROLES_SPRINT_CHARTS.reworkCost.labels, ROLES_SPRINT_CHARTS.reworkCost.series);
+      }
+      applySprintXAxis(allCharts, true);
       updateDebitTitles(true);
     } else {
       restoreChart(_throughputChart, CHARTS.throughput.dates, _thrOrig);
       restoreChart(_throughputWeightedChart, CHARTS.throughputWeighted.dates, _wgtOrig);
       restoreChart(_bugThroughputChart, CHARTS.bugThroughput.dates, _bugOrig);
-      applySprintXAxis(debitCharts, false);
+      restoreChart(_ftrChart, CHARTS.ftrByRole.dates, _ftrOrig);
+      restoreChart(_reworkRatioChart, CHARTS.handoffReworkRatio.dates, _reworkRatioOrig);
+      restoreChart(_reworkByTypeChart, CHARTS.handoffReworkByType.dates, _reworkByTypeOrig);
+      restoreChart(_reworkCostChart, CHARTS.reworkCost.dates, _reworkCostOrig);
+      applySprintXAxis(allCharts, false);
       updateDebitTitles(false);
     }
   }
@@ -768,11 +813,11 @@ lineChart("wipPerRoleChart", CHARTS.wipPerRole, [
   { key: "po",  label: "WIP po",  color: COLOR_PO  },
 ]);
 
-lineChart("ftrByRoleChart", CHARTS.ftrByRole, [
+var _ftrChart = lineChart("ftrByRoleChart", CHARTS.ftrByRole, [
   { key: "dev", label: "FTR dev", color: COLOR_DEV },
   { key: "qa",  label: "FTR qa",  color: COLOR_QA  },
   { key: "po",  label: "FTR po",  color: COLOR_PO  },
-]);
+], true);
 
 (function renderBottleneckScores() {
   const ctx = document.getElementById("bottleneckScoresChart");
@@ -791,7 +836,7 @@ lineChart("ftrByRoleChart", CHARTS.ftrByRole, [
   });
 })();
 
-lineChart("reworkRatioChart", CHARTS.handoffReworkRatio, [
+var _reworkRatioChart = lineChart("reworkRatioChart", CHARTS.handoffReworkRatio, [
   { key: "reworkRatio", label: "Taux de rework", color: "#ef4444" },
 ], true);
 
@@ -849,11 +894,11 @@ lineChart("reworkRatioChart", CHARTS.handoffReworkRatio, [
   });
 })();
 
-(function renderReworkByType() {
+var _reworkByTypeChart = (function renderReworkByType() {
   const ctx = document.getElementById("reworkByTypeChart");
   const series = CHARTS.handoffReworkByType;
-  if (!ctx || !series || series.dates.length === 0) return;
-  new Chart(ctx, {
+  if (!ctx || !series || series.dates.length === 0) return null;
+  return new Chart(ctx, {
     type: "bar",
     data: {
       labels: series.dates,
@@ -867,9 +912,8 @@ lineChart("reworkRatioChart", CHARTS.handoffReworkRatio, [
   });
 })();
 
-lineChart("reworkCostChart", CHARTS.reworkCost, [
+var _reworkCostChart = lineChart("reworkCostChart", CHARTS.reworkCost, [
   { key: "totalReworkDays", label: "Jours rework", color: "#ef4444" },
-  { key: "reworkCostRatio", label: "Ratio coût rework", color: "#f97316" },
 ], true);
 
 (function initZoom() {

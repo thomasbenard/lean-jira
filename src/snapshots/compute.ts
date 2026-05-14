@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 import { type MetricConfig } from "../metrics/types";
 import { ALL_METRICS } from "../metrics";
-import { BUCKET_ORDER, placeholders, type DurationStats } from "../metrics/utils";
+import { BUCKET_ORDER, placeholders, type DurationStats, isoWeek } from "../metrics/utils";
 import { type DevTimeAllocationSummary } from "../metrics/devTimeAllocation";
 import { type BugBacklogResult } from "../metrics/bugBacklog";
 import { type StageTimeSummary } from "../metrics/stageTimeBreakdown";
@@ -15,10 +15,11 @@ import { now } from "../clock";
 
 const ROLLING_WINDOW_DAYS = 30;
 const WEEK_DAYS = 7;
-const WEEKLY_METRICS = new Set(["throughput", "throughput-weighted", "bug-throughput", "dev-time-allocation", "bug-backlog"]);
+const WEEKLY_METRICS = new Set(["throughput", "throughput-weighted", "bug-throughput", "dev-time-allocation", "bug-backlog", "handoff-rework", "first-time-right"]);
 // Métriques cumulatives : fenêtre depuis cutoffDate global (pas 30j glissants).
 // Permet comparaison directe avec `npm run metrics`.
-const CUMULATIVE_METRICS = new Set(["lead-time-by-size", "cycle-time-by-size", "aging-wip"]);
+// rework-cost est cumulatif : byWeek couvre tout l'historique, on extrait la semaine du snapshot.
+const CUMULATIVE_METRICS = new Set(["lead-time-by-size", "cycle-time-by-size", "aging-wip", "rework-cost"]);
 
 export interface SnapshotRow {
   snapshot_date: string;
@@ -171,10 +172,12 @@ export function extractStats(date: string, metricName: string, result: Record<st
   // doit précéder "reworkRatio" et "byWeek" — ReworkCostResult contient les deux
   } else if ("totalReworkDays" in result) {
     const r = result as unknown as ReworkCostResult;
+    const weekKey = isoWeek(date);
+    const weekEntry = r.byWeek.find((w) => w.week === weekKey);
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "count", value: r.count });
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "reworkedCount", value: r.reworkedCount });
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "reworkRatio", value: r.reworkRatio });
-    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "totalReworkDays", value: r.totalReworkDays });
+    out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "totalReworkDays", value: weekEntry?.reworkDays ?? 0 });
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "avgReworkDays", value: r.avgReworkDaysPerReworkedTicket });
     out.push({ snapshot_date: date, metric_name: metricName, bucket: "", stat: "reworkCostRatio", value: r.reworkCostRatio });
   } else if ("reworkRatio" in result) {
