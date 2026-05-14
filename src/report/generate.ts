@@ -773,7 +773,7 @@ export function buildRenderedTabs(input: RenderInput): { id: string; label: stri
     <div class="chart-card"><h3>${escapeHtml(t("report.chart.reworkRatio"))}${helpBtn("handoffRework")}</h3><div class="chart-wrap"><canvas id="reworkRatioChart"></canvas></div></div>
     <div class="chart-card wide"><h3>${escapeHtml(t("report.chart.reworkByType"))}${helpBtn("handoffRework")}</h3><div class="chart-wrap"><canvas id="reworkByTypeChart"></canvas></div></div>
     <div class="chart-card wide"><h3>${escapeHtml(t("report.chart.bottleneckScores"))}${helpBtn("bottleneckAnalysis")}</h3><div class="chart-wrap"><canvas id="bottleneckScoresChart"></canvas></div></div>
-    <div class="chart-card wide"><h3>${escapeHtml(t("report.chart.reworkCost"))}${helpBtn("reworkCost")}</h3><div class="chart-wrap"><canvas id="reworkCostChart"></canvas></div></div>
+    <div class="chart-card"><h3>${escapeHtml(t("report.chart.reworkCost"))}${helpBtn("reworkCost")}</h3><div class="chart-wrap"><canvas id="reworkCostChart"></canvas></div></div>
   </div>`,
   });
 
