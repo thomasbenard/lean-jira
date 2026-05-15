@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "../helpers/db";
 import { makeIssue, seedIssueWithTransitions, TEST_CONFIG, resetSeq } from "../helpers/seeders";
 import { stageTimeBreakdownMetric } from "../../src/metrics/stageTimeBreakdown";
+import { createTestContext } from "../_helpers/createTestContext";
 import type Database from "better-sqlite3";
 import type { MetricConfig } from "../../src/metrics/types";
 
@@ -31,7 +32,7 @@ function seedCanonical(key = "PROJ-1") {
 
 describe("stageTimeBreakdownMetric.compute", () => {
   it("retourne count 0 si aucune issue livrée", () => {
-    const result = stageTimeBreakdownMetric.compute(db, ROLE_CONFIG);
+    const result = stageTimeBreakdownMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(0);
     expect(result.byRole.dev.count).toBe(0);
     expect(result.byRole.qa.count).toBe(0);
@@ -46,7 +47,7 @@ describe("stageTimeBreakdownMetric.compute", () => {
       qaStatuses: [],
       poStatuses: [],
     };
-    const result = stageTimeBreakdownMetric.compute(db, noRoleConfig);
+    const result = stageTimeBreakdownMetric.compute(createTestContext(db, noRoleConfig));
     expect(result.count).toBe(0);
     expect(result.avgShareByRole).toEqual({ dev: 0, qa: 0, po: 0 });
     expect(result.byRole.dev.count).toBe(0);
@@ -54,7 +55,7 @@ describe("stageTimeBreakdownMetric.compute", () => {
 
   it("calcule correctement devDays et qaDays pour ticket nominal", () => {
     seedCanonical();
-    const result = stageTimeBreakdownMetric.compute(db, ROLE_CONFIG);
+    const result = stageTimeBreakdownMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(1);
     expect(result.byRole.dev.avgDays).toBe(2);
     expect(result.byRole.dev.medianDays).toBe(2);
@@ -66,7 +67,7 @@ describe("stageTimeBreakdownMetric.compute", () => {
 
   it("avgShareByRole correct pour ticket nominal (dev=0.5, qa=0.5)", () => {
     seedCanonical();
-    const result = stageTimeBreakdownMetric.compute(db, ROLE_CONFIG);
+    const result = stageTimeBreakdownMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.avgShareByRole.dev).toBeCloseTo(0.5);
     expect(result.avgShareByRole.qa).toBeCloseTo(0.5);
     expect(result.avgShareByRole.po).toBe(0);
@@ -81,7 +82,7 @@ describe("stageTimeBreakdownMetric.compute", () => {
       { to: "In Progress", at: "2025-01-13T09:00:00Z" },
       { to: "Done",        at: "2025-01-14T09:00:00Z" },
     ]);
-    const result = stageTimeBreakdownMetric.compute(db, ROLE_CONFIG);
+    const result = stageTimeBreakdownMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(1);
     expect(result.byRole.dev.avgDays).toBe(3);
     expect(result.byRole.qa.avgDays).toBe(1);
@@ -92,7 +93,7 @@ describe("stageTimeBreakdownMetric.compute", () => {
       { to: "In Progress", at: "2025-01-08T09:00:00Z" },
       { to: "Done",        at: "2025-01-14T09:00:00Z" },
     ]);
-    const result = stageTimeBreakdownMetric.compute(db, ROLE_CONFIG);
+    const result = stageTimeBreakdownMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(1);
   });
 
@@ -102,14 +103,14 @@ describe("stageTimeBreakdownMetric.compute", () => {
       { to: "Done",        at: "2025-01-08T09:00:00Z" }, // done avant devStart
       { to: "In Progress", at: "2025-01-10T09:00:00Z" }, // devStart après done
     ]);
-    const result = stageTimeBreakdownMetric.compute(db, ROLE_CONFIG);
+    const result = stageTimeBreakdownMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(0);
   });
 
   it("cutoffDate exclut les tickets livrés avant la date", () => {
     seedCanonical(); // done 2025-01-14
     const cfg = { ...ROLE_CONFIG, cutoffDate: "2025-01-15" };
-    const result = stageTimeBreakdownMetric.compute(db, cfg);
+    const result = stageTimeBreakdownMetric.compute(createTestContext(db, cfg));
     expect(result.count).toBe(0);
   });
 
@@ -130,7 +131,7 @@ describe("stageTimeBreakdownMetric.compute", () => {
       { to: "In Progress", at: "2024-01-02T09:00:00Z" },
       { to: "Done",        at: "2024-12-01T09:00:00Z" },
     ]);
-    const result = stageTimeBreakdownMetric.compute(db, cfg);
+    const result = stageTimeBreakdownMetric.compute(createTestContext(db, cfg));
     expect(result.count).toBe(3);
     expect(result.excludedOutliers).toBe(1);
   });
@@ -157,7 +158,7 @@ describe("stageTimeBreakdownMetric.compute", () => {
       { to: "In Progress", at: "2025-01-08T09:00:00Z" },
       { to: "Done",        at: "2025-01-13T09:00:00Z" },
     ]);
-    const result = stageTimeBreakdownMetric.compute(db, specialConfig);
+    const result = stageTimeBreakdownMetric.compute(createTestContext(db, specialConfig));
     expect(result.count).toBe(2);
     // Seul T1 contribue au share (T2 sum=0 exclu) → dev share = 1.0
     expect(result.avgShareByRole.dev).toBeCloseTo(1);

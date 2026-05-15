@@ -1,13 +1,9 @@
-import type Database from "better-sqlite3";
-import { type Metric, type MetricConfig } from "./types";
+import { type Metric } from "./types";
+import type { MetricsContext } from "./context";
 import {
-  fetchDeliveredTransitions,
-  groupByIssue,
-  computeRoleDays,
   toRoleStatuses,
   statsFromDays,
   removeUpperOutliers,
-  workingDaysBetween,
   type DurationStats,
   type RoleStatuses,
 } from "./utils";
@@ -42,8 +38,8 @@ export const stageTimeBreakdownMetric: Metric<StageTimeSummary> = {
   description:
     "Temps médian passé dans chaque rôle (dev/qa/po) sur la population cycle-time. Révèle où le lead time est consommé.",
 
-  compute(db: Database.Database, config: MetricConfig): StageTimeSummary {
-    const roles: RoleStatuses = toRoleStatuses(config);
+  compute(ctx: MetricsContext): StageTimeSummary {
+    const roles: RoleStatuses = toRoleStatuses(ctx.config);
     const allEmpty =
       roles.devStatuses.length === 0 &&
       roles.qaStatuses.length === 0 &&
@@ -56,8 +52,9 @@ export const stageTimeBreakdownMetric: Metric<StageTimeSummary> = {
       return emptyResult();
     }
 
-    const rows = fetchDeliveredTransitions(db, config);
-    const byIssue = groupByIssue(rows);
+    const devSet = new Set(roles.devStatuses);
+    const qaSet = new Set(roles.qaStatuses);
+    const poSet = new Set(roles.poStatuses);
 
     const rawIssues: {
       key: string;
@@ -68,17 +65,36 @@ export const stageTimeBreakdownMetric: Metric<StageTimeSummary> = {
       cycleDays: number;
     }[] = [];
 
-    for (const [key, transitions] of byIssue) {
-      const done_at = transitions[0].done_at;
-      const started_at = transitions[0].started_at;
-      const { devDays, qaDays, poDays } = computeRoleDays(transitions, done_at, roles);
-      const cycleDays = workingDaysBetween(started_at, done_at);
-      rawIssues.push({ key, done_at, devDays, qaDays, poDays, cycleDays });
+    for (const sample of ctx.cycleTimePopulation) {
+      // pourquoi : filtre des anomalies (done_at < started_at) — équivalent du JOIN vide en SQL legacy
+      if (sample.doneAt < sample.startedAt) { continue; }
+      const allTrans = ctx.transitionsByIssue.get(sample.issueKey) ?? [];
+      // pourquoi : SQL legacy filtrait tr.transitioned_at >= started_at AND <= done_at
+      const trans = allTrans.filter(
+        (t) => t.transitionedAt >= sample.startedAt && t.transitionedAt <= sample.doneAt,
+      );
+
+      let devDays = 0;
+      let qaDays = 0;
+      let poDays = 0;
+      for (let i = 0; i < trans.length; i++) {
+        const start = trans[i].transitionedAt;
+        const end = i + 1 < trans.length ? trans[i + 1].transitionedAt : sample.doneAt;
+        if (new Date(end).getTime() <= new Date(start).getTime()) { continue; }
+        const days = ctx.workingDaysBetween(start, end);
+        const status = trans[i].toStatus;
+        if (devSet.has(status)) { devDays += days; }
+        else if (qaSet.has(status)) { qaDays += days; }
+        else if (poSet.has(status)) { poDays += days; }
+      }
+
+      const cycleDays = ctx.workingDaysBetween(sample.startedAt, sample.doneAt);
+      rawIssues.push({ key: sample.issueKey, done_at: sample.doneAt, devDays, qaDays, poDays, cycleDays });
     }
 
     let kept = rawIssues;
     let excluded = 0;
-    if (config.excludeOutliers !== false && rawIssues.length >= 4) {
+    if (ctx.config.excludeOutliers !== false && rawIssues.length >= 4) {
       const totals = rawIssues.map((i) => i.cycleDays);
       const { kept: keptTotals } = removeUpperOutliers(totals);
       const upper = keptTotals.length > 0 ? keptTotals[keptTotals.length - 1] : Infinity;
