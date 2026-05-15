@@ -1,6 +1,5 @@
-import type Database from "better-sqlite3";
-import { type Metric, type MetricConfig } from "./types";
-import { buildExcludeIssueTypesFragment, isoWeek } from "./utils";
+import { type Metric } from "./types";
+import type { MetricsContext } from "./context";
 
 export interface StageWeekRow {
   week: string;
@@ -27,7 +26,8 @@ export const stageThroughputGapMetric: Metric<StageThroughputGapResult> = {
   description:
     "Entrées/sorties par rôle par semaine. Net positif persistant = bottleneck. Prédictif.",
 
-  compute(db: Database.Database, config: MetricConfig): StageThroughputGapResult {
+  compute(ctx: MetricsContext): StageThroughputGapResult {
+    const config = ctx.config;
     const roles = {
       dev: new Set(config.devStatuses ?? []),
       qa: new Set(config.qaStatuses ?? []),
@@ -40,33 +40,8 @@ export const stageThroughputGapMetric: Metric<StageThroughputGapResult> = {
       return { byWeek: [], avgNetByRole: { dev: 0, qa: 0, po: 0 } };
     }
 
-    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes);
-    const cutoffSql = config.cutoffDate ? "AND t.transitioned_at >= ?" : "";
-    const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
-    const endSql = config.windowEndDate ? "AND t.transitioned_at <= ?" : "";
-    const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
-
-    const rows = db.prepare(`
-      SELECT t.issue_key, t.to_status, t.transitioned_at
-      FROM transitions t
-      JOIN issues i ON i.key = t.issue_key
-      WHERE 1=1 ${excludeSql} ${cutoffSql} ${endSql}
-      ORDER BY t.issue_key ASC, t.transitioned_at ASC, t.id ASC
-    `).all(...excludeArgs, ...cutoffArgs, ...endArgs) as {
-      issue_key: string;
-      to_status: string;
-      transitioned_at: string;
-    }[];
-
-    const byIssue = new Map<string, { to_status: string; transitioned_at: string }[]>();
-    for (const r of rows) {
-      let list = byIssue.get(r.issue_key);
-      if (!list) {
-        list = [];
-        byIssue.set(r.issue_key, list);
-      }
-      list.push({ to_status: r.to_status, transitioned_at: r.transitioned_at });
-    }
+    const cutoff = config.cutoffDate;
+    const windowEnd = config.windowEndDate;
 
     const weekMap = new Map<string, Record<`${RoleKey}In` | `${RoleKey}Out`, number>>();
 
@@ -86,12 +61,20 @@ export const stageThroughputGapMetric: Metric<StageThroughputGapResult> = {
       return null;
     };
 
-    for (const transitions of byIssue.values()) {
+    // pourquoi : ctx.transitionsByIssue est déjà filtré par excludeIssueTypes en amont
+    // et trié par (transitionedAt, id) — équivalent du SELECT legacy avec ORDER BY
+    for (const transitions of ctx.transitionsByIssue.values()) {
       let prevRole: RoleKey | null = null;
       for (const t of transitions) {
-        const curRole = getRole(t.to_status);
+        // Filtres appliqués au niveau transition (≠ filtres au niveau issue) :
+        // SQL legacy utilise >= cutoff / <= windowEnd en compare lexicographique
+        // (équivalent string compare JS sur ISO timestamps).
+        if (cutoff && t.transitionedAt < cutoff) { continue; }
+        if (windowEnd && t.transitionedAt > windowEnd) { continue; }
+
+        const curRole = getRole(t.toStatus);
         if (curRole !== prevRole) {
-          const week = isoWeek(t.transitioned_at);
+          const week = ctx.isoWeek(t.transitionedAt);
           if (prevRole !== null) {
             getWeekEntry(week)[`${prevRole}Out`]++;
           }
