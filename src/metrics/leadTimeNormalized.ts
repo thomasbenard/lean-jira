@@ -25,7 +25,7 @@ export const leadTimeNormalizedMetric: Metric<LeadTimeNormalizedResult> = {
       if (bugSet.has(issue.issueType)) { continue; }
       const estimateSeconds = issue.originalEstimateSeconds;
       if (estimateSeconds === null || estimateSeconds <= 0) { continue; }
-      const transitions = ctx.transitionsByIssue.get(sample.issueKey)!;
+      const transitions = ctx.transitionsByIssue.get(sample.issueKey) ?? [];
       const todoTransition = transitions.find((t) => todoSet.has(t.toStatus));
       if (!todoTransition) { continue; }
       const leadDays = ctx.workingDaysBetween(todoTransition.transitionedAt, sample.doneAt);

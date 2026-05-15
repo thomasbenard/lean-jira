@@ -27,7 +27,7 @@ export interface MetricsContext {
 }
 
 export function buildMetricsContext(store: ReadStore, config: MetricConfig): MetricsContext {
-  const excludeSet = new Set(config.excludeIssueTypes ?? []);
+  const excludeSet = new Set(config.excludeIssueTypes);
   const issues = store.issues.all().filter((i) => !excludeSet.has(i.issueType));
   const issueKeys = new Set(issues.map((i) => i.key));
 

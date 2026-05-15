@@ -25,7 +25,7 @@ export const leadTimeBySizeMetric: Metric<LeadTimeBySizeResult> = {
     for (const sample of ctx.cycleTimePopulation) {
       const issue = ctx.issueByKey.get(sample.issueKey);
       if (!issue) { continue; }
-      const transitions = ctx.transitionsByIssue.get(sample.issueKey)!;
+      const transitions = ctx.transitionsByIssue.get(sample.issueKey) ?? [];
       const todoTransition = transitions.find((t) => todoSet.has(t.toStatus));
       if (!todoTransition) { continue; }
       if (sample.doneAt < todoTransition.transitionedAt) { continue; }

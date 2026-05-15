@@ -16,11 +16,11 @@ export const wipMetric: Metric<WipResult> = {
     const activeSprints = ctx.store.sprints.all()
       .filter((s) => s.state === "active")
       .sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""));
-    const sprint = activeSprints[0];
 
-    if (!sprint) {
+    if (activeSprints.length === 0) {
       return { currentWip: 0, sprintName: null, issueKeys: [] };
     }
+    const sprint = activeSprints[0];
 
     const inProgressSet = new Set(ctx.config.inProgressStatuses);
     const issueKeys: string[] = [];

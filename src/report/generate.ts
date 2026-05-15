@@ -20,7 +20,7 @@ import { t, getCurrentLocale, type LocaleShape, type LocaleCode } from "../i18n/
 import { CHART_DEFS, serializeChartDefs, type ChartDef } from "./chartDefs";
 import { en } from "../i18n/en";
 import { fr } from "../i18n/fr";
-import type { ReadStore } from "../store/types";
+import type { ReadStore, SprintRecord } from "../store/types";
 import { buildMetricsContext } from "../metrics/context";
 
 export function buildReportLabels(lang: LocaleCode): LocaleShape {
@@ -397,13 +397,13 @@ export function generateReport(
   // on reproduit ce comportement en exigeant explicitement un cutoffDate non vide.
   const cutoffDate = config.cutoffDate;
   const sprintRows: SprintRow[] = store.sprints.all()
-    .filter((s) => s.startDate !== null
+    .filter((s): s is SprintRecord & { startDate: string } => s.startDate !== null
       && (s.endDate === null || (cutoffDate !== undefined && s.endDate >= cutoffDate)))
-    .sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""))
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))
     .map((s) => ({
       name: s.name,
       state: s.state,
-      start_date: s.startDate as string,
+      start_date: s.startDate,
       end_date: s.endDate,
     }));
   const sprintCharts = sprintRows.length > 0
@@ -1311,11 +1311,12 @@ export function buildScopeAlertBanner(store: ReadStore, scopeData: ScopeChangeRe
 
   // pourquoi : ticket 050 — reproduit `WHERE state='active' ORDER BY start_date DESC LIMIT 1`
   // côté JS ; localeCompare décroissant simule le ORDER BY DESC.
-  const activeSprint = store.sprints.all()
+  const activeSprints = store.sprints.all()
     .filter((s) => s.state === "active")
-    .sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""))[0];
+    .sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""));
 
-  if (!activeSprint) {return "";}
+  if (activeSprints.length === 0) {return "";}
+  const activeSprint = activeSprints[0];
 
   const alertSprints = (scopeData.bySprint[activeSprint.name]?.changedIssues ?? 0) > 0
     ? [activeSprint.name]
@@ -1395,7 +1396,7 @@ export function buildScopeSection(scopeData: ScopeChangeResult, store: ReadStore
           .filter((s) => sprintNamesSet.has(s.name))
           .map((s) => ({ name: s.name, start_date: s.startDate ?? "" }))
       : [];
-    const sprintStartByName = new Map(sprintStartRows.map((r) => [r.name, r.start_date ?? ""]));
+    const sprintStartByName = new Map(sprintStartRows.map((r) => [r.name, r.start_date]));
 
     const sprintByKey = new Map<string, string>();
     for (const [sprintName, stats] of Object.entries(scopeData.bySprint)) {

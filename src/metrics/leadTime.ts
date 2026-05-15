@@ -21,7 +21,7 @@ export const leadTimeMetric: Metric<LeadTimeSummary> = {
     const todoSet = new Set(ctx.config.todoStatuses);
     const issues: LeadTimeIssue[] = [];
     for (const sample of ctx.cycleTimePopulation) {
-      const list = ctx.transitionsByIssue.get(sample.issueKey)!;
+      const list = ctx.transitionsByIssue.get(sample.issueKey) ?? [];
       const todoTransition = list.find((t) => todoSet.has(t.toStatus));
       if (!todoTransition) { continue; }
       const todoAt = todoTransition.transitionedAt;
