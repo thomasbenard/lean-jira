@@ -2,30 +2,41 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "../helpers/db";
 import { makeIssue, seedIssueWithTransitions, TEST_CONFIG, resetSeq } from "../helpers/seeders";
 import { backfillSnapshots } from "../../src/snapshots/compute";
-import { getStoredSnapshotWindowDays, persistSnapshotWindowDays } from "../../src/db/store";
 import { SqliteStore } from "../../src/store/sqlite";
 import type Database from "better-sqlite3";
 
 let db: Database.Database;
+let store: SqliteStore;
 beforeEach(() => {
   db = createTestDb();
+  store = new SqliteStore(db);
   resetSeq();
 });
 
+// pourquoi : remplace getStoredSnapshotWindowDays / persistSnapshotWindowDays (legacy db/store).
+// La valeur est persistée dans app_config avec parsing Number côté lecture.
+function getStoredSnapshotWindowDays(): number | null {
+  const v = store.appConfig.get("snapshot_window_days");
+  return v ? Number(v) : null;
+}
+function persistSnapshotWindowDays(days: number): void {
+  store.appConfig.set("snapshot_window_days", String(days));
+}
+
 describe("getStoredSnapshotWindowDays", () => {
   it("retourne null si aucune valeur stockée", () => {
-    expect(getStoredSnapshotWindowDays(db)).toBeNull();
+    expect(getStoredSnapshotWindowDays()).toBeNull();
   });
 
   it("retourne la valeur persistée", () => {
-    persistSnapshotWindowDays(db, 14);
-    expect(getStoredSnapshotWindowDays(db)).toBe(14);
+    persistSnapshotWindowDays(14);
+    expect(getStoredSnapshotWindowDays()).toBe(14);
   });
 
   it("écrase la valeur précédente", () => {
-    persistSnapshotWindowDays(db, 14);
-    persistSnapshotWindowDays(db, 60);
-    expect(getStoredSnapshotWindowDays(db)).toBe(60);
+    persistSnapshotWindowDays(14);
+    persistSnapshotWindowDays(60);
+    expect(getStoredSnapshotWindowDays()).toBe(60);
   });
 });
 

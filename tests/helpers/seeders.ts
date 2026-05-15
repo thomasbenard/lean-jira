@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import { upsertIssues, upsertSprints, replaceTransitions, upsertStatuses } from "../../src/db/store";
+import { SqliteStore } from "../../src/store/sqlite";
 import type { StoredIssue, StoredSprint, StoredStatus, Transition } from "../../src/jira/types";
 import type { MetricConfig } from "../../src/metrics/types";
 
@@ -44,8 +44,9 @@ export function seedIssueWithTransitions(
   issue: StoredIssue,
   steps: Array<{ to: string; at: string; from?: string | null }>
 ): void {
-  upsertIssues(db, [issue]);
-  replaceTransitions(db, issue.key, makeTransitions(issue.key, steps));
+  const store = new SqliteStore(db);
+  store.issues.upsertMany([issue]);
+  store.transitions.replaceForIssue(issue.key, makeTransitions(issue.key, steps));
 }
 
 export function makeSprint(overrides: Partial<StoredSprint> = {}): StoredSprint {
@@ -61,12 +62,14 @@ export function makeSprint(overrides: Partial<StoredSprint> = {}): StoredSprint 
 }
 
 export function seedSprint(db: Database.Database, sprint: StoredSprint): void {
-  upsertSprints(db, [sprint]);
+  const store = new SqliteStore(db);
+  store.sprints.upsertMany([sprint]);
 }
 
 export function seedStatus(db: Database.Database, name: string, categoryKey: string): void {
   const status: StoredStatus = { name, categoryKey, categoryName: categoryKey };
-  upsertStatuses(db, [status]);
+  const store = new SqliteStore(db);
+  store.statuses.upsertMany([status]);
 }
 
 export const TEST_CONFIG: MetricConfig = {

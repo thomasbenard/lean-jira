@@ -1,33 +1,35 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "../helpers/db";
-import { upsertIssues, upsertSprints, upsertStatuses, replaceTransitions, replaceAllIssueSprints, getDoneStatusNames, getAllStatuses, logSync, getLastSyncDate, getDistinctTransitionStatuses } from "../../src/db/store";
+import { SqliteStore } from "../../src/store/sqlite";
 import type Database from "better-sqlite3";
 import { makeIssue, makeSprint, makeTransitions, resetSeq } from "../helpers/seeders";
 
 let db: Database.Database;
+let store: SqliteStore;
 beforeEach(() => {
   db = createTestDb();
+  store = new SqliteStore(db);
   resetSeq();
 });
 
-describe("upsertIssues", () => {
+describe("issues.upsertMany", () => {
   it("insère une nouvelle issue", () => {
-    upsertIssues(db, [makeIssue({ key: "PROJ-1" })]);
+    store.issues.upsertMany([makeIssue({ key: "PROJ-1" })]);
     const row = db.prepare("SELECT key, issue_type FROM issues WHERE key = 'PROJ-1'").get() as { key: string; issue_type: string };
     expect(row.key).toBe("PROJ-1");
     expect(row.issue_type).toBe("Story");
   });
 
   it("met à jour summary et current_status sur conflit de clé", () => {
-    upsertIssues(db, [makeIssue({ key: "PROJ-1", summary: "Avant", currentStatus: "To Do" })]);
-    upsertIssues(db, [makeIssue({ key: "PROJ-1", summary: "Après", currentStatus: "Done" })]);
+    store.issues.upsertMany([makeIssue({ key: "PROJ-1", summary: "Avant", currentStatus: "To Do" })]);
+    store.issues.upsertMany([makeIssue({ key: "PROJ-1", summary: "Après", currentStatus: "Done" })]);
     const row = db.prepare("SELECT summary, current_status FROM issues WHERE key = 'PROJ-1'").get() as { summary: string; current_status: string };
     expect(row.summary).toBe("Après");
     expect(row.current_status).toBe("Done");
   });
 
   it("insère plusieurs issues en transaction", () => {
-    upsertIssues(db, [
+    store.issues.upsertMany([
       makeIssue({ key: "PROJ-1" }),
       makeIssue({ key: "PROJ-2" }),
       makeIssue({ key: "PROJ-3" }),
@@ -37,68 +39,68 @@ describe("upsertIssues", () => {
   });
 
   it("resolved_at peut être null", () => {
-    upsertIssues(db, [makeIssue({ key: "PROJ-1", resolvedAt: null })]);
+    store.issues.upsertMany([makeIssue({ key: "PROJ-1", resolvedAt: null })]);
     const row = db.prepare("SELECT resolved_at FROM issues WHERE key = 'PROJ-1'").get() as { resolved_at: string | null };
     expect(row.resolved_at).toBeNull();
   });
 });
 
-describe("upsertSprints", () => {
+describe("sprints.upsertMany", () => {
   it("insère un nouveau sprint", () => {
-    upsertSprints(db, [makeSprint({ id: 10, name: "Sprint A" })]);
+    store.sprints.upsertMany([makeSprint({ id: 10, name: "Sprint A" })]);
     const row = db.prepare("SELECT id, name FROM sprints WHERE id = 10").get() as { id: number; name: string };
     expect(row.id).toBe(10);
     expect(row.name).toBe("Sprint A");
   });
 
   it("met à jour state et name sur conflit d'id", () => {
-    upsertSprints(db, [makeSprint({ id: 10, name: "Ancien", state: "future" })]);
-    upsertSprints(db, [makeSprint({ id: 10, name: "Nouveau", state: "active" })]);
+    store.sprints.upsertMany([makeSprint({ id: 10, name: "Ancien", state: "future" })]);
+    store.sprints.upsertMany([makeSprint({ id: 10, name: "Nouveau", state: "active" })]);
     const row = db.prepare("SELECT name, state FROM sprints WHERE id = 10").get() as { name: string; state: string };
     expect(row.name).toBe("Nouveau");
     expect(row.state).toBe("active");
   });
 });
 
-describe("replaceAllIssueSprints", () => {
+describe("issueSprints.replaceForIssues", () => {
   it("insère les appartenances sprint d'une issue", () => {
-    upsertIssues(db, [makeIssue({ key: "PROJ-1" })]);
-    upsertSprints(db, [makeSprint({ id: 10, name: "Sprint A" }), makeSprint({ id: 11, name: "Sprint B" })]);
-    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [10, 11] }]);
+    store.issues.upsertMany([makeIssue({ key: "PROJ-1" })]);
+    store.sprints.upsertMany([makeSprint({ id: 10, name: "Sprint A" }), makeSprint({ id: 11, name: "Sprint B" })]);
+    store.issueSprints.replaceForIssues([{ key: "PROJ-1", sprintIds: [10, 11] }]);
     const rows = db.prepare("SELECT sprint_id FROM issue_sprints WHERE issue_key = 'PROJ-1' ORDER BY sprint_id").all() as { sprint_id: number }[];
     expect(rows.map((r) => r.sprint_id)).toEqual([10, 11]);
   });
 
   it("remplace les entrées existantes (replace-all)", () => {
-    upsertIssues(db, [makeIssue({ key: "PROJ-1" })]);
-    upsertSprints(db, [makeSprint({ id: 10, name: "Sprint A" }), makeSprint({ id: 11, name: "Sprint B" })]);
-    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [10] }]);
-    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [11] }]);
+    store.issues.upsertMany([makeIssue({ key: "PROJ-1" })]);
+    store.sprints.upsertMany([makeSprint({ id: 10, name: "Sprint A" }), makeSprint({ id: 11, name: "Sprint B" })]);
+    store.issueSprints.replaceForIssues([{ key: "PROJ-1", sprintIds: [10] }]);
+    store.issueSprints.replaceForIssues([{ key: "PROJ-1", sprintIds: [11] }]);
     const rows = db.prepare("SELECT sprint_id FROM issue_sprints WHERE issue_key = 'PROJ-1'").all() as { sprint_id: number }[];
     expect(rows).toHaveLength(1);
     expect(rows[0].sprint_id).toBe(11);
   });
 
   it("ignore les doublons dans sprintIds", () => {
-    upsertIssues(db, [makeIssue({ key: "PROJ-1" })]);
-    upsertSprints(db, [makeSprint({ id: 10, name: "Sprint A" })]);
-    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [10, 10] }]);
+    store.issues.upsertMany([makeIssue({ key: "PROJ-1" })]);
+    store.sprints.upsertMany([makeSprint({ id: 10, name: "Sprint A" })]);
+    store.issueSprints.replaceForIssues([{ key: "PROJ-1", sprintIds: [10, 10] }]);
     const rows = db.prepare("SELECT sprint_id FROM issue_sprints WHERE issue_key = 'PROJ-1'").all();
     expect(rows).toHaveLength(1);
   });
 
   it("insère rien si sprintIds vide", () => {
-    upsertIssues(db, [makeIssue({ key: "PROJ-1" })]);
-    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [] }]);
+    store.issues.upsertMany([makeIssue({ key: "PROJ-1" })]);
+    store.issueSprints.replaceForIssues([{ key: "PROJ-1", sprintIds: [] }]);
     const rows = db.prepare("SELECT * FROM issue_sprints WHERE issue_key = 'PROJ-1'").all();
     expect(rows).toHaveLength(0);
   });
 });
 
-describe("replaceTransitions", () => {
+describe("transitions.replaceForIssue", () => {
   it("insère des transitions pour une issue", () => {
-    upsertIssues(db, [makeIssue({ key: "PROJ-1" })]);
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [
+    store.issues.upsertMany([makeIssue({ key: "PROJ-1" })]);
+    store.transitions.replaceForIssue("PROJ-1", makeTransitions("PROJ-1", [
       { to: "In Progress", at: "2025-01-06T09:00:00Z" },
       { to: "Done", at: "2025-01-07T09:00:00Z" },
     ]));
@@ -107,11 +109,11 @@ describe("replaceTransitions", () => {
   });
 
   it("remplace les transitions existantes pour la même issue", () => {
-    upsertIssues(db, [makeIssue({ key: "PROJ-1" })]);
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [
+    store.issues.upsertMany([makeIssue({ key: "PROJ-1" })]);
+    store.transitions.replaceForIssue("PROJ-1", makeTransitions("PROJ-1", [
       { to: "In Progress", at: "2025-01-06T09:00:00Z" },
     ]));
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [
+    store.transitions.replaceForIssue("PROJ-1", makeTransitions("PROJ-1", [
       { to: "In Progress", at: "2025-01-08T09:00:00Z" },
       { to: "Done", at: "2025-01-10T09:00:00Z" },
     ]));
@@ -122,159 +124,113 @@ describe("replaceTransitions", () => {
   });
 
   it("n'affecte pas les transitions d'une autre issue", () => {
-    upsertIssues(db, [makeIssue({ key: "PROJ-1" }), makeIssue({ key: "PROJ-2" })]);
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-01-06T09:00:00Z" }]));
-    replaceTransitions(db, "PROJ-2", makeTransitions("PROJ-2", [{ to: "Done", at: "2025-01-07T09:00:00Z" }]));
-    replaceTransitions(db, "PROJ-1", []);
+    store.issues.upsertMany([makeIssue({ key: "PROJ-1" }), makeIssue({ key: "PROJ-2" })]);
+    store.transitions.replaceForIssue("PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-01-06T09:00:00Z" }]));
+    store.transitions.replaceForIssue("PROJ-2", makeTransitions("PROJ-2", [{ to: "Done", at: "2025-01-07T09:00:00Z" }]));
+    store.transitions.replaceForIssue("PROJ-1", []);
     const count = (db.prepare("SELECT COUNT(*) AS c FROM transitions WHERE issue_key = 'PROJ-2'").get() as { c: number }).c;
     expect(count).toBe(1);
   });
 });
 
-describe("upsertStatuses", () => {
+describe("statuses.upsertMany", () => {
   it("insère un nouveau statut", () => {
-    upsertStatuses(db, [{ name: "Done", categoryKey: "done", categoryName: "Done" }]);
+    store.statuses.upsertMany([{ name: "Done", categoryKey: "done", categoryName: "Done" }]);
     const row = db.prepare("SELECT category_key FROM statuses WHERE name = 'Done'").get() as { category_key: string };
     expect(row.category_key).toBe("done");
   });
 
   it("met à jour category_key sur conflit de name", () => {
-    upsertStatuses(db, [{ name: "À valider", categoryKey: "indeterminate", categoryName: "In Progress" }]);
-    upsertStatuses(db, [{ name: "À valider", categoryKey: "done", categoryName: "Done" }]);
+    store.statuses.upsertMany([{ name: "À valider", categoryKey: "indeterminate", categoryName: "In Progress" }]);
+    store.statuses.upsertMany([{ name: "À valider", categoryKey: "done", categoryName: "Done" }]);
     const row = db.prepare("SELECT category_key FROM statuses WHERE name = 'À valider'").get() as { category_key: string };
     expect(row.category_key).toBe("done");
   });
 });
 
-describe("getDoneStatusNames", () => {
-  it("retourne seulement les statuts category_key='done'", () => {
-    upsertStatuses(db, [
+describe("statuses.all — filtrage done in-memory", () => {
+  // pourquoi : équivalent de l'ancien getDoneStatusNames ; production utilise désormais
+  // statuses.all().filter(s => s.categoryKey === "done") en mémoire.
+  it("permet d'extraire les statuts category_key='done'", () => {
+    store.statuses.upsertMany([
       { name: "Done", categoryKey: "done", categoryName: "Done" },
       { name: "In Progress", categoryKey: "indeterminate", categoryName: "In Progress" },
       { name: "To Do", categoryKey: "new", categoryName: "New" },
     ]);
-    const names = getDoneStatusNames(db);
-    expect(names.has("Done")).toBe(true);
-    expect(names.has("In Progress")).toBe(false);
-    expect(names.has("To Do")).toBe(false);
+    const doneNames = new Set(store.statuses.all().filter((s) => s.categoryKey === "done").map((s) => s.name));
+    expect(doneNames.has("Done")).toBe(true);
+    expect(doneNames.has("In Progress")).toBe(false);
+    expect(doneNames.has("To Do")).toBe(false);
   });
 
   it("retourne un Set vide si aucun statut done", () => {
-    const names = getDoneStatusNames(db);
-    expect(names.size).toBe(0);
-  });
-
-  it("retourne un Set (pas un Array)", () => {
-    upsertStatuses(db, [{ name: "Done", categoryKey: "done", categoryName: "Done" }]);
-    const result = getDoneStatusNames(db);
-    expect(result instanceof Set).toBe(true);
+    const doneNames = new Set(store.statuses.all().filter((s) => s.categoryKey === "done").map((s) => s.name));
+    expect(doneNames.size).toBe(0);
   });
 });
 
-describe("getAllStatuses", () => {
+describe("statuses.all", () => {
   it("retourne une liste vide si aucun statut en base", () => {
-    expect(getAllStatuses(db)).toEqual([]);
+    expect(store.statuses.all()).toEqual([]);
   });
 
   it("retourne tous les statuts avec name et categoryKey", () => {
-    upsertStatuses(db, [
+    store.statuses.upsertMany([
       { name: "Done", categoryKey: "done", categoryName: "Done" },
       { name: "In Progress", categoryKey: "indeterminate", categoryName: "In Progress" },
     ]);
-    const result = getAllStatuses(db);
+    const result = store.statuses.all();
     expect(result).toHaveLength(2);
     expect(result.some((s) => s.name === "Done" && s.categoryKey === "done")).toBe(true);
     expect(result.some((s) => s.name === "In Progress" && s.categoryKey === "indeterminate")).toBe(true);
   });
 
   it("retourne les statuts triés par nom", () => {
-    upsertStatuses(db, [
+    store.statuses.upsertMany([
       { name: "Zorro", categoryKey: "new", categoryName: "New" },
       { name: "Alpha", categoryKey: "done", categoryName: "Done" },
     ]);
-    const result = getAllStatuses(db);
+    const result = store.statuses.all();
     expect(result[0].name).toBe("Alpha");
     expect(result[1].name).toBe("Zorro");
   });
 });
 
-describe("logSync", () => {
+describe("syncLog.append", () => {
   it("insère une ligne avec project_key et issues_count", () => {
-    logSync(db, "KECK", 42);
+    store.syncLog.append({ syncedAt: "2026-04-20T10:00:00.000Z", issuesCount: 42, projectKey: "KECK" });
     const row = db.prepare("SELECT project_key, issues_count FROM sync_log").get() as { project_key: string; issues_count: number };
     expect(row.project_key).toBe("KECK");
     expect(row.issues_count).toBe(42);
   });
 
   it("plusieurs appels OK (autoincrement, pas de PK conflict)", () => {
-    logSync(db, "KECK", 10);
-    logSync(db, "KECK", 20);
+    store.syncLog.append({ syncedAt: "2026-04-20T10:00:00.000Z", issuesCount: 10, projectKey: "KECK" });
+    store.syncLog.append({ syncedAt: "2026-04-21T10:00:00.000Z", issuesCount: 20, projectKey: "KECK" });
     const count = (db.prepare("SELECT COUNT(*) AS c FROM sync_log").get() as { c: number }).c;
     expect(count).toBe(2);
   });
 });
 
-describe("getLastSyncDate", () => {
+describe("syncLog.lastByProject", () => {
   it("retourne null si sync_log est vide", () => {
-    expect(getLastSyncDate(db, "KECK")).toBeNull();
+    expect(store.syncLog.lastByProject("KECK")).toBeNull();
   });
 
   it("retourne le synced_at du dernier sync pour le project_key donné", () => {
     db.prepare("INSERT INTO sync_log (synced_at, issues_count, project_key) VALUES (?, ?, ?)").run("2026-04-20T10:00:00.000Z", 10, "KECK");
     db.prepare("INSERT INTO sync_log (synced_at, issues_count, project_key) VALUES (?, ?, ?)").run("2026-04-28T10:30:00.000Z", 20, "KECK");
-    expect(getLastSyncDate(db, "KECK")).toBe("2026-04-28T10:30:00.000Z");
+    expect(store.syncLog.lastByProject("KECK")?.syncedAt).toBe("2026-04-28T10:30:00.000Z");
   });
 
   it("filtre par project_key — retourne null si seul l'autre projet a des syncs", () => {
     db.prepare("INSERT INTO sync_log (synced_at, issues_count, project_key) VALUES (?, ?, ?)").run("2026-04-29T09:00:00.000Z", 5, "AUTRE");
-    expect(getLastSyncDate(db, "PROJ")).toBeNull();
+    expect(store.syncLog.lastByProject("PROJ")).toBeNull();
   });
 
   it("filtre par project_key — retourne le bon sync parmi plusieurs projets", () => {
     db.prepare("INSERT INTO sync_log (synced_at, issues_count, project_key) VALUES (?, ?, ?)").run("2026-04-29T09:00:00.000Z", 5, "AUTRE");
     db.prepare("INSERT INTO sync_log (synced_at, issues_count, project_key) VALUES (?, ?, ?)").run("2026-04-01T08:00:00.000Z", 3, "PROJ");
-    expect(getLastSyncDate(db, "PROJ")).toBe("2026-04-01T08:00:00.000Z");
-  });
-});
-
-describe("getDistinctTransitionStatuses", () => {
-  it("DB vide → retourne tableau vide", () => {
-    expect(getDistinctTransitionStatuses(db)).toEqual([]);
-  });
-
-  it("retourne les noms distincts de to_status sans filtre de date", () => {
-    upsertIssues(db, [makeIssue({ key: "PROJ-1" }), makeIssue({ key: "PROJ-2" })]);
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [
-      { to: "En cours", at: "2025-12-01T09:00:00Z" },
-      { to: "Done", at: "2025-12-02T09:00:00Z" },
-    ]));
-    replaceTransitions(db, "PROJ-2", makeTransitions("PROJ-2", [
-      { to: "En cours", at: "2025-12-03T09:00:00Z" },
-      { to: "Terminé", at: "2025-12-04T09:00:00Z" },
-    ]));
-    const result = getDistinctTransitionStatuses(db);
-    expect(result).toContain("En cours");
-    expect(result).toContain("Done");
-    expect(result).toContain("Terminé");
-    expect(result.length).toBe(3);
-  });
-
-  it("filtre les transitions antérieures à since", () => {
-    upsertIssues(db, [makeIssue({ key: "PROJ-1" })]);
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [
-      { to: "Ancien statut", at: "2025-01-01T09:00:00Z" },
-      { to: "Statut récent", at: "2026-01-01T09:00:00Z" },
-    ]));
-    const result = getDistinctTransitionStatuses(db, "2026-01-01");
-    expect(result).toContain("Statut récent");
-    expect(result).not.toContain("Ancien statut");
-  });
-
-  it("déduplique les noms de statuts sur plusieurs issues", () => {
-    upsertIssues(db, [makeIssue({ key: "PROJ-1" }), makeIssue({ key: "PROJ-2" })]);
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "En cours", at: "2026-01-01T09:00:00Z" }]));
-    replaceTransitions(db, "PROJ-2", makeTransitions("PROJ-2", [{ to: "En cours", at: "2026-01-02T09:00:00Z" }]));
-    const result = getDistinctTransitionStatuses(db);
-    expect(result.filter((s) => s === "En cours").length).toBe(1);
+    expect(store.syncLog.lastByProject("PROJ")?.syncedAt).toBe("2026-04-01T08:00:00.000Z");
   });
 });

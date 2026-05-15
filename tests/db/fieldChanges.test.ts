@@ -1,15 +1,17 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "../helpers/db";
-import { upsertIssues, replaceAllFieldChanges } from "../../src/db/store";
+import { SqliteStore } from "../../src/store/sqlite";
 import type Database from "better-sqlite3";
 import { makeIssue, resetSeq } from "../helpers/seeders";
 import type { FieldChange } from "../../src/jira/types";
 
 let db: Database.Database;
+let store: SqliteStore;
 beforeEach(() => {
   db = createTestDb();
+  store = new SqliteStore(db);
   resetSeq();
-  upsertIssues(db, [makeIssue({ key: "PROJ-1" }), makeIssue({ key: "PROJ-2" })]);
+  store.issues.upsertMany([makeIssue({ key: "PROJ-1" }), makeIssue({ key: "PROJ-2" })]);
 });
 
 function getChanges(issueKey: string) {
@@ -23,7 +25,7 @@ describe("replaceAllFieldChanges", () => {
     const changes: FieldChange[] = [
       { issueKey: "PROJ-1", fieldName: "summary", fromValue: "Ancien titre", toValue: "Nouveau titre", changedAt: "2026-01-10T10:00:00.000Z" },
     ];
-    replaceAllFieldChanges(db, [{ key: "PROJ-1", changes }]);
+    store.issueFieldChanges.replaceForIssues([{ key: "PROJ-1", rows: changes }]);
     const rows = getChanges("PROJ-1");
     expect(rows).toHaveLength(1);
     expect(rows[0].field_name).toBe("summary");
@@ -35,7 +37,7 @@ describe("replaceAllFieldChanges", () => {
     const changes: FieldChange[] = [
       { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2026-01-05T08:00:00.000Z" },
     ];
-    replaceAllFieldChanges(db, [{ key: "PROJ-1", changes }]);
+    store.issueFieldChanges.replaceForIssues([{ key: "PROJ-1", rows: changes }]);
     const rows = getChanges("PROJ-1");
     expect(rows[0].from_value).toBeNull();
     expect(rows[0].to_value).toBe("Sprint 42");
@@ -45,7 +47,7 @@ describe("replaceAllFieldChanges", () => {
     const changes: FieldChange[] = [
       { issueKey: "PROJ-1", fieldName: "description", fromValue: "Une description", toValue: null, changedAt: "2026-01-05T08:00:00.000Z" },
     ];
-    replaceAllFieldChanges(db, [{ key: "PROJ-1", changes }]);
+    store.issueFieldChanges.replaceForIssues([{ key: "PROJ-1", rows: changes }]);
     const rows = getChanges("PROJ-1");
     expect(rows[0].to_value).toBeNull();
   });
@@ -55,13 +57,13 @@ describe("replaceAllFieldChanges", () => {
       { issueKey: "PROJ-1", fieldName: "summary", fromValue: "V1", toValue: "V2", changedAt: "2026-01-01T00:00:00.000Z" },
       { issueKey: "PROJ-1", fieldName: "summary", fromValue: "V2", toValue: "V3", changedAt: "2026-01-02T00:00:00.000Z" },
     ];
-    replaceAllFieldChanges(db, [{ key: "PROJ-1", changes: ancien }]);
+    store.issueFieldChanges.replaceForIssues([{ key: "PROJ-1", rows: ancien }]);
     expect(getChanges("PROJ-1")).toHaveLength(2);
 
     const nouveau: FieldChange[] = [
       { issueKey: "PROJ-1", fieldName: "description", fromValue: null, toValue: "Contenu", changedAt: "2026-01-03T00:00:00.000Z" },
     ];
-    replaceAllFieldChanges(db, [{ key: "PROJ-1", changes: nouveau }]);
+    store.issueFieldChanges.replaceForIssues([{ key: "PROJ-1", rows: nouveau }]);
     const rows = getChanges("PROJ-1");
     expect(rows).toHaveLength(1);
     expect(rows[0].field_name).toBe("description");
@@ -71,19 +73,19 @@ describe("replaceAllFieldChanges", () => {
     const changesProj1: FieldChange[] = [
       { issueKey: "PROJ-1", fieldName: "summary", fromValue: "A", toValue: "B", changedAt: "2026-01-01T00:00:00.000Z" },
     ];
-    replaceAllFieldChanges(db, [{ key: "PROJ-1", changes: changesProj1 }]);
+    store.issueFieldChanges.replaceForIssues([{ key: "PROJ-1", rows: changesProj1 }]);
 
     const changesProj2: FieldChange[] = [
       { issueKey: "PROJ-2", fieldName: "Sprint", fromValue: null, toValue: "Sprint 1", changedAt: "2026-01-01T00:00:00.000Z" },
     ];
-    replaceAllFieldChanges(db, [{ key: "PROJ-2", changes: changesProj2 }]);
+    store.issueFieldChanges.replaceForIssues([{ key: "PROJ-2", rows: changesProj2 }]);
 
-    replaceAllFieldChanges(db, [{ key: "PROJ-2", changes: [] }]);
+    store.issueFieldChanges.replaceForIssues([{ key: "PROJ-2", rows: [] }]);
     expect(getChanges("PROJ-1")).toHaveLength(1);
   });
 
   it("gère une liste vide sans erreur", () => {
-    expect(() => replaceAllFieldChanges(db, [])).not.toThrow();
+    expect(() => store.issueFieldChanges.replaceForIssues([])).not.toThrow();
     expect(getChanges("PROJ-1")).toHaveLength(0);
   });
 });
