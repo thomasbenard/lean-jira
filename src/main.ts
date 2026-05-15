@@ -6,6 +6,8 @@ import type Database from "better-sqlite3";
 import { sync } from "./sync";
 import { openDb, getDoneStatusNames, getAllStatuses, getDistinctTransitionStatuses, getStoredSnapshotWindowDays, persistSnapshotWindowDays } from "./db/store";
 import { runAllMetrics, runMetric, ALL_METRICS } from "./metrics/index";
+import { SqliteStore } from "./store/sqlite/index";
+import { buildMetricsContext } from "./metrics/context";
 import { BUCKET_LABELS, BUCKET_ORDER, percentile, SECONDS_PER_DAY, getDefaultThresholds } from "./metrics/utils";
 import { backfillSnapshots, DEFAULT_ROLLING_WINDOW_DAYS } from "./snapshots/compute";
 import { generateReport, exportDefaultTemplate, type HealthThresholds, type ReportPersonalization } from "./report/generate";
@@ -565,10 +567,13 @@ program
     bootstrapFakeMode(config.jira);
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config, { excludeOutliers: !opts.includeOutliers });
+    // pourquoi : ticket 050 — main.ts injectera SqliteStore en Task 6.1, transitoire ici.
+    const store = new SqliteStore(db);
+    const ctx = buildMetricsContext(store, metricConfig);
 
     const results = opts.metric
-      ? { [opts.metric]: runMetric(opts.metric, db, metricConfig) }
-      : runAllMetrics(db, metricConfig);
+      ? { [opts.metric]: runMetric(opts.metric, ctx) }
+      : runAllMetrics(ctx);
 
     if (opts.json) {
       console.log(JSON.stringify(results, null, 2));

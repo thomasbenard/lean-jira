@@ -8,6 +8,8 @@ import { sync } from "../../src/sync";
 import { openDb } from "../../src/db/store";
 import { runAllMetrics } from "../../src/metrics/index";
 import { loadConfigs, buildMetricConfig } from "../../src/main";
+import { SqliteStore } from "../../src/store/sqlite/index";
+import { buildMetricsContext } from "../../src/metrics/context";
 import { initClock } from "../../src/clock";
 import { initRandom } from "../../src/random";
 
@@ -45,7 +47,9 @@ describe("pipeline fake — golden output", () => {
   it("toutes les métriques produisent un output identique", () => {
     const app = loadConfigs(JIRA_CONFIG, BOARD_CONFIG);
     const config = buildMetricConfig(db, app);
-    const results = runAllMetrics(db, config);
+    const store = new SqliteStore(db);
+    const ctx = buildMetricsContext(store, config);
+    const results = runAllMetrics(ctx);
 
     expect(results).toMatchSnapshot();
   });
