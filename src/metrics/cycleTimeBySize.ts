@@ -1,16 +1,11 @@
-import type Database from "better-sqlite3";
-import { type Metric, type MetricConfig } from "./types";
+import type { Metric } from "./types";
+import type { MetricsContext } from "./context";
 import {
-  buildDeliveredCte,
-  buildExcludeIssueTypesFragment,
-  buildWindowFragment,
   bucketize,
   BUCKET_ORDER,
   type DurationStats,
-  placeholders,
   type SizeBucket,
   statsFromDays,
-  workingDaysBetween,
 } from "./utils";
 
 export interface CycleTimeBySizeResult {
@@ -22,58 +17,35 @@ export const cycleTimeBySizeMetric: Metric<CycleTimeBySizeResult> = {
   description:
     "Cycle-time par bucket de taille (1er 'Développement en cours' -> 1er statut team-done). Exclut attente backlog, design et queue post-dev.",
 
-  compute(db: Database.Database, config: MetricConfig): CycleTimeBySizeResult {
-    const devStartPh = placeholders(config.devStartStatuses);
-    const delivered = buildDeliveredCte(config.doneStatuses);
-    const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
-    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes);
-
-    const rows = db.prepare(`
-      WITH ${delivered.cte}
-      SELECT t.issue_key, MIN(t.transitioned_at) AS started_at, d.done_at,
-             i.original_estimate_seconds, i.story_points, i.size_label, i.issue_type
-      FROM transitions t
-      JOIN issues i ON i.key = t.issue_key
-      JOIN delivered d ON d.issue_key = t.issue_key
-      WHERE t.to_status IN (${devStartPh})
-        ${excludeSql} ${cutoffSql} ${endSql}
-      GROUP BY t.issue_key, d.done_at
-    `).all(
-      ...delivered.args,
-      ...config.devStartStatuses,
-      ...excludeArgs,
-      ...cutoffArgs,
-      ...endArgs,
-    ) as {
-      issue_key: string;
-      started_at: string;
-      done_at: string;
-      original_estimate_seconds: number | null;
-      story_points: number | null;
-      size_label: string | null;
-      issue_type: string;
-    }[];
-
-    const bugTypes = new Set(config.bugIssueTypes);
+  compute(ctx: MetricsContext): CycleTimeBySizeResult {
+    const bugTypes = new Set(ctx.config.bugIssueTypes);
     const daysByBucket = new Map<SizeBucket, number[]>();
-    for (const r of rows) {
-      const days = workingDaysBetween(r.started_at, r.done_at);
-      if (days < 0) {continue;}
+
+    for (const sample of ctx.cycleTimePopulation) {
+      const issue = ctx.issueByKey.get(sample.issueKey);
+      if (!issue) { continue; }
+      const days = ctx.workingDaysBetween(sample.startedAt, sample.doneAt);
+      if (days < 0) { continue; }
       const bucket = bucketize(
-        { originalEstimateSeconds: r.original_estimate_seconds, storyPoints: r.story_points, sizeLabel: r.size_label },
-        bugTypes.has(r.issue_type),
-        config.estimation,
+        { originalEstimateSeconds: issue.originalEstimateSeconds, storyPoints: issue.storyPoints, sizeLabel: issue.sizeLabel },
+        bugTypes.has(issue.issueType),
+        ctx.config.estimation,
       );
-      const list = daysByBucket.get(bucket) ?? [];
+      let list = daysByBucket.get(bucket);
+      if (!list) {
+        list = [];
+        daysByBucket.set(bucket, list);
+      }
       list.push(days);
-      daysByBucket.set(bucket, list);
     }
 
     const buckets: Partial<Record<SizeBucket, DurationStats>> = {};
-    const excludeOutliers = config.excludeOutliers !== false;
+    const excludeOutliers = ctx.config.excludeOutliers !== false;
     for (const b of BUCKET_ORDER) {
       const days = daysByBucket.get(b);
-      if (days && days.length > 0) {buckets[b] = statsFromDays(days, excludeOutliers);}
+      if (days && days.length > 0) {
+        buckets[b] = statsFromDays(days, excludeOutliers);
+      }
     }
 
     return { buckets };
