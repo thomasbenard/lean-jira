@@ -3,6 +3,7 @@ import { createTestDb } from "../helpers/db";
 import { makeIssue, seedIssueWithTransitions, TEST_CONFIG, resetSeq } from "../helpers/seeders";
 import { leadTimeBySizeMetric } from "../../src/metrics/leadTimeBySize";
 import { cycleTimeBySizeMetric } from "../../src/metrics/cycleTimeBySize";
+import { createTestContext } from "../_helpers/createTestContext";
 import type Database from "better-sqlite3";
 import type { MetricConfig } from "../../src/metrics/types";
 
@@ -50,20 +51,20 @@ const TSHIRT_CONFIG: MetricConfig = {
 describe("leadTimeBySize — méthode story-points", () => {
   it("5 SP → bucket M", () => {
     seedWithSp("PROJ-1", 5);
-    const result = leadTimeBySizeMetric.compute(db, SP_CONFIG);
+    const result = leadTimeBySizeMetric.compute(createTestContext(db, SP_CONFIG));
     expect(result.buckets.M).toBeDefined();
     expect(result.buckets.UNESTIMATED).toBeUndefined();
   });
 
   it("SP null → UNESTIMATED", () => {
     seedWithSp("PROJ-1", null);
-    const result = leadTimeBySizeMetric.compute(db, SP_CONFIG);
+    const result = leadTimeBySizeMetric.compute(createTestContext(db, SP_CONFIG));
     expect(result.buckets.UNESTIMATED).toBeDefined();
   });
 
   it("bug avec SP → BUG", () => {
     seedWithSp("BUG-1", 8, "Bug");
-    const result = leadTimeBySizeMetric.compute(db, SP_CONFIG);
+    const result = leadTimeBySizeMetric.compute(createTestContext(db, SP_CONFIG));
     expect(result.buckets.BUG).toBeDefined();
   });
 
@@ -78,7 +79,7 @@ describe("leadTimeBySize — méthode story-points", () => {
         { to: "Done",        at: "2025-01-10T09:00:00Z" },
       ],
     );
-    const resultSp = leadTimeBySizeMetric.compute(db, SP_CONFIG);
+    const resultSp = leadTimeBySizeMetric.compute(createTestContext(db, SP_CONFIG));
     // L'issue doit être dans M via SP, pas via time
     expect(resultSp.buckets.M).toBeDefined();
   });
@@ -87,14 +88,14 @@ describe("leadTimeBySize — méthode story-points", () => {
 describe("cycleTimeBySize — méthode story-points", () => {
   it("5 SP → bucket M, medianDays = 2", () => {
     seedWithSp("PROJ-1", 5);
-    const result = cycleTimeBySizeMetric.compute(db, SP_CONFIG);
+    const result = cycleTimeBySizeMetric.compute(createTestContext(db, SP_CONFIG));
     expect(result.buckets.M).toBeDefined();
     expect(result.buckets.M!.medianDays).toBe(2);
   });
 
   it("SP null → UNESTIMATED", () => {
     seedWithSp("PROJ-1", null);
-    const result = cycleTimeBySizeMetric.compute(db, SP_CONFIG);
+    const result = cycleTimeBySizeMetric.compute(createTestContext(db, SP_CONFIG));
     expect(result.buckets.UNESTIMATED).toBeDefined();
   });
 });
@@ -102,13 +103,13 @@ describe("cycleTimeBySize — méthode story-points", () => {
 describe("leadTimeBySize — méthode t-shirt", () => {
   it("sizeLabel='L' → bucket L", () => {
     seedWithSizeLabel("PROJ-1", "L");
-    const result = leadTimeBySizeMetric.compute(db, TSHIRT_CONFIG);
+    const result = leadTimeBySizeMetric.compute(createTestContext(db, TSHIRT_CONFIG));
     expect(result.buckets.L).toBeDefined();
   });
 
   it("sizeLabel=null → UNESTIMATED", () => {
     seedWithSizeLabel("PROJ-1", null);
-    const result = leadTimeBySizeMetric.compute(db, TSHIRT_CONFIG);
+    const result = leadTimeBySizeMetric.compute(createTestContext(db, TSHIRT_CONFIG));
     expect(result.buckets.UNESTIMATED).toBeDefined();
   });
 });
@@ -116,7 +117,7 @@ describe("leadTimeBySize — méthode t-shirt", () => {
 describe("cycleTimeBySize — méthode t-shirt", () => {
   it("sizeLabel='M' → bucket M, medianDays = 2", () => {
     seedWithSizeLabel("PROJ-1", "M");
-    const result = cycleTimeBySizeMetric.compute(db, TSHIRT_CONFIG);
+    const result = cycleTimeBySizeMetric.compute(createTestContext(db, TSHIRT_CONFIG));
     expect(result.buckets.M).toBeDefined();
     expect(result.buckets.M!.medianDays).toBe(2);
   });

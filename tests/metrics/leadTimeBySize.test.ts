@@ -47,8 +47,7 @@ describe("leadTimeBySizeMetric.compute", () => {
   it("lead-time-by-size >= cycle-time-by-size pour même bucket", () => {
     seedWithEstimate("PROJ-1", SECONDS_PER_DAY * 2); // M bucket, lead=4j cycle=2j
     const lt = leadTimeBySizeMetric.compute(createTestContext(db, TEST_CONFIG));
-    // pourquoi : cycleTimeBySize sera migré en Task 4.4 ; l'appel reste old-style en attendant (même précédent que Task 4.1 pour cycleTime)
-    const ct = cycleTimeBySizeMetric.compute(db as never, TEST_CONFIG as never);
+    const ct = cycleTimeBySizeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(lt.buckets.M!.medianDays).toBeGreaterThanOrEqual(ct.buckets.M!.medianDays);
   });
 

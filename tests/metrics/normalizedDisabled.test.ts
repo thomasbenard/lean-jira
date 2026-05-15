@@ -4,6 +4,7 @@ import { makeIssue, seedIssueWithTransitions, TEST_CONFIG, resetSeq } from "../h
 import { leadTimeNormalizedMetric } from "../../src/metrics/leadTimeNormalized";
 import { cycleTimeNormalizedMetric } from "../../src/metrics/cycleTimeNormalized";
 import { SECONDS_PER_DAY } from "../../src/metrics/utils";
+import { createTestContext } from "../_helpers/createTestContext";
 import type Database from "better-sqlite3";
 import type { MetricConfig } from "../../src/metrics/types";
 
@@ -48,25 +49,25 @@ function seedEstimated(key: string) {
 describe("leadTimeNormalized — disabled hors méthode time", () => {
   it("story-points → disabled: true, count: 0", () => {
     seedEstimated("PROJ-1");
-    const result = leadTimeNormalizedMetric.compute(db, SP_CONFIG) as { disabled?: boolean; count: number };
+    const result = leadTimeNormalizedMetric.compute(createTestContext(db, SP_CONFIG)) as { disabled?: boolean; count: number };
     expect(result.disabled).toBe(true);
     expect(result.count).toBe(0);
   });
 
   it("t-shirt → disabled: true", () => {
     seedEstimated("PROJ-1");
-    const result = leadTimeNormalizedMetric.compute(db, TSHIRT_CONFIG) as { disabled?: boolean };
+    const result = leadTimeNormalizedMetric.compute(createTestContext(db, TSHIRT_CONFIG)) as { disabled?: boolean };
     expect(result.disabled).toBe(true);
   });
 
   it("none → disabled: true", () => {
-    const result = leadTimeNormalizedMetric.compute(db, NONE_CONFIG) as { disabled?: boolean };
+    const result = leadTimeNormalizedMetric.compute(createTestContext(db, NONE_CONFIG)) as { disabled?: boolean };
     expect(result.disabled).toBe(true);
   });
 
   it("time → calcul normal, pas de disabled", () => {
     seedEstimated("PROJ-1");
-    const result = leadTimeNormalizedMetric.compute(db, TIME_CONFIG) as { disabled?: boolean; count: number };
+    const result = leadTimeNormalizedMetric.compute(createTestContext(db, TIME_CONFIG)) as { disabled?: boolean; count: number };
     expect(result.disabled).toBeUndefined();
     expect(result.count).toBeGreaterThan(0);
   });
@@ -75,20 +76,20 @@ describe("leadTimeNormalized — disabled hors méthode time", () => {
 describe("cycleTimeNormalized — disabled hors méthode time", () => {
   it("story-points → disabled: true, count: 0", () => {
     seedEstimated("PROJ-1");
-    const result = cycleTimeNormalizedMetric.compute(db, SP_CONFIG) as { disabled?: boolean; count: number };
+    const result = cycleTimeNormalizedMetric.compute(createTestContext(db, SP_CONFIG)) as { disabled?: boolean; count: number };
     expect(result.disabled).toBe(true);
     expect(result.count).toBe(0);
   });
 
   it("t-shirt → disabled: true", () => {
     seedEstimated("PROJ-1");
-    const result = cycleTimeNormalizedMetric.compute(db, TSHIRT_CONFIG) as { disabled?: boolean };
+    const result = cycleTimeNormalizedMetric.compute(createTestContext(db, TSHIRT_CONFIG)) as { disabled?: boolean };
     expect(result.disabled).toBe(true);
   });
 
   it("time → calcul normal, pas de disabled", () => {
     seedEstimated("PROJ-1");
-    const result = cycleTimeNormalizedMetric.compute(db, TIME_CONFIG) as { disabled?: boolean; count: number };
+    const result = cycleTimeNormalizedMetric.compute(createTestContext(db, TIME_CONFIG)) as { disabled?: boolean; count: number };
     expect(result.disabled).toBeUndefined();
     expect(result.count).toBeGreaterThan(0);
   });

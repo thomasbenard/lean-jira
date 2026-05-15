@@ -46,8 +46,8 @@ afterAll(() => {
 describe("pipeline fake — golden output", () => {
   it("toutes les métriques produisent un output identique", () => {
     const app = loadConfigs(JIRA_CONFIG, BOARD_CONFIG);
-    const config = buildMetricConfig(db, app);
     const store = new SqliteStore(db);
+    const config = buildMetricConfig(store, app);
     const ctx = buildMetricsContext(store, config);
     const results = runAllMetrics(ctx);
 
