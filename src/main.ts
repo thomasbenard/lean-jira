@@ -209,10 +209,10 @@ export function buildMetricConfig(store: ReadStore, app: AppConfig, opts: { excl
   //   qui n'apparaissent plus dans l'API mais existent dans l'historique des
   //   transitions (ex: "To Be Validated", "Delivred"). Sans ce fallback, ces
   //   statuts polluent inProgressStatuses.
-  const doneStatusNames = new Set(
-    store.statuses.all().filter((s) => s.categoryKey === "done").map((s) => s.name),
-  );
-  const doneSet = new Set([...doneStatusNames, ...derived.doneStatuses]);
+  const doneSet = new Set<string>(derived.doneStatuses);
+  for (const s of store.statuses.all()) {
+    if (s.categoryKey === "done") { doneSet.add(s.name); }
+  }
   const filter = (list: string[]): string[] => list.filter((s) => !doneSet.has(s));
 
   const stripped = {
