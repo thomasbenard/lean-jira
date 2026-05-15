@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "../helpers/db";
 import { makeIssue, seedIssueWithTransitions, TEST_CONFIG, resetSeq } from "../helpers/seeders";
 import { firstTimeRightMetric } from "../../src/metrics/firstTimeRight";
+import { createTestContext } from "../_helpers/createTestContext";
 import type Database from "better-sqlite3";
 import type { MetricConfig } from "../../src/metrics/types";
 
@@ -30,7 +31,7 @@ function seedNominal(key = "PROJ-1") {
 
 describe("firstTimeRightMetric.compute", () => {
   it("retourne count 0 et ftrRate 0 si aucune issue livrée", () => {
-    const result = firstTimeRightMetric.compute(db, ROLE_CONFIG);
+    const result = firstTimeRightMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(0);
     expect(result.ftrByRole.dev.eligible).toBe(0);
     expect(result.ftrByRole.qa.eligible).toBe(0);
@@ -41,7 +42,7 @@ describe("firstTimeRightMetric.compute", () => {
 
   it("compte 1 passage dev et 1 passage qa pour ticket nominal", () => {
     seedNominal();
-    const result = firstTimeRightMetric.compute(db, ROLE_CONFIG);
+    const result = firstTimeRightMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(1);
     expect(result.ftrByRole.dev.eligible).toBe(1);
     expect(result.ftrByRole.dev.firstTimeRight).toBe(1);
@@ -65,7 +66,7 @@ describe("firstTimeRightMetric.compute", () => {
       { to: "In Progress", at: "2025-01-13T09:00:00Z" }, // passage dev #2 (rework)
       { to: "Done",        at: "2025-01-14T09:00:00Z" },
     ]);
-    const result = firstTimeRightMetric.compute(db, ROLE_CONFIG);
+    const result = firstTimeRightMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.ftrByRole.dev.eligible).toBe(1);
     expect(result.ftrByRole.dev.firstTimeRight).toBe(0); // 2 passages → pas FTR
     expect(result.ftrByRole.dev.ftrRate).toBe(0);
@@ -84,7 +85,7 @@ describe("firstTimeRightMetric.compute", () => {
       { to: "In Progress", at: "2025-01-13T09:00:00Z" }, // passage dev #2
       { to: "Done",        at: "2025-01-14T09:00:00Z" },
     ]);
-    const result = firstTimeRightMetric.compute(db, ROLE_CONFIG);
+    const result = firstTimeRightMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.ftrByRole.dev.eligible).toBe(1);
     expect(result.ftrByRole.dev.firstTimeRight).toBe(0); // 2 passages
     expect(result.ftrByRole.dev.avgPasses).toBe(2);
@@ -97,7 +98,7 @@ describe("firstTimeRightMetric.compute", () => {
       { to: "In Progress", at: "2025-01-08T09:00:00Z" },
       { to: "Done",        at: "2025-01-14T09:00:00Z" },
     ]);
-    const result = firstTimeRightMetric.compute(db, ROLE_CONFIG);
+    const result = firstTimeRightMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.ftrByRole.qa.eligible).toBe(0);
     expect(result.ftrByRole.po.eligible).toBe(0);
     // dev: 1 passage → FTR = 1
@@ -108,7 +109,7 @@ describe("firstTimeRightMetric.compute", () => {
   it("rôle PO non configuré → ftrByRole.po.eligible = 0", () => {
     const noPo: MetricConfig = { ...ROLE_CONFIG, poStatuses: [] };
     seedNominal();
-    const result = firstTimeRightMetric.compute(db, noPo);
+    const result = firstTimeRightMetric.compute(createTestContext(db, noPo));
     expect(result.ftrByRole.po.eligible).toBe(0);
     expect(result.ftrByRole.po.ftrRate).toBe(0);
   });
@@ -124,7 +125,7 @@ describe("firstTimeRightMetric.compute", () => {
       { to: "In Progress", at: "2025-01-13T09:00:00Z" }, // rework
       { to: "Done",        at: "2025-01-14T09:00:00Z" },
     ]);
-    const result = firstTimeRightMetric.compute(db, ROLE_CONFIG);
+    const result = firstTimeRightMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(2);
     expect(result.ftrByRole.dev.eligible).toBe(2);
     expect(result.ftrByRole.dev.firstTimeRight).toBe(1); // seulement PROJ-1
@@ -140,7 +141,7 @@ describe("firstTimeRightMetric.compute", () => {
       { to: "Done",        at: "2024-12-10T09:00:00Z" },
     ]);
     const cfg: MetricConfig = { ...ROLE_CONFIG, cutoffDate: "2025-01-01" };
-    const result = firstTimeRightMetric.compute(db, cfg);
+    const result = firstTimeRightMetric.compute(createTestContext(db, cfg));
     expect(result.count).toBe(0);
   });
 });

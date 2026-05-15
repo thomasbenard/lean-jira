@@ -1,6 +1,5 @@
-import type Database from "better-sqlite3";
-import { type Metric, type MetricConfig } from "./types";
-import { fetchDeliveredTransitions, groupByIssue } from "./utils";
+import { type Metric } from "./types";
+import type { MetricsContext } from "./context";
 
 export interface FtrRoleStats {
   eligible: number;       // tickets ayant ≥ 1 passage dans ce rôle
@@ -25,7 +24,8 @@ export const firstTimeRightMetric: Metric<FirstTimeRightResult> = {
   description:
     "% tickets traversant chaque rôle en un seul passage. FTR QA = qualité d'entrée dev.",
 
-  compute(db: Database.Database, config: MetricConfig): FirstTimeRightResult {
+  compute(ctx: MetricsContext): FirstTimeRightResult {
+    const config = ctx.config;
     const roles = {
       dev: new Set(config.devStatuses ?? []),
       qa: new Set(config.qaStatuses ?? []),
@@ -39,21 +39,24 @@ export const firstTimeRightMetric: Metric<FirstTimeRightResult> = {
       return null;
     };
 
-    const rows = fetchDeliveredTransitions(db, config);
-    const byIssue = groupByIssue(rows);
-
     const acc: Record<RoleKey, { eligible: number; ftr: number; totalPasses: number }> = {
       dev: { eligible: 0, ftr: 0, totalPasses: 0 },
       qa: { eligible: 0, ftr: 0, totalPasses: 0 },
       po: { eligible: 0, ftr: 0, totalPasses: 0 },
     };
 
-    for (const transitions of byIssue.values()) {
+    for (const sample of ctx.cycleTimePopulation) {
+      const allTrans = ctx.transitionsByIssue.get(sample.issueKey) ?? [];
+      // pourquoi : SQL legacy filtrait tr.transitioned_at >= started_at AND <= done_at
+      const transitions = allTrans.filter(
+        (t) => t.transitionedAt >= sample.startedAt && t.transitionedAt <= sample.doneAt,
+      );
+
       const passes: Record<RoleKey, number> = { dev: 0, qa: 0, po: 0 };
       let prevRole: RoleKey | null = null;
 
       for (const t of transitions) {
-        const cur = getRole(t.to_status);
+        const cur = getRole(t.toStatus);
         if (cur !== null) {
           if (cur !== prevRole) {
             passes[cur]++;
@@ -83,7 +86,7 @@ export const firstTimeRightMetric: Metric<FirstTimeRightResult> = {
     });
 
     return {
-      count: byIssue.size,
+      count: ctx.cycleTimePopulation.length,
       ftrByRole: { dev: toStats(acc.dev), qa: toStats(acc.qa), po: toStats(acc.po) },
     };
   },
