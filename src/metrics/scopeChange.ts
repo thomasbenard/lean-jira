@@ -27,7 +27,6 @@ export interface ScopeChangeResult {
 
 const SIMILARITY_THRESHOLD = 0.85;
 const WATCHED_TEXT_FIELDS = ["description", "summary"] as const;
-const WATCHED_TEXT_FIELDS_SET: ReadonlySet<string> = new Set(WATCHED_TEXT_FIELDS);
 const FIELD_SPRINT = "Sprint";
 
 interface FieldState { first: string; last: string }
@@ -106,19 +105,18 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
     const cutoff = config.cutoffDate ?? "1970-01-01";
 
     const filteredSprints = ctx.store.sprints.all().filter(
-      (s) => s.startDate !== null && s.startDate >= cutoff,
+      (s): s is typeof s & { startDate: string } =>
+        s.startDate !== null && s.startDate >= cutoff,
     );
-    const sprintStartByName = new Map(filteredSprints.map((s) => [s.name, s.startDate as string]));
+    const sprintStartByName = new Map(filteredSprints.map((s) => [s.name, s.startDate]));
 
-    // Limité aux issues ayant un changelog Sprint : seule façon de dériver firstSprintStart.
-    // Limitation connue : une issue créée directement dans un sprint (sans changelog Sprint)
-    // sera comptée dans totalIssues mais exclue du scan de dérive de périmètre.
-    // pourquoi : ctx.issueByKey est déjà filtré par excludeIssueTypes en amont (buildMetricsContext)
+    // pourquoi : firstSprintStart ne peut être dérivé que depuis un changelog Sprint ; les issues créées directement dans un sprint sont comptées dans totalIssues mais exclues du scan de dérive
+    // pourquoi : O(|ctx.issueByKey|) — ReadStore n'expose pas (encore) d'index `byField`, on filtre par présence d'un changelog Sprint via 1 lookup map par issue. Acceptable jusqu'à ~10⁴ issues
     const byIssue = new Map<string, IssueFieldChangeRecord[]>();
     for (const issueKey of ctx.issueByKey.keys()) {
       const sprintChanges = ctx.store.issueFieldChanges.byIssueAndField(issueKey, FIELD_SPRINT);
       if (sprintChanges.length === 0) {continue;}
-      const all: IssueFieldChangeRecord[] = [...sprintChanges];
+      const all = [...sprintChanges];
       for (const field of WATCHED_TEXT_FIELDS) {
         all.push(...ctx.store.issueFieldChanges.byIssueAndField(issueKey, field));
       }
@@ -132,7 +130,7 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
     let changedIssues = 0;
 
     // issue_sprints (customfield_10020) contient l'effectif réel — inclut les issues créées directement dans le sprint sans passer par un changelog Sprint.
-    // pourquoi : plusieurs sprints peuvent partager le même nom dans les fixtures de test → on somme les counts par nom.
+    // pourquoi : agrégation par nom — plusieurs sprints (ids distincts) peuvent partager le même nom (ex. "Sprint 1" réutilisé sur boards différents)
     for (const sprint of filteredSprints) {
       const count = ctx.store.issueSprints
         .bySprint(sprint.id)
@@ -164,12 +162,12 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
 
       for (const c of changes) {
         if (c.changedAt <= graceCutoff) {continue;}
-        if (!WATCHED_TEXT_FIELDS_SET.has(c.fieldName) || c.fromValue === null) {continue;}
-        if (!fieldStates.has(c.fieldName)) {
+        if (!WATCHED_TEXT_FIELDS.includes(c.fieldName as typeof WATCHED_TEXT_FIELDS[number]) || c.fromValue === null) {continue;}
+        const existing = fieldStates.get(c.fieldName);
+        if (!existing) {
           fieldStates.set(c.fieldName, { first: c.fromValue, last: c.toValue ?? "" });
         } else {
-          const state = fieldStates.get(c.fieldName);
-          if (state) {state.last = c.toValue ?? "";}
+          existing.last = c.toValue ?? "";
         }
       }
 
