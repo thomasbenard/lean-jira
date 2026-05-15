@@ -1,28 +1,31 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "../helpers/db";
 import { makeIssue, makeSprint, makeTransitions, resetSeq, TEST_CONFIG } from "../helpers/seeders";
-import { upsertIssues, upsertSprints, replaceAllFieldChanges, replaceAllIssueSprints, replaceTransitions } from "../../src/db/store";
+import { SqliteStore } from "../../src/store/sqlite";
 import { scopeChangeMetric, normalizeText, similarityRatio } from "../../src/metrics/scopeChange";
 import type Database from "better-sqlite3";
 import type { FieldChange } from "../../src/jira/types";
+import { createTestContext } from "../_helpers/createTestContext";
 
 let db: Database.Database;
+let store: SqliteStore;
 beforeEach(() => {
   db = createTestDb();
+  store = new SqliteStore(db);
   resetSeq();
 });
 
 // Helpers locaux
 function seedIssue(key: string) {
-  upsertIssues(db, [makeIssue({ key })]);
+  store.issues.upsertMany([makeIssue({ key })]);
 }
 
 function seedSprint(id: number, name: string, startDate: string) {
-  upsertSprints(db, [makeSprint({ id, name, state: "active", startDate, endDate: "2099-01-01T00:00:00.000Z", boardId: 1 })]);
+  store.sprints.upsertMany([makeSprint({ id, name, state: "active", startDate, endDate: "2099-01-01T00:00:00.000Z", boardId: 1 })]);
 }
 
 function seedFieldChanges(key: string, changes: FieldChange[]) {
-  replaceAllFieldChanges(db, [{ key, changes }]);
+  store.issueFieldChanges.replaceForIssues([{ key, rows: changes }]);
 }
 
 // ─── normalizeText ──────────────────────────────────────────────────────────
@@ -92,7 +95,7 @@ describe("similarityRatio", () => {
 
 describe("scopeChangeMetric.compute — structure de base", () => {
   it("retourne totalIssues = 0 si aucune donnée", () => {
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.totalIssues).toBe(0);
     expect(result.changedIssues).toBe(0);
     expect(result.changeRatio).toBe(0);
@@ -106,7 +109,7 @@ describe("scopeChangeMetric.compute — structure de base", () => {
     seedFieldChanges("PROJ-1", [
       { issueKey: "PROJ-1", fieldName: "description", fromValue: "Avant", toValue: "Après", changedAt: "2025-03-15T10:00:00.000Z" },
     ]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.totalIssues).toBe(0);
   });
 
@@ -114,9 +117,9 @@ describe("scopeChangeMetric.compute — structure de base", () => {
     seedIssue("PROJ-1");
     seedSprint(1, "Sprint Old", "2024-01-10T00:00:00.000Z");
     seedSprint(2, "Sprint New", "2025-03-10T00:00:00.000Z");
-    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1, 2] }]);
+    store.issueSprints.replaceForIssues([{ key: "PROJ-1", sprintIds: [1, 2] }]);
     const config = { ...TEST_CONFIG, cutoffDate: "2025-01-01" };
-    const result = scopeChangeMetric.compute(db, config);
+    const result = scopeChangeMetric.compute(createTestContext(db, config));
     expect(result.bySprint["Sprint Old"]).toBeUndefined();
     expect(result.bySprint["Sprint New"]).toBeDefined();
     expect(result.totalIssues).toBe(1);
@@ -124,12 +127,12 @@ describe("scopeChangeMetric.compute — structure de base", () => {
 
   it("exclut issue dont le sprint n'a pas de start_date", () => {
     seedIssue("PROJ-1");
-    upsertSprints(db, [makeSprint({ id: 1, name: "Sprint Orphelin", state: "active", startDate: undefined, endDate: undefined, boardId: 1 })]);
+    store.sprints.upsertMany([makeSprint({ id: 1, name: "Sprint Orphelin", state: "active", startDate: undefined, endDate: undefined, boardId: 1 })]);
     seedFieldChanges("PROJ-1", [
       { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint Orphelin", changedAt: "2025-03-01T00:00:00.000Z" },
       { issueKey: "PROJ-1", fieldName: "description", fromValue: "Avant", toValue: "Totalement différent et nouveau contenu complet entier", changedAt: "2025-03-15T10:00:00.000Z" },
     ]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.totalIssues).toBe(0);
   });
 });
@@ -140,7 +143,7 @@ describe("Règle 1 — changements description/summary", () => {
   beforeEach(() => {
     seedIssue("PROJ-1");
     seedSprint(1, "Sprint 42", "2025-03-10T00:00:00.000Z");
-    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    store.issueSprints.replaceForIssues([{ key: "PROJ-1", sprintIds: [1] }]);
     // Assignation au sprint (première, from_value null)
     seedFieldChanges("PROJ-1", [
       { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" },
@@ -148,41 +151,41 @@ describe("Règle 1 — changements description/summary", () => {
   });
 
   it("ignore changement trivial de description (espaces supplémentaires)", () => {
-    replaceAllFieldChanges(db, [{
+    store.issueFieldChanges.replaceForIssues([{
       key: "PROJ-1",
-      changes: [
+      rows: [
         { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" },
         { issueKey: "PROJ-1", fieldName: "description", fromValue: "Faire le module de login", toValue: "Faire  le module de login  ", changedAt: "2025-03-15T10:00:00.000Z" },
       ],
     }]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
   });
 
   it("ignore changement description si from_value est null (première saisie)", () => {
-    replaceAllFieldChanges(db, [{
+    store.issueFieldChanges.replaceForIssues([{
       key: "PROJ-1",
-      changes: [
+      rows: [
         { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" },
         { issueKey: "PROJ-1", fieldName: "description", fromValue: null, toValue: "Contenu initial très long", changedAt: "2025-03-15T10:00:00.000Z" },
       ],
     }]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
   });
 
   it("comptabilise changement de description significatif (paragraphe supprimé)", () => {
     const longText = "Critère 1 : le système doit valider les entrées. Critère 2 : afficher une erreur explicite. Critère 3 : logger toute tentative. Critère 4 : envoyer un email de confirmation.";
     const shortened = "Critère 1 : le système doit valider les entrées.";
-    replaceAllFieldChanges(db, [{
+    store.issueFieldChanges.replaceForIssues([{
       key: "PROJ-1",
-      changes: [
+      rows: [
         { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" },
         { issueKey: "PROJ-1", fieldName: "description", fromValue: longText, toValue: shortened, changedAt: "2025-03-15T10:00:00.000Z" },
       ],
     }]);
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    store.transitions.replaceForIssue("PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(1);
     expect(result.bySprint["Sprint 42"]!.byChangeType.description).toBe(1);
   });
@@ -190,15 +193,15 @@ describe("Règle 1 — changements description/summary", () => {
   it("comptabilise changement de summary significatif dans description", () => {
     const longSummary = "Implémenter la page de dashboard avec graphiques temps réel et export CSV";
     const shortSummary = "Dashboard";
-    replaceAllFieldChanges(db, [{
+    store.issueFieldChanges.replaceForIssues([{
       key: "PROJ-1",
-      changes: [
+      rows: [
         { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" },
         { issueKey: "PROJ-1", fieldName: "summary", fromValue: longSummary, toValue: shortSummary, changedAt: "2025-03-15T10:00:00.000Z" },
       ],
     }]);
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    store.transitions.replaceForIssue("PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(1);
     expect(result.bySprint["Sprint 42"]!.byChangeType.description).toBe(1);
   });
@@ -210,30 +213,30 @@ describe("Règle 2 — Story Points", () => {
   beforeEach(() => {
     seedIssue("PROJ-1");
     seedSprint(1, "Sprint 42", "2025-03-10T00:00:00.000Z");
-    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    store.issueSprints.replaceForIssues([{ key: "PROJ-1", sprintIds: [1] }]);
   });
 
   it("ignore première estimation (null → valeur)", () => {
-    replaceAllFieldChanges(db, [{
+    store.issueFieldChanges.replaceForIssues([{
       key: "PROJ-1",
-      changes: [
+      rows: [
         { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" },
         { issueKey: "PROJ-1", fieldName: "Story Points", fromValue: null, toValue: "3", changedAt: "2025-03-15T10:00:00.000Z" },
       ],
     }]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
   });
 
   it("ignore réévaluation Story Points (valeur → valeur)", () => {
-    replaceAllFieldChanges(db, [{
+    store.issueFieldChanges.replaceForIssues([{
       key: "PROJ-1",
-      changes: [
+      rows: [
         { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" },
         { issueKey: "PROJ-1", fieldName: "Story Points", fromValue: "3", toValue: "8", changedAt: "2025-03-15T10:00:00.000Z" },
       ],
     }]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
   });
 });
@@ -244,35 +247,35 @@ describe("Règle 3 — Périmètre temporel", () => {
   beforeEach(() => {
     seedIssue("PROJ-1");
     seedSprint(1, "Sprint 42", "2025-03-10T00:00:00.000Z");
-    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    store.issueSprints.replaceForIssues([{ key: "PROJ-1", sprintIds: [1] }]);
   });
 
   it("ignore changement de description avant le sprint start", () => {
     const longText = "Critère détaillé pour tester le filtre temporel avec du contenu suffisant";
     const shortText = "Rien";
-    replaceAllFieldChanges(db, [{
+    store.issueFieldChanges.replaceForIssues([{
       key: "PROJ-1",
-      changes: [
+      rows: [
         { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" },
         { issueKey: "PROJ-1", fieldName: "description", fromValue: longText, toValue: shortText, changedAt: "2025-03-08T10:00:00.000Z" },
       ],
     }]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
   });
 
   it("comptabilise changement significatif après le sprint start", () => {
     const longText = "Critère détaillé pour tester le filtre temporel avec du contenu suffisant";
     const shortText = "Rien";
-    replaceAllFieldChanges(db, [{
+    store.issueFieldChanges.replaceForIssues([{
       key: "PROJ-1",
-      changes: [
+      rows: [
         { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" },
         { issueKey: "PROJ-1", fieldName: "description", fromValue: longText, toValue: shortText, changedAt: "2025-03-15T10:00:00.000Z" },
       ],
     }]);
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    store.transitions.replaceForIssue("PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(1);
   });
 
@@ -280,9 +283,9 @@ describe("Règle 3 — Périmètre temporel", () => {
     seedSprint(2, "Sprint 43", "2025-03-24T00:00:00.000Z");
     const longText = "Critère détaillé suffisamment long pour dépasser le seuil de similarité";
     const shortText = "Rien";
-    replaceAllFieldChanges(db, [{
+    store.issueFieldChanges.replaceForIssues([{
       key: "PROJ-1",
-      changes: [
+      rows: [
         // Issue d'abord en Sprint 43, puis en Sprint 42 (plus ancien)
         { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 43", changedAt: "2025-03-01T08:00:00.000Z" },
         { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: "Sprint 43", toValue: "Sprint 42", changedAt: "2025-03-05T08:00:00.000Z" },
@@ -290,8 +293,8 @@ describe("Règle 3 — Périmètre temporel", () => {
         { issueKey: "PROJ-1", fieldName: "description", fromValue: longText, toValue: shortText, changedAt: "2025-03-12T10:00:00.000Z" },
       ],
     }]);
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    store.transitions.replaceForIssue("PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     // Premier sprint = Sprint 42 (start 2025-03-10, plus ancien que Sprint 43)
     // Changement le 2025-03-12 > 2025-03-10 → comptabilisé
     expect(result.changedIssues).toBe(1);
@@ -306,30 +309,30 @@ describe("Règle 4 — Sprint change", () => {
     seedIssue("PROJ-1");
     seedSprint(1, "Sprint 42", "2025-03-10T00:00:00.000Z");
     seedSprint(2, "Sprint 43", "2025-03-24T00:00:00.000Z");
-    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    store.issueSprints.replaceForIssues([{ key: "PROJ-1", sprintIds: [1] }]);
   });
 
   it("ignore assignation initiale (null → sprint)", () => {
-    replaceAllFieldChanges(db, [{
+    store.issueFieldChanges.replaceForIssues([{
       key: "PROJ-1",
-      changes: [
+      rows: [
         { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" },
       ],
     }]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
     expect(result.totalIssues).toBe(1);
   });
 
   it("ignore reprogrammation sprint (sprint → sprint)", () => {
-    replaceAllFieldChanges(db, [{
+    store.issueFieldChanges.replaceForIssues([{
       key: "PROJ-1",
-      changes: [
+      rows: [
         { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" },
         { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: "Sprint 42", toValue: "Sprint 43", changedAt: "2025-03-15T12:00:00.000Z" },
       ],
     }]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
   });
 });
@@ -346,39 +349,39 @@ describe("Agrégation bySprint", () => {
     const longText = "Texte initial très complet avec beaucoup de critères d'acceptation détaillés";
     const shortText = "Abrégé";
 
-    replaceAllIssueSprints(db, [
+    store.issueSprints.replaceForIssues([
       { key: "PROJ-1", sprintIds: [1] },
       { key: "PROJ-2", sprintIds: [1] },
       { key: "PROJ-3", sprintIds: [1] },
     ]);
 
     // PROJ-1 : changement significatif
-    replaceAllFieldChanges(db, [
+    store.issueFieldChanges.replaceForIssues([
       {
         key: "PROJ-1",
-        changes: [
+        rows: [
           { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" },
           { issueKey: "PROJ-1", fieldName: "description", fromValue: longText, toValue: shortText, changedAt: "2025-03-15T10:00:00.000Z" },
         ],
       },
       {
         key: "PROJ-2",
-        changes: [
+        rows: [
           { issueKey: "PROJ-2", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" },
           { issueKey: "PROJ-2", fieldName: "Story Points", fromValue: "3", toValue: "8", changedAt: "2025-03-16T10:00:00.000Z" },
         ],
       },
       {
         key: "PROJ-3",
-        changes: [
+        rows: [
           { issueKey: "PROJ-3", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" },
           // Pas de changement significatif
         ],
       },
     ]);
 
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    store.transitions.replaceForIssue("PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.totalIssues).toBe(3);
     expect(result.changedIssues).toBe(1);
     expect(result.changeRatio).toBeCloseTo(1 / 3);
@@ -396,28 +399,28 @@ describe("Agrégation bySprint", () => {
     seedSprint(1, "Sprint 42", "2025-03-10T00:00:00.000Z");
     seedSprint(2, "Sprint 43", "2025-03-24T00:00:00.000Z");
 
-    replaceAllIssueSprints(db, [
+    store.issueSprints.replaceForIssues([
       { key: "PROJ-1", sprintIds: [1] },
       { key: "PROJ-2", sprintIds: [2] },
     ]);
-    replaceAllFieldChanges(db, [
+    store.issueFieldChanges.replaceForIssues([
       {
         key: "PROJ-1",
-        changes: [
+        rows: [
           { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" },
           { issueKey: "PROJ-1", fieldName: "description", fromValue: "Critère complet avec beaucoup de détails et de spécifications nécessaires", toValue: "Abrégé", changedAt: "2025-03-15T10:00:00.000Z" },
         ],
       },
       {
         key: "PROJ-2",
-        changes: [
+        rows: [
           { issueKey: "PROJ-2", fieldName: "Sprint", fromValue: null, toValue: "Sprint 43", changedAt: "2025-03-23T08:00:00.000Z" },
         ],
       },
     ]);
 
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    store.transitions.replaceForIssue("PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.totalIssues).toBe(2);
     expect(Object.keys(result.bySprint)).toHaveLength(2);
     expect(result.bySprint["Sprint 42"]!.changedIssues).toBe(1);
@@ -430,69 +433,69 @@ describe("Agrégation bySprint", () => {
 
 describe("Règle 5 — Dénominateur depuis issue_sprints", () => {
   it("totalIssues compte les issues sans changelog Sprint (créées directement dans sprint)", () => {
-    upsertIssues(db, [makeIssue({ key: "PROJ-1" }), makeIssue({ key: "PROJ-2" })]);
-    upsertSprints(db, [makeSprint({ id: 1, name: "Sprint 42", state: "active", startDate: "2025-03-10T00:00:00.000Z", endDate: "2099-01-01T00:00:00.000Z", boardId: 1 })]);
+    store.issues.upsertMany([makeIssue({ key: "PROJ-1" }), makeIssue({ key: "PROJ-2" })]);
+    store.sprints.upsertMany([makeSprint({ id: 1, name: "Sprint 42", state: "active", startDate: "2025-03-10T00:00:00.000Z", endDate: "2099-01-01T00:00:00.000Z", boardId: 1 })]);
     // PROJ-1 : créé directement dans sprint, aucun field change Sprint
     // PROJ-2 : a un field change Sprint
-    replaceAllIssueSprints(db, [
+    store.issueSprints.replaceForIssues([
       { key: "PROJ-1", sprintIds: [1] },
       { key: "PROJ-2", sprintIds: [1] },
     ]);
-    replaceAllFieldChanges(db, [{
+    store.issueFieldChanges.replaceForIssues([{
       key: "PROJ-2",
-      changes: [{ issueKey: "PROJ-2", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" }],
+      rows: [{ issueKey: "PROJ-2", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" }],
     }]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.bySprint["Sprint 42"]!.totalIssues).toBe(2);
     expect(result.totalIssues).toBe(2);
   });
 
   it("retourne résultats vides si issue_sprints est vide (base non re-synchée)", () => {
-    upsertIssues(db, [makeIssue({ key: "PROJ-1" })]);
-    upsertSprints(db, [makeSprint({ id: 1, name: "Sprint 42", state: "active", startDate: "2025-03-10T00:00:00.000Z", endDate: "2099-01-01T00:00:00.000Z", boardId: 1 })]);
-    replaceAllFieldChanges(db, [{
+    store.issues.upsertMany([makeIssue({ key: "PROJ-1" })]);
+    store.sprints.upsertMany([makeSprint({ id: 1, name: "Sprint 42", state: "active", startDate: "2025-03-10T00:00:00.000Z", endDate: "2099-01-01T00:00:00.000Z", boardId: 1 })]);
+    store.issueFieldChanges.replaceForIssues([{
       key: "PROJ-1",
-      changes: [{ issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" }],
+      rows: [{ issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" }],
     }]);
     // issue_sprints non peuplé
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.totalIssues).toBe(0);
     expect(result.bySprint).toEqual({});
   });
 
   it("issue dans plusieurs sprints : totalIssues correct dans chaque sprint", () => {
-    upsertIssues(db, [makeIssue({ key: "PROJ-1" }), makeIssue({ key: "PROJ-2" })]);
-    upsertSprints(db, [
+    store.issues.upsertMany([makeIssue({ key: "PROJ-1" }), makeIssue({ key: "PROJ-2" })]);
+    store.sprints.upsertMany([
       makeSprint({ id: 1, name: "Sprint 42", state: "closed", startDate: "2025-03-10T00:00:00.000Z", endDate: "2025-03-24T00:00:00.000Z", boardId: 1 }),
       makeSprint({ id: 2, name: "Sprint 43", state: "active", startDate: "2025-03-24T00:00:00.000Z", endDate: "2099-01-01T00:00:00.000Z", boardId: 1 }),
     ]);
     // PROJ-1 dans les deux sprints (reprogrammé), PROJ-2 uniquement Sprint 43
-    replaceAllIssueSprints(db, [
+    store.issueSprints.replaceForIssues([
       { key: "PROJ-1", sprintIds: [1, 2] },
       { key: "PROJ-2", sprintIds: [2] },
     ]);
-    replaceAllFieldChanges(db, [{
+    store.issueFieldChanges.replaceForIssues([{
       key: "PROJ-1",
-      changes: [{ issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" }],
+      rows: [{ issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" }],
     }]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.bySprint["Sprint 42"]!.totalIssues).toBe(1);
     expect(result.bySprint["Sprint 43"]!.totalIssues).toBe(2);
     expect(result.totalIssues).toBe(3);
   });
 
   it("exclut les issue_types de excludeIssueTypes du dénominateur", () => {
-    upsertIssues(db, [
+    store.issues.upsertMany([
       makeIssue({ key: "PROJ-1", issueType: "Story" }),
       makeIssue({ key: "PROJ-2", issueType: "Epic" }),
     ]);
-    upsertSprints(db, [makeSprint({ id: 1, name: "Sprint 42", state: "active", startDate: "2025-03-10T00:00:00.000Z", endDate: "2099-01-01T00:00:00.000Z", boardId: 1 })]);
-    replaceAllIssueSprints(db, [
+    store.sprints.upsertMany([makeSprint({ id: 1, name: "Sprint 42", state: "active", startDate: "2025-03-10T00:00:00.000Z", endDate: "2099-01-01T00:00:00.000Z", boardId: 1 })]);
+    store.issueSprints.replaceForIssues([
       { key: "PROJ-1", sprintIds: [1] },
       { key: "PROJ-2", sprintIds: [1] },
     ]);
     const config = { ...TEST_CONFIG, excludeIssueTypes: ["Epic"] };
-    const result = scopeChangeMetric.compute(db, config);
+    const result = scopeChangeMetric.compute(createTestContext(db, config));
     expect(result.bySprint["Sprint 42"]!.totalIssues).toBe(1);
   });
 });
@@ -564,7 +567,7 @@ describe("scopeChangeMetric — Règle 6 first vs last", () => {
   it("détecte dérive cumulée : 3 changements chacun sim=0.9 mais first-vs-last sim=0.7", () => {
     seedIssue("PROJ-1");
     seedSprint(1, "Sprint 1", "2025-03-10T00:00:00.000Z");
-    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    store.issueSprints.replaceForIssues([{ key: "PROJ-1", sprintIds: [1] }]);
     // a→b→c→d : chaque pas remplace 10 "a" par "x" → pairwise sim=0.9 > 0.85 (non détecté pairwise)
     // first "a"×100 vs last "x"×30+"a"×70 → lev=30, sim=0.7 < 0.85 → détecté first-vs-last
     const a = "a".repeat(100);
@@ -577,15 +580,15 @@ describe("scopeChangeMetric — Règle 6 first vs last", () => {
       { issueKey: "PROJ-1", fieldName: "description", fromValue: b, toValue: c, changedAt: "2025-03-12T10:00:00.000Z" },
       { issueKey: "PROJ-1", fieldName: "description", fromValue: c, toValue: d, changedAt: "2025-03-13T10:00:00.000Z" },
     ]);
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T09:00:00.000Z" }]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    store.transitions.replaceForIssue("PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T09:00:00.000Z" }]));
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(1);
   });
 
   it("n'alerte pas si delta cumulé first-vs-last reste sous le seuil (revert)", () => {
     seedIssue("PROJ-1");
     seedSprint(1, "Sprint 1", "2025-03-10T00:00:00.000Z");
-    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    store.issueSprints.replaceForIssues([{ key: "PROJ-1", sprintIds: [1] }]);
     // Description change radicalement puis revient à l'état initial.
     // Pairwise : sim(v1,v2)=0 < 0.85 → ancien code détecte (faux positif).
     // First vs last : sim(v1,v3)=1.0 → pas de dérive réelle.
@@ -596,8 +599,8 @@ describe("scopeChangeMetric — Règle 6 first vs last", () => {
       { issueKey: "PROJ-1", fieldName: "description", fromValue: v1, toValue: v2, changedAt: "2025-03-11T10:00:00.000Z" },
       { issueKey: "PROJ-1", fieldName: "description", fromValue: v2, toValue: v1, changedAt: "2025-03-12T10:00:00.000Z" },
     ]);
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T09:00:00.000Z" }]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    store.transitions.replaceForIssue("PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T09:00:00.000Z" }]));
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
   });
 });
@@ -608,7 +611,7 @@ describe("scopeChangeMetric — Règle 7 grace period", () => {
   it("ignore un changement dans la grace period (11h < 24h)", () => {
     seedIssue("PROJ-1");
     seedSprint(1, "Sprint 1", "2025-03-10T00:00:00.000Z");
-    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    store.issueSprints.replaceForIssues([{ key: "PROJ-1", sprintIds: [1] }]);
     const from = "a".repeat(100);
     const to = "b".repeat(100);
     seedFieldChanges("PROJ-1", [
@@ -616,16 +619,16 @@ describe("scopeChangeMetric — Règle 7 grace period", () => {
       // 11h après devStart → dans la grace period de 24h
       { issueKey: "PROJ-1", fieldName: "description", fromValue: from, toValue: to, changedAt: "2025-03-10T11:00:00.000Z" },
     ]);
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T00:00:00.000Z" }]));
+    store.transitions.replaceForIssue("PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T00:00:00.000Z" }]));
     const config = { ...TEST_CONFIG, scopeChangeGracePeriodHours: 24 };
-    const result = scopeChangeMetric.compute(db, config);
+    const result = scopeChangeMetric.compute(createTestContext(db, config));
     expect(result.changedIssues).toBe(0);
   });
 
   it("détecte un changement après la grace period (25h > 24h)", () => {
     seedIssue("PROJ-1");
     seedSprint(1, "Sprint 1", "2025-03-10T00:00:00.000Z");
-    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    store.issueSprints.replaceForIssues([{ key: "PROJ-1", sprintIds: [1] }]);
     const from = "a".repeat(100);
     const to = "b".repeat(100);
     seedFieldChanges("PROJ-1", [
@@ -633,16 +636,16 @@ describe("scopeChangeMetric — Règle 7 grace period", () => {
       // 25h après devStart → après la grace period de 24h
       { issueKey: "PROJ-1", fieldName: "description", fromValue: from, toValue: to, changedAt: "2025-03-11T01:00:00.000Z" },
     ]);
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T00:00:00.000Z" }]));
+    store.transitions.replaceForIssue("PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T00:00:00.000Z" }]));
     const config = { ...TEST_CONFIG, scopeChangeGracePeriodHours: 24 };
-    const result = scopeChangeMetric.compute(db, config);
+    const result = scopeChangeMetric.compute(createTestContext(db, config));
     expect(result.changedIssues).toBe(1);
   });
 
   it("grace period à 0 (absent) : comportement inchangé", () => {
     seedIssue("PROJ-1");
     seedSprint(1, "Sprint 1", "2025-03-10T00:00:00.000Z");
-    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    store.issueSprints.replaceForIssues([{ key: "PROJ-1", sprintIds: [1] }]);
     const from = "a".repeat(100);
     const to = "b".repeat(100);
     seedFieldChanges("PROJ-1", [
@@ -650,8 +653,8 @@ describe("scopeChangeMetric — Règle 7 grace period", () => {
       // 1h après devStart, sim=0 → détecté (pas de grace period)
       { issueKey: "PROJ-1", fieldName: "description", fromValue: from, toValue: to, changedAt: "2025-03-10T01:00:00.000Z" },
     ]);
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T00:00:00.000Z" }]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    store.transitions.replaceForIssue("PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T00:00:00.000Z" }]));
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(1);
   });
 });
@@ -662,7 +665,7 @@ describe("scopeChangeMetric — Règle 10 devStart comme borne de détection", (
   it("skip si aucune transition devStart (issue jamais démarrée)", () => {
     seedIssue("PROJ-1");
     seedSprint(1, "Sprint 1", "2025-03-10T00:00:00.000Z");
-    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    store.issueSprints.replaceForIssues([{ key: "PROJ-1", sprintIds: [1] }]);
     const from = "a".repeat(100);
     const to = "b".repeat(100);
     seedFieldChanges("PROJ-1", [
@@ -670,7 +673,7 @@ describe("scopeChangeMetric — Règle 10 devStart comme borne de détection", (
       { issueKey: "PROJ-1", fieldName: "description", fromValue: from, toValue: to, changedAt: "2025-03-15T10:00:00.000Z" },
     ]);
     // Pas de transition "In Progress" → devStart absent → skip détection
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
     expect(result.totalIssues).toBe(1); // reste dans le dénominateur
   });
@@ -678,7 +681,7 @@ describe("scopeChangeMetric — Règle 10 devStart comme borne de détection", (
   it("ignore changements post-sprint-start mais pré-devStart", () => {
     seedIssue("PROJ-1");
     seedSprint(1, "Sprint 1", "2025-03-10T00:00:00.000Z");
-    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    store.issueSprints.replaceForIssues([{ key: "PROJ-1", sprintIds: [1] }]);
     const from = "a".repeat(100);
     const to = "b".repeat(100);
     seedFieldChanges("PROJ-1", [
@@ -686,27 +689,27 @@ describe("scopeChangeMetric — Règle 10 devStart comme borne de détection", (
       // Changement significatif entre sprint start (10 mars) et devStart (14 mars) → doit être ignoré
       { issueKey: "PROJ-1", fieldName: "description", fromValue: from, toValue: to, changedAt: "2025-03-12T10:00:00.000Z" },
     ]);
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [
+    store.transitions.replaceForIssue("PROJ-1", makeTransitions("PROJ-1", [
       { to: "In Progress", at: "2025-03-14T09:00:00.000Z" },
     ]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
   });
 
   it("détecte changement post-devStart", () => {
     seedIssue("PROJ-1");
     seedSprint(1, "Sprint 1", "2025-03-10T00:00:00.000Z");
-    replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1] }]);
+    store.issueSprints.replaceForIssues([{ key: "PROJ-1", sprintIds: [1] }]);
     const from = "a".repeat(100);
     const to = "b".repeat(100);
     seedFieldChanges("PROJ-1", [
       { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 1", changedAt: "2025-03-09T12:00:00.000Z" },
       { issueKey: "PROJ-1", fieldName: "description", fromValue: from, toValue: to, changedAt: "2025-03-15T10:00:00.000Z" },
     ]);
-    replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [
+    store.transitions.replaceForIssue("PROJ-1", makeTransitions("PROJ-1", [
       { to: "In Progress", at: "2025-03-14T09:00:00.000Z" },
     ]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(1);
   });
 });

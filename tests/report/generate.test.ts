@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import path from "path";
-import { issueLink, agingRowsHtml, buildBucketSeries, buildRoleSeries, syncMetaLabel, staleBannerHtml, computeMovingAvg, renderWithHandlebars, isScopeChangeAvailable, buildScopeAlertBanner, buildScopeChangeChart, buildScopeSection, estimationFlags, buildSprintSeries, buildTemplateContext } from "../../src/report/generate";
+import { issueLink, agingRowsHtml, buildBucketSeries, buildRoleSeries, syncMetaLabel, staleBannerHtml, computeMovingAvg, renderWithHandlebars, buildScopeAlertBanner, buildScopeChangeChart, buildScopeSection, estimationFlags, buildSprintSeries, buildTemplateContext } from "../../src/report/generate";
 import { initLocale } from "../../src/i18n/index";
 import type { AgingWipSummary } from "../../src/metrics/agingWip";
 import type { SnapshotRow } from "../../src/snapshots/compute";
