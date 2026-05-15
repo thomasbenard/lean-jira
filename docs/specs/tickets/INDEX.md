@@ -55,4 +55,4 @@
 | [046](046-kpi-seuils-dynamiques/description.md) | Seuils de santé KPI configurables : statique (board.yaml) ou dynamique (P50/P85 historiques) | livré |
 | [047](047-rework-cost/description.md) | Coût en jours-ouvrés des retraitements par semaine et par sprint | livré |
 | [048](048-bottleneck-drilldown-par-colonne-board/description.md) | Regrouper byColumn par colonne board.yaml plutôt que par statut Jira individuel | livré |
-| [049](049-configurable-snapshot-window/description.md) | Fenêtre rolling snapshot configurable via metrics.snapshotWindowDays dans board.yaml | à faire |
+| [049](049-configurable-snapshot-window/description.md) | Fenêtre rolling snapshot configurable via metrics.snapshotWindowDays dans board.yaml | livré |

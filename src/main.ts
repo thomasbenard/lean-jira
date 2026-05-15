@@ -4,10 +4,10 @@ import yaml from "yaml";
 import path from "path";
 import type Database from "better-sqlite3";
 import { sync } from "./sync";
-import { openDb, getDoneStatusNames, getAllStatuses, getDistinctTransitionStatuses } from "./db/store";
+import { openDb, getDoneStatusNames, getAllStatuses, getDistinctTransitionStatuses, getStoredSnapshotWindowDays, persistSnapshotWindowDays } from "./db/store";
 import { runAllMetrics, runMetric, ALL_METRICS } from "./metrics/index";
 import { BUCKET_LABELS, BUCKET_ORDER, percentile, SECONDS_PER_DAY, getDefaultThresholds } from "./metrics/utils";
-import { backfillSnapshots } from "./snapshots/compute";
+import { backfillSnapshots, DEFAULT_ROLLING_WINDOW_DAYS } from "./snapshots/compute";
 import { generateReport, exportDefaultTemplate, type HealthThresholds, type ReportPersonalization } from "./report/generate";
 import { type MetricConfig, type EstimationConfig, type EstimationMethod, type EstimationBucketThresholds, resolveEstimationField } from "./metrics/types";
 export type { EstimationConfig, EstimationMethod, EstimationBucketThresholds };
@@ -139,6 +139,7 @@ export interface BoardFileConfig {
     healthThresholds?: HealthThresholds;
     scopeChangeGracePeriodHours?: number;
     estimation?: EstimationConfig;
+    snapshotWindowDays?: number;
   };
   report?: ReportPersonalization;
 }
@@ -180,6 +181,14 @@ export function loadBoardConfig(boardPath: string): BoardFileConfig {
   }
   const cfg = yaml.parse(fs.readFileSync(boardPath, "utf-8")) as BoardFileConfig;
   validateEstimationConfig(cfg.metrics?.estimation);
+  const windowDays = cfg.metrics?.snapshotWindowDays;
+  if (windowDays !== undefined && (!Number.isInteger(windowDays) || windowDays <= 0)) {
+    console.error(`snapshotWindowDays doit être un entier > 0 (reçu : ${windowDays})`);
+    process.exit(1);
+  }
+  if (windowDays !== undefined && windowDays > 365) {
+    console.warn(`⚠ snapshotWindowDays=${windowDays} : fenêtre très large, les données anciennes seront incluses.`);
+  }
   return cfg;
 }
 
@@ -241,6 +250,7 @@ export function buildMetricConfig(db: Database.Database, app: AppConfig, opts: {
     excludeIssueTypes: app.metrics?.excludeIssueTypes ?? [],
     scopeChangeGracePeriodHours: app.metrics?.scopeChangeGracePeriodHours,
     estimation: app.metrics?.estimation ?? { method: "time" },
+    snapshotWindowDays: app.metrics?.snapshotWindowDays,
     statusToColumnName,
   };
 }
@@ -579,7 +589,13 @@ program
     bootstrapFakeMode(config.jira);
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config);
+    const currentWindow = metricConfig.snapshotWindowDays ?? DEFAULT_ROLLING_WINDOW_DAYS;
+    const storedWindow = getStoredSnapshotWindowDays(db);
+    if (storedWindow !== null && storedWindow !== currentWindow) {
+      console.warn(`⚠ snapshotWindowDays a changé (${storedWindow} → ${currentWindow}). Recalcul intégral des snapshots.`);
+    }
     const count = backfillSnapshots(db, metricConfig);
+    persistSnapshotWindowDays(db, currentWindow);
     console.log(t("snapshots.done", { count }));
   });
 
@@ -789,6 +805,7 @@ program
       if (unresolvableComment) {console.log(unresolvableComment);}
       const estimationYaml = yaml.stringify({ metrics: { estimation: detectedEstimation } }).trimEnd();
       console.log(`\n${estimationYaml}`);
+      console.log(`  # snapshotWindowDays: 30   # fenêtre glissante en jours pour lead-time, cycle-time… (défaut : 30)`);
     }
 
     console.log(t("autoconfig.columnTypesHelp"));

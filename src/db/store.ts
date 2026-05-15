@@ -181,3 +181,12 @@ export function getStoredEstimationMethod(db: Database.Database): string {
 export function persistEstimationMethod(db: Database.Database, method: string): void {
   db.prepare("INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)").run("estimation_method", method);
 }
+
+export function getStoredSnapshotWindowDays(db: Database.Database): number | null {
+  const row = db.prepare("SELECT value FROM app_config WHERE key = 'snapshot_window_days'").get() as { value: string } | undefined;
+  return row ? Number(row.value) : null;
+}
+
+export function persistSnapshotWindowDays(db: Database.Database, days: number): void {
+  db.prepare("INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)").run("snapshot_window_days", String(days));
+}

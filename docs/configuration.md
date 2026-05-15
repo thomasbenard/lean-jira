@@ -427,6 +427,7 @@ Ouvrir `report.html` dans un navigateur. Si les métriques semblent incorrectes 
 | `bugIssueTypes[]` | string[] | Non | `[]` | Types Jira traités comme bugs (bucket `BUG`, métriques `bug-*`) |
 | `excludeIssueTypes[]` | string[] | Non | `[]` | Types Jira exclus de toutes les métriques |
 | `scopeChangeGracePeriodHours` | number | Non | — | Délai (en heures) après entrée en sprint avant lequel un changement de scope n'est pas comptabilisé |
+| `snapshotWindowDays` | integer | Non | `30` | Fenêtre glissante en jours pour les métriques de durée (lead-time, cycle-time…). Ignoré par les métriques hebdomadaires et cumulatives. Un changement déclenche un recalcul intégral au prochain `npm run snapshots`. |
 | `healthThresholds` | object | Non | — | Seuils des signaux de santé KPI dans le rapport (voir ci-dessous) |
 | `estimation` | object | Non | `{ method: "time" }` | Méthode d'estimation utilisée (voir `board.example.yaml`). `bucketThresholds` générés automatiquement par `autoconfig` (calibrés sur données réelles ou valeurs par défaut) |
 

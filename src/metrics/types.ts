@@ -44,6 +44,9 @@ export interface MetricConfig {
   // Date ISO (YYYY-MM-DD). Issues résolues après sont ignorées. Utilisé par
   // le système de snapshots pour calculer des métriques sur fenêtre passée.
   windowEndDate?: string;
+  // Fenêtre glissante en jours calendaires pour les snapshots de métriques de durée.
+  // Ignoré par les métriques hebdomadaires (WEEKLY_METRICS) et cumulatives (CUMULATIVE_METRICS).
+  snapshotWindowDays?: number;
   // Exclure les outliers extrêmes (Tukey upper fence: Q3 + 1.5*IQR) avant
   // de calculer moyennes et percentiles. Default true.
   excludeOutliers?: boolean;

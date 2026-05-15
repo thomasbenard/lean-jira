@@ -43,6 +43,11 @@ metrics:
   # cycle-time et throughput. Utile si l'instance a subi un bulk close lors
   # d'une migration de workflow.
   # cutoffDate: "2025-11-01"
+  # Fenêtre glissante en jours pour les métriques de durée (lead-time, cycle-time…).
+  # Défaut : 30. Les métriques hebdomadaires (throughput…) et cumulatives (by-size…)
+  # ignorent ce paramètre. Un changement déclenche un recalcul intégral au prochain
+  # `npm run snapshots`.
+  # snapshotWindowDays: 30
   # Types Jira considérés comme bugs (non estimés par nature). Bucket dédié
   # "BUG" dans les by-size + exclus des métriques d'estimation (normalized,
   # weighted throughput). Métriques dédiées: bug-cycle-time, bug-throughput.

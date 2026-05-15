@@ -13,7 +13,7 @@ import { type ReworkCostResult } from "../metrics/reworkCost";
 import { type BottleneckAnalysisResult } from "../metrics/bottleneckAnalysis";
 import { now } from "../clock";
 
-const ROLLING_WINDOW_DAYS = 30;
+export const DEFAULT_ROLLING_WINDOW_DAYS = 30;
 const WEEK_DAYS = 7;
 const WEEKLY_METRICS = new Set(["throughput", "throughput-weighted", "bug-throughput", "dev-time-allocation", "bug-backlog", "handoff-rework", "first-time-right"]);
 // Métriques cumulatives : fenêtre depuis cutoffDate global (pas 30j glissants).
@@ -75,6 +75,7 @@ function subDaysISO(dateISO: string, days: number): string {
 
 function computeSnapshot(db: Database.Database, date: string, baseConfig: MetricConfig): SnapshotRow[] {
   const rows: SnapshotRow[] = [];
+  const rollingWindow = baseConfig.snapshotWindowDays ?? DEFAULT_ROLLING_WINDOW_DAYS;
 
   for (const metric of ALL_METRICS) {
     if (metric.name === "wip") {
@@ -96,7 +97,7 @@ function computeSnapshot(db: Database.Database, date: string, baseConfig: Metric
 
     const isWeekly = WEEKLY_METRICS.has(metric.name);
     const isCumulative = CUMULATIVE_METRICS.has(metric.name);
-    const windowDays = isWeekly ? WEEK_DAYS : ROLLING_WINDOW_DAYS;
+    const windowDays = isWeekly ? WEEK_DAYS : rollingWindow;
     const cfg: MetricConfig = {
       ...baseConfig,
       cutoffDate: isCumulative ? baseConfig.cutoffDate : subDaysISO(date, windowDays),
