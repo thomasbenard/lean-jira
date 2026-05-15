@@ -7,6 +7,7 @@ import { type MetricConfig, type EstimationConfig } from "../metrics/types";
 import { agingWipMetric, type AgingWipSummary, type AgingWipIssue, type AgingRisk } from "../metrics/agingWip";
 import { forecastMetric, type ForecastSummary } from "../metrics/forecast";
 import { cycleTimeMetric } from "../metrics/cycleTime";
+import { leadTimeMetric } from "../metrics/leadTime";
 import { scopeChangeMetric, type ScopeChangeResult } from "../metrics/scopeChange";
 import { bottleneckAnalysisMetric, type BottleneckAnalysisResult, type RoleKey } from "../metrics/bottleneckAnalysis";
 import { throughputMetric } from "../metrics/throughput";
@@ -249,11 +250,17 @@ export function buildSprintSeries(
   throughput: SprintChartSeries;
   bugThroughput: SprintChartSeries;
   throughputWeighted: SprintChartSeries;
+  leadTime: SprintChartSeries;
+  cycleTime: SprintChartSeries;
 } {
   const labels: string[] = [];
   const thrCounts: number[] = [];
   const bugCounts: number[] = [];
   const wgtDays: number[] = [];
+  const leadMedians: number[] = [];
+  const leadP85s: number[] = [];
+  const cycleMedians: number[] = [];
+  const cycleP85s: number[] = [];
 
   const hasActive = sprints.length > 0 && sprints[sprints.length - 1].state === "active";
 
@@ -272,12 +279,22 @@ export function buildSprintSeries(
 
     const wgtResult = throughputWeightedMetric.compute(db, cfg);
     wgtDays.push(wgtResult.byWeek.reduce((s, w) => s + w.estimatedDays, 0));
+
+    const leadResult = leadTimeMetric.compute(db, cfg);
+    leadMedians.push(leadResult.count > 0 ? leadResult.medianDays : 0);
+    leadP85s.push(leadResult.count > 0 ? leadResult.p85Days : 0);
+
+    const cycleResult = cycleTimeMetric.compute(db, cfg);
+    cycleMedians.push(cycleResult.count > 0 ? cycleResult.medianDays : 0);
+    cycleP85s.push(cycleResult.count > 0 ? cycleResult.p85Days : 0);
   }
 
   return {
     throughput: { labels, series: { count: thrCounts }, hasActiveSprint: hasActive },
     bugThroughput: { labels, series: { count: bugCounts }, hasActiveSprint: hasActive },
     throughputWeighted: { labels, series: { estimatedDays: wgtDays }, hasActiveSprint: hasActive },
+    leadTime: { labels, series: { median: leadMedians, p85: leadP85s }, hasActiveSprint: hasActive },
+    cycleTime: { labels, series: { median: cycleMedians, p85: cycleP85s }, hasActiveSprint: hasActive },
   };
 }
 
@@ -614,6 +631,8 @@ interface RenderInput {
     throughput: SprintChartSeries;
     bugThroughput: SprintChartSeries;
     throughputWeighted: SprintChartSeries;
+    leadTime: SprintChartSeries;
+    cycleTime: SprintChartSeries;
   } | null;
   rolesSprintCharts: {
     ftrByRole: SprintChartSeries;

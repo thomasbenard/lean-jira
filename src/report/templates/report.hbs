@@ -459,11 +459,11 @@ function updateChart(chart, labels, seriesData) {
   chart.update("none");
 }
 
-lineChart("leadTimeChart", CHARTS.leadTime, [
+var _leadTimeChart = lineChart("leadTimeChart", CHARTS.leadTime, [
   { key: "median", label: "Médiane", color: COLOR_MEDIAN },
   { key: "p85", label: "P85", color: COLOR_P85 },
 ], true);
-lineChart("cycleTimeChart", CHARTS.cycleTime, [
+var _cycleTimeChart = lineChart("cycleTimeChart", CHARTS.cycleTime, [
   { key: "median", label: "Médiane", color: COLOR_MEDIAN },
   { key: "p85", label: "P85", color: COLOR_P85 },
 ], true);
@@ -484,6 +484,8 @@ var _bugThroughputChart = lineChart("bugThroughputChart", CHARTS.bugThroughput, 
   var toggle = document.getElementById("debit-toggle");
   if (!toggle) return;
   // Debit charts existent avant l'IIFE → capture immédiate.
+  var _leadOrig = _leadTimeChart ? _leadTimeChart.data.datasets.map(function(d) { return d.data; }) : null;
+  var _cycleOrig = _cycleTimeChart ? _cycleTimeChart.data.datasets.map(function(d) { return d.data; }) : null;
   var _thrOrig = _throughputChart ? _throughputChart.data.datasets.map(function(d) { return d.data; }) : null;
   var _wgtOrig = _throughputWeightedChart ? _throughputWeightedChart.data.datasets.map(function(d) { return d.data; }) : null;
   var _bugOrig = _bugThroughputChart ? _bugThroughputChart.data.datasets.map(function(d) { return d.data; }) : null;
@@ -555,11 +557,14 @@ var _bugThroughputChart = lineChart("bugThroughputChart", CHARTS.bugThroughput, 
     if (el) el.dataset.weekTitle = el.textContent;
   });
   function switchDebitView(view) {
-    var allCharts = [_throughputChart, _throughputWeightedChart, _bugThroughputChart,
+    var allCharts = [_leadTimeChart, _cycleTimeChart,
+                     _throughputChart, _throughputWeightedChart, _bugThroughputChart,
                      _ftrChart, _reworkRatioChart, _reworkByTypeChart, _reworkCostChart];
     if (view === "sprint") {
       saveRolesOriginals();
       if (SPRINT_CHARTS) {
+        updateChartWithTrend(_leadTimeChart, SPRINT_CHARTS.leadTime.labels, SPRINT_CHARTS.leadTime.series);
+        updateChartWithTrend(_cycleTimeChart, SPRINT_CHARTS.cycleTime.labels, SPRINT_CHARTS.cycleTime.series);
         updateChartWithTrend(_throughputChart, SPRINT_CHARTS.throughput.labels, SPRINT_CHARTS.throughput.series);
         updateChartWithTrend(_throughputWeightedChart, SPRINT_CHARTS.throughputWeighted.labels, SPRINT_CHARTS.throughputWeighted.series);
         updateChartWithTrend(_bugThroughputChart, SPRINT_CHARTS.bugThroughput.labels, SPRINT_CHARTS.bugThroughput.series);
@@ -573,6 +578,8 @@ var _bugThroughputChart = lineChart("bugThroughputChart", CHARTS.bugThroughput, 
       applySprintXAxis(allCharts, true);
       updateDebitTitles(true);
     } else {
+      restoreChart(_leadTimeChart, CHARTS.leadTime.dates, _leadOrig);
+      restoreChart(_cycleTimeChart, CHARTS.cycleTime.dates, _cycleOrig);
       restoreChart(_throughputChart, CHARTS.throughput.dates, _thrOrig);
       restoreChart(_throughputWeightedChart, CHARTS.throughputWeighted.dates, _wgtOrig);
       restoreChart(_bugThroughputChart, CHARTS.bugThroughput.dates, _bugOrig);
