@@ -1,6 +1,6 @@
-import type Database from "better-sqlite3";
-import { type Metric, type MetricConfig } from "./types";
-import { buildDeliveredCte, buildExcludeIssueTypesFragment, buildWindowFragment, percentile, placeholders, removeUpperOutliers, workingDaysBetween } from "./utils";
+import { type Metric } from "./types";
+import type { MetricsContext } from "./context";
+import { percentile, removeUpperOutliers } from "./utils";
 
 export interface FlowEfficiencyIssue {
   issueKey: string;
@@ -32,78 +32,41 @@ export const flowEfficiencyMetric: Metric<FlowEfficiencySummary> = {
   description:
     "Ratio temps actif / (actif + queue) sur la phase cycle-time. Typique 5-15% : optimiser la file d'attente bat optimiser le dev.",
 
-  compute(db: Database.Database, config: MetricConfig): FlowEfficiencySummary {
-    const active = config.activeStatuses ?? [];
-    const queue = config.queueStatuses ?? [];
+  compute(ctx: MetricsContext): FlowEfficiencySummary {
+    const active = ctx.config.activeStatuses ?? [];
+    const queue = ctx.config.queueStatuses ?? [];
     if (active.length === 0) {return emptyResult();}
-
-    const devStartPh = placeholders(config.devStartStatuses);
-    const delivered = buildDeliveredCte(config.doneStatuses);
-    const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
-    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes);
-
-    // Population identique à cycle-time + transitions cycle agrégées en une seule requête
-    // pour éviter N requêtes (une par issue).
-    const rows = db.prepare(`
-      WITH ${delivered.cte},
-      eligible AS (
-        SELECT i.key, d.done_at AS resolved_at, MIN(t.transitioned_at) AS started_at
-        FROM transitions t
-        JOIN issues i ON i.key = t.issue_key
-        JOIN delivered d ON d.issue_key = t.issue_key
-        WHERE t.to_status IN (${devStartPh})
-          ${excludeSql} ${cutoffSql} ${endSql}
-        GROUP BY i.key, d.done_at
-      )
-      SELECT e.key, e.resolved_at, e.started_at, tr.to_status, tr.transitioned_at
-      FROM eligible e
-      JOIN transitions tr ON tr.issue_key = e.key
-        AND tr.transitioned_at >= e.started_at
-        AND tr.transitioned_at <= e.resolved_at
-      ORDER BY e.key ASC, tr.transitioned_at ASC, tr.id ASC
-    `).all(
-      ...delivered.args,
-      ...config.devStartStatuses,
-      ...excludeArgs,
-      ...cutoffArgs,
-      ...endArgs,
-    ) as { key: string; resolved_at: string; started_at: string; to_status: string; transitioned_at: string }[];
-
-    // Grouper les transitions par issue en mémoire
-    interface IssueEntry { key: string; resolved_at: string; started_at: string; trans: { to_status: string; transitioned_at: string }[] }
-    const issueMap = new Map<string, IssueEntry>();
-    for (const r of rows) {
-      let entry = issueMap.get(r.key);
-      if (!entry) {
-        entry = { key: r.key, resolved_at: r.resolved_at, started_at: r.started_at, trans: [] };
-        issueMap.set(r.key, entry);
-      }
-      entry.trans.push({ to_status: r.to_status, transitioned_at: r.transitioned_at });
-    }
+    const activeSet = new Set(active);
+    const queueSet = new Set(queue);
 
     const out: FlowEfficiencyIssue[] = [];
-    for (const issue of issueMap.values()) {
-      if (issue.trans.length === 0) {continue;}
+    for (const sample of ctx.cycleTimePopulation) {
+      const allTrans = ctx.transitionsByIssue.get(sample.issueKey) ?? [];
+      // pourquoi : SQL legacy filtrait tr.transitioned_at >= started_at AND <= resolved_at
+      const trans = allTrans.filter(
+        (t) => t.transitionedAt >= sample.startedAt && t.transitionedAt <= sample.doneAt,
+      );
+      if (trans.length === 0) {continue;}
 
       let activeDays = 0;
       let queueDays = 0;
-      for (let i = 0; i < issue.trans.length; i++) {
-        const start = issue.trans[i].transitioned_at;
-        const end = i + 1 < issue.trans.length ? issue.trans[i + 1].transitioned_at : issue.resolved_at;
+      for (let i = 0; i < trans.length; i++) {
+        const start = trans[i].transitionedAt;
+        const end = i + 1 < trans.length ? trans[i + 1].transitionedAt : sample.doneAt;
         if (new Date(end).getTime() <= new Date(start).getTime()) {continue;}
-        const days = workingDaysBetween(start, end);
-        const status = issue.trans[i].to_status;
-        if (active.includes(status)) {activeDays += days;}
-        else if (queue.includes(status)) {queueDays += days;}
+        const days = ctx.workingDaysBetween(start, end);
+        const status = trans[i].toStatus;
+        if (activeSet.has(status)) {activeDays += days;}
+        else if (queueSet.has(status)) {queueDays += days;}
         // sinon : statut hors flux mesuré (TODO retour, done) -> ignoré.
       }
 
       const total = activeDays + queueDays;
       if (total <= 0) {continue;}
       out.push({
-        issueKey: issue.key,
-        startedAt: issue.started_at,
-        resolvedAt: issue.resolved_at,
+        issueKey: sample.issueKey,
+        startedAt: sample.startedAt,
+        resolvedAt: sample.doneAt,
         activeDays,
         queueDays,
         totalDays: total,
@@ -113,7 +76,7 @@ export const flowEfficiencyMetric: Metric<FlowEfficiencySummary> = {
 
     let kept = out;
     let excluded = 0;
-    if (config.excludeOutliers !== false && out.length >= 4) {
+    if (ctx.config.excludeOutliers !== false && out.length >= 4) {
       const totals = out.map((i) => i.totalDays);
       const { kept: keptTotals } = removeUpperOutliers(totals);
       const upper = keptTotals.length > 0 ? keptTotals[keptTotals.length - 1] : Infinity;
