@@ -63,6 +63,8 @@ function makeRenderInput(overrides: Partial<RenderInput> = {}): RenderInput {
       },
       byColumn: [],
     },
+    sprintCharts: null,
+    rolesSprintCharts: null,
     ...overrides,
   };
 }

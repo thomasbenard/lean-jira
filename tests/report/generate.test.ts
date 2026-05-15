@@ -104,6 +104,7 @@ function makeRenderInput(): RenderInput {
       byColumn: [],
     },
     sprintCharts: null,
+    rolesSprintCharts: null,
   };
 }
 
@@ -884,6 +885,8 @@ describe("renderDefault — toggle sprint/semaines", () => {
       throughput: { labels: ["Sprint 1"], series: { count: [5] }, hasActiveSprint: false },
       bugThroughput: { labels: ["Sprint 1"], series: { count: [1] }, hasActiveSprint: false },
       throughputWeighted: { labels: ["Sprint 1"], series: { estimatedDays: [3.5] }, hasActiveSprint: false },
+      leadTime: { labels: ["Sprint 1"], series: { median: [3], p85: [5] }, hasActiveSprint: false },
+      cycleTime: { labels: ["Sprint 1"], series: { median: [2], p85: [4] }, hasActiveSprint: false },
     };
     const html = renderDefault({ ...makeRenderInput(), sprintCharts });
     expect(html).toContain('id="debit-toggle"');
