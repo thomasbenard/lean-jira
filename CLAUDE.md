@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **TDD is mandatory** (Red → Green → Refactor) for every change: feature, bug fix, refactor with behavior change. Tests are written *before* production code, never after.
 - TypeScript 6 strict, double quotes, 2-space indent, semicolons, trailing commas.
 - camelCase in TS, snake_case in SQL — explicit mapping in `store/sqlite/*.ts` and `sync.ts`.
-- Plugin pattern for metrics: implement `Metric<T>`, register in `ALL_METRICS`, use `buildDeliveredCte()` for delivery endpoints.
+- Plugin pattern for metrics: implement `Metric<T>` (`compute(ctx: MetricsContext)`), register in `ALL_METRICS` ; pas d'accès direct à la DB — passer par `ctx.store: ReadStore` (`src/store/types.ts`) ou les vues mémoire (`ctx.cycleTimePopulation`, `ctx.transitionsByIssue`, `ctx.deliveredAt`).
 - French for prose / logs / test names, English for code identifiers.
 - Comments explain *why*, never *what*.
 
@@ -183,9 +183,9 @@ Board is defined as an ordered list of columns under `board.columns`. Each colum
 
 ## Adding a metric
 
-1. Create `src/metrics/<name>.ts` implementing `Metric<T>`
-2. If the metric measures duration to delivery, build SQL with `buildDeliveredCte(config.doneStatuses)` from `utils.ts` — never use `issues.resolved_at` as the endpoint (`config.doneStatuses` is passed from `MetricConfig`, itself derived from `board.columns` + `board.legacyDoneStatuses`)
-2b. If the metric needs per-issue transitions for the cycle-time population, use `fetchDeliveredTransitions(db, config)` + `groupByIssue()` from `utils.ts` instead of duplicating the query. For role-based time breakdown, use `computeRoleDays(transitions, done_at, toRoleStatuses(config))` — `toRoleStatuses` coalesces the optional `devStatuses/qaStatuses/poStatuses` from `MetricConfig` to non-optional arrays.
+1. Create `src/metrics/<name>.ts` implementing `Metric<T>` ; la fonction `compute(ctx: MetricsContext)` reçoit un contexte pré-calculé. Pas d'accès direct à `Database` ni de SQL : tout passe par `ctx.store: ReadStore` (façade `src/store/types.ts`) ou les vues mémoire (`ctx.cycleTimePopulation`, `ctx.transitionsByIssue`, `ctx.deliveredAt`, `ctx.issueByKey`, `ctx.transitionsByToStatus`).
+2. Pour les métriques de durée jusqu'à livraison : ne jamais utiliser `issues.resolved_at`. La date de livraison est `ctx.deliveredAt.get(issueKey)` (centralisée dans `buildMetricsContext`, basée sur `config.doneStatuses` dérivé de `board.columns` + `board.legacyDoneStatuses`).
+2b. Pour la population cycle-time : itérer `ctx.cycleTimePopulation` (déjà filtrée par `excludeIssueTypes` et bornée à `cutoffDate`). Pour les transitions d'une issue, utiliser `ctx.transitionsByIssue.get(issueKey)`. Pour le breakdown par rôle, utiliser `toRoleStatuses(config)` (dans `utils.ts`) pour récupérer `{devStatuses, qaStatuses, poStatuses}` non-optionnels, puis itérer les transitions de chaque sample en classant par rôle (cf. `stageTimeBreakdown.ts:55-90` comme référence).
 3. Import and push into `ALL_METRICS` in `src/metrics/index.ts`
 4. Result shape determines how `snapshots/compute.ts` extracts stats. Recognized shapes: `buckets` (Record<SizeBucket, DurationStats>), `aggregateFlowEfficiency` (flow-efficiency-like), `riskCounts` (aging-wip-like), `avgDays` (DurationStats), `openCount` (bug-backlog-like), `avgBugRatio` (dev-time-allocation-like), `avgShareByRole` (stage-time-breakdown-like; discriminator précis pour ne pas capturer `byRole` de wip-per-role), `primaryBottleneck` (bottleneck-analysis-like; **doit précéder `byRole`** car `BottleneckAnalysisResult` contient aussi `byRole`), `byRole` (wip-per-role-like; discriminé après `avgShareByRole` et `primaryBottleneck`), `byWeek` (debit), `totalReworkDays` (rework-cost-like; **doit précéder `reworkRatio` et `byWeek`** car `ReworkCostResult` contient les deux), `reworkRatio` (handoff-rework-like), `ftrByRole` (first-time-right-like), `avgNetByRole` (stage-throughput-gap-like). WIP par rôle est géré séparément via `computeHistoricWipPerRole` (hors `extractStats`). Other shapes are silently skipped — add an explicit `extractStats` branch if the metric needs persistent history.
 5. If the metric is non-deterministic (e.g. Monte Carlo) or shouldn't be back-filled, add an explicit skip in `snapshots/compute.ts` (see `forecast`).

@@ -190,7 +190,7 @@ export const bottleneckAnalysisMetric: Metric<BottleneckAnalysisResult> = {
 
     for (const sample of ctx.cycleTimePopulation) {
       const allTrans = ctx.transitionsByIssue.get(sample.issueKey) ?? [];
-      // pourquoi : matche le scoping legacy fetchDeliveredTransitions (started_at .. done_at inclus)
+      // pourquoi : ne compter que la fenêtre dev→done (started_at..done_at inclus) pour le calcul par rôle
       const transitions: TransitionRecord[] = allTrans.filter(
         (t) => t.transitionedAt >= sample.startedAt && t.transitionedAt <= sample.doneAt,
       );

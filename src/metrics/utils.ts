@@ -1,13 +1,4 @@
-import type Database from "better-sqlite3";
 import type { EstimationConfig, EstimationBucketThresholds, EstimationMethod, MetricConfig } from "./types";
-
-export interface TransitionRow {
-  key: string;
-  done_at: string;
-  started_at: string;
-  to_status: string;
-  transitioned_at: string;
-}
 
 export interface RoleStatuses {
   devStatuses: string[];
@@ -51,65 +42,6 @@ export function percentile(sortedValues: number[], p: number): number {
 
 // 1 jour-personne = 8h = 28800 secondes (convention Atlassian par défaut)
 export const SECONDS_PER_DAY = 28800;
-
-// CTE SQL qui calcule done_at par issue = 1ère transition vers un statut "done"
-// (statusCategory.key='done' ∪ config.doneStatuses pour les statuts renommés).
-// Remplace issues.resolved_at (champ resolutiondate Jira) côté métriques de durée :
-// définit la "livraison" du point de vue équipe (ex: passage en "À valider"
-// = team-done sur le board KECK) au lieu du statut "Done" final.
-//
-// Usage :
-//   const d = buildDeliveredCte(config.doneStatuses);
-//   db.prepare(`WITH ${d.cte} SELECT ... JOIN delivered ON ...`).all(...d.args, ...);
-export function buildDeliveredCte(doneStatuses: string[]): { cte: string; args: string[] } {
-  const ph = doneStatuses.map(() => "?").join(",");
-  return {
-    cte: `delivered AS (
-      SELECT issue_key, MIN(transitioned_at) AS done_at
-      FROM transitions
-      WHERE to_status IN (${ph})
-      GROUP BY issue_key
-    )`,
-    args: [...doneStatuses],
-  };
-}
-
-export function placeholders(arr: unknown[]): string {
-  return arr.map(() => "?").join(",");
-}
-
-// Assume delivered CTE aliased as 'd' in calling query.
-export function buildWindowFragment(
-  cutoffDate: string | undefined,
-  windowEndDate: string | undefined,
-): { cutoffSql: string; cutoffArgs: string[]; endSql: string; endArgs: string[] } {
-  return {
-    cutoffSql: cutoffDate ? "AND d.done_at >= ?" : "",
-    cutoffArgs: cutoffDate ? [cutoffDate] : [],
-    endSql: windowEndDate ? "AND d.done_at <= ?" : "",
-    endArgs: windowEndDate ? [windowEndDate] : [],
-  };
-}
-
-export function buildExcludeIssueTypesFragment(
-  excludeIssueTypes: string[],
-  alias = "i",
-): { excludeSql: string; excludeArgs: string[] } {
-  if (excludeIssueTypes.length === 0) {return { excludeSql: "", excludeArgs: [] };}
-  const col = alias ? `${alias}.issue_type` : "issue_type";
-  return {
-    excludeSql: `AND ${col} NOT IN (${placeholders(excludeIssueTypes)})`,
-    excludeArgs: [...excludeIssueTypes],
-  };
-}
-
-export function buildBugExclusionFragment(bugIssueTypes: string[]): { bugSql: string; bugArgs: string[] } {
-  if (bugIssueTypes.length === 0) {return { bugSql: "", bugArgs: [] };}
-  return {
-    bugSql: `AND i.issue_type NOT IN (${placeholders(bugIssueTypes)})`,
-    bugArgs: [...bugIssueTypes],
-  };
-}
 
 export type SizeBucket = "XS" | "S" | "M" | "L" | "XL" | "BUG" | "UNESTIMATED";
 
@@ -261,45 +193,6 @@ export function toRoleStatuses(config: MetricConfig): RoleStatuses {
   };
 }
 
-export function fetchDeliveredTransitions(
-  db: Database.Database,
-  config: MetricConfig,
-): TransitionRow[] {
-  const devStartPh = placeholders(config.devStartStatuses);
-  const delivered = buildDeliveredCte(config.doneStatuses);
-  const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(
-    config.cutoffDate, config.windowEndDate,
-  );
-  const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(
-    config.excludeIssueTypes,
-  );
-
-  return db.prepare(`
-    WITH ${delivered.cte},
-    eligible AS (
-      SELECT i.key, d.done_at, MIN(t.transitioned_at) AS started_at
-      FROM transitions t
-      JOIN issues i ON i.key = t.issue_key
-      JOIN delivered d ON d.issue_key = t.issue_key
-      WHERE t.to_status IN (${devStartPh})
-        ${excludeSql} ${cutoffSql} ${endSql}
-      GROUP BY i.key, d.done_at
-    )
-    SELECT e.key, e.done_at, e.started_at, tr.to_status, tr.transitioned_at
-    FROM eligible e
-    JOIN transitions tr ON tr.issue_key = e.key
-      AND tr.transitioned_at >= e.started_at
-      AND tr.transitioned_at <= e.done_at
-    ORDER BY e.key ASC, tr.transitioned_at ASC, tr.id ASC
-  `).all(
-    ...delivered.args,
-    ...config.devStartStatuses,
-    ...excludeArgs,
-    ...cutoffArgs,
-    ...endArgs,
-  ) as TransitionRow[];
-}
-
 // Retourne la semaine ISO (ex: "2025-W10") d'un timestamp ISO.
 // Le jeudi détermine l'année ISO (règle ISO 8601).
 export function isoWeek(dateISO: string): string {
@@ -312,40 +205,3 @@ export function isoWeek(dateISO: string): string {
   return `${year}-W${String(weekNo).padStart(2, "0")}`;
 }
 
-export function groupByIssue(rows: TransitionRow[]): Map<string, TransitionRow[]> {
-  const map = new Map<string, TransitionRow[]>();
-  for (const row of rows) {
-    let list = map.get(row.key);
-    if (!list) {
-      list = [];
-      map.set(row.key, list);
-    }
-    list.push(row);
-  }
-  return map;
-}
-
-export function computeRoleDays(
-  transitions: TransitionRow[],
-  done_at: string,
-  roles: RoleStatuses,
-): { devDays: number; qaDays: number; poDays: number } {
-  let devDays = 0;
-  let qaDays = 0;
-  let poDays = 0;
-
-  for (let i = 0; i < transitions.length; i++) {
-    const start = transitions[i].transitioned_at;
-    const end = i + 1 < transitions.length
-      ? transitions[i + 1].transitioned_at
-      : done_at;
-    if (end <= start) {continue;}
-    const days = workingDaysBetween(start, end);
-    const status = transitions[i].to_status;
-    if (roles.devStatuses.includes(status)) {devDays += days;}
-    else if (roles.qaStatuses.includes(status)) {qaDays += days;}
-    else if (roles.poStatuses.includes(status)) {poDays += days;}
-  }
-
-  return { devDays, qaDays, poDays };
-}

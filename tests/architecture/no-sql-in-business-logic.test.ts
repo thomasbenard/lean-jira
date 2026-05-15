@@ -15,11 +15,6 @@ const ALLOWED_PREFIXES: string[] = [
 
 const ALLOWED_FILES: string[] = [
   path.join(SRC_ROOT, "store", "types.ts"),
-  // pourquoi : `metrics/utils.ts` héberge `fetchDeliveredTransitions` et
-  // `buildDeliveredCte`, des helpers SQL partagés par toutes les métriques de
-  // durée. Migration vers SqliteStore en dette technique (ticket post-050) :
-  // requiert de modéliser les CTE paramétrées comme méthodes d'un namespace.
-  path.join(SRC_ROOT, "metrics", "utils.ts"),
 ];
 
 interface Forbidden {
