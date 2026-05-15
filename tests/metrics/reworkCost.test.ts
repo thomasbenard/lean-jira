@@ -4,6 +4,7 @@ import { makeIssue, makeSprint, seedIssueWithTransitions, seedSprint, TEST_CONFI
 import { reworkCostMetric } from "../../src/metrics/reworkCost";
 import type Database from "better-sqlite3";
 import type { MetricConfig } from "../../src/metrics/types";
+import { createTestContext } from "../_helpers/createTestContext";
 
 let db: Database.Database;
 beforeEach(() => {
@@ -22,7 +23,7 @@ describe("reworkCostMetric.compute", () => {
   // Règle 1 — Détection des passes rework
 
   it("retourne tous les agrégats à 0 si aucune issue livrée", () => {
-    const result = reworkCostMetric.compute(db, ROLE_CONFIG);
+    const result = reworkCostMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(0);
     expect(result.reworkedCount).toBe(0);
     expect(result.totalReworkDays).toBe(0);
@@ -40,7 +41,7 @@ describe("reworkCostMetric.compute", () => {
       { to: "In Review",   at: "2025-01-10T09:00:00Z" },
       { to: "Done",        at: "2025-01-13T09:00:00Z" },
     ]);
-    const result = reworkCostMetric.compute(db, ROLE_CONFIG);
+    const result = reworkCostMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(1);
     expect(result.reworkedCount).toBe(0);
     expect(result.totalReworkDays).toBe(0);
@@ -56,7 +57,7 @@ describe("reworkCostMetric.compute", () => {
       { to: "In Progress",  at: "2025-01-13T09:00:00Z" }, // rework
       { to: "Done",         at: "2025-01-15T09:00:00Z" }, // 2j (lun+mar)
     ]);
-    const result = reworkCostMetric.compute(db, ROLE_CONFIG);
+    const result = reworkCostMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.reworkedCount).toBe(1);
     expect(result.totalReworkDays).toBeCloseTo(2);
     expect(result.reworkCostRatio).toBeGreaterThan(0);
@@ -72,7 +73,7 @@ describe("reworkCostMetric.compute", () => {
       { to: "In Review",   at: "2025-01-15T09:00:00Z" }, // QA2 rework (2j DEV2: lun+mar)
       { to: "Done",        at: "2025-01-16T09:00:00Z" }, // Done (1j QA2: mer)
     ]);
-    const result = reworkCostMetric.compute(db, ROLE_CONFIG);
+    const result = reworkCostMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.reworkedCount).toBe(1);
     expect(result.totalReworkDays).toBeCloseTo(3); // 2j DEV2 + 1j QA2
   });
@@ -89,7 +90,7 @@ describe("reworkCostMetric.compute", () => {
       { to: "In Progress",  at: "2025-01-20T09:00:00Z" }, // rework (lun)
       { to: "Done",         at: "2025-01-22T09:00:00Z" }, // Done (lun+mar = 2j)
     ]);
-    const result = reworkCostMetric.compute(db, ROLE_CONFIG);
+    const result = reworkCostMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.reworkedCount).toBe(1);
     expect(result.totalReworkDays).toBeCloseTo(2); // seul le 2e DEV compte
   });
@@ -103,7 +104,7 @@ describe("reworkCostMetric.compute", () => {
       { to: "In Review",   at: "2025-01-14T09:00:00Z" }, // QA 1ère passe
       { to: "Done",        at: "2025-01-15T09:00:00Z" },
     ]);
-    const result = reworkCostMetric.compute(db, ROLE_CONFIG);
+    const result = reworkCostMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.reworkedCount).toBe(0);
     expect(result.totalReworkDays).toBe(0);
   });
@@ -120,7 +121,7 @@ describe("reworkCostMetric.compute", () => {
       { to: "In Progress", at: "2025-01-13T09:00:00Z" }, // rework start (lun W03)
       { to: "Done",        at: "2025-01-23T09:00:00Z" }, // 8j-ouvrés (jeu W04)
     ]);
-    const result = reworkCostMetric.compute(db, ROLE_CONFIG);
+    const result = reworkCostMetric.compute(createTestContext(db, ROLE_CONFIG));
     const w03 = result.byWeek.find((w) => w.week === "2025-W03");
     const w04 = result.byWeek.find((w) => w.week === "2025-W04");
     expect(w03).toBeDefined();
@@ -139,7 +140,7 @@ describe("reworkCostMetric.compute", () => {
       { to: "In Progress", at: "2025-01-08T09:00:00Z" }, // rework start (mer W02)
       { to: "Done",        at: "2025-01-10T09:00:00Z" }, // 2j (mer+jeu)
     ]);
-    const result = reworkCostMetric.compute(db, ROLE_CONFIG);
+    const result = reworkCostMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.byWeek).toHaveLength(1);
     expect(result.byWeek[0].week).toBe("2025-W02");
     expect(result.byWeek[0].reworkDays).toBeCloseTo(2);
@@ -157,7 +158,7 @@ describe("reworkCostMetric.compute", () => {
       { to: "In Progress", at: "2025-01-13T09:00:00Z" }, // rework start
       { to: "Done",        at: "2025-01-15T09:00:00Z" }, // end dans Sprint 1
     ]);
-    const result = reworkCostMetric.compute(db, ROLE_CONFIG);
+    const result = reworkCostMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.bySprint).toHaveLength(1);
     expect(result.bySprint[0].sprintId).toBe(1);
     expect(result.bySprint[0].sprintName).toBe("Sprint 1");
@@ -173,7 +174,7 @@ describe("reworkCostMetric.compute", () => {
       { to: "In Progress", at: "2025-01-13T09:00:00Z" }, // rework
       { to: "Done",        at: "2025-01-15T09:00:00Z" },
     ]);
-    const result = reworkCostMetric.compute(db, ROLE_CONFIG);
+    const result = reworkCostMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.bySprint).toEqual([]);
     expect(result.totalReworkDays).toBeGreaterThan(0);
   });
@@ -186,7 +187,7 @@ describe("reworkCostMetric.compute", () => {
       { to: "In Progress", at: "2025-01-07T09:00:00Z" },
       { to: "Done",        at: "2025-01-10T09:00:00Z" },
     ]);
-    const result = reworkCostMetric.compute(db, ROLE_CONFIG);
+    const result = reworkCostMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(1);
     expect(result.reworkedCount).toBe(0);
     expect(result.avgReworkDaysPerReworkedTicket).toBe(0);
@@ -200,7 +201,7 @@ describe("reworkCostMetric.compute", () => {
       { to: "In Review",   at: "2025-01-10T09:00:00Z" },
       { to: "Done",        at: "2025-01-13T09:00:00Z" },
     ]);
-    const result = reworkCostMetric.compute(db, TEST_CONFIG); // pas de devStatuses/qaStatuses
+    const result = reworkCostMetric.compute(createTestContext(db, TEST_CONFIG)); // pas de devStatuses/qaStatuses
     expect(result.reworkedCount).toBe(0);
     expect(result.byWeek).toEqual([]);
     expect(result.bySprint).toEqual([]);

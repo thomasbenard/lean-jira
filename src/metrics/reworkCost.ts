@@ -1,7 +1,6 @@
-import type Database from "better-sqlite3";
-import { type Metric, type MetricConfig } from "./types";
-import { fetchDeliveredTransitions, groupByIssue, workingDaysBetween } from "./utils";
-import type { TransitionRow } from "./utils";
+import { type Metric } from "./types";
+import type { MetricsContext } from "./context";
+import type { TransitionRecord } from "../store/types";
 import { distributeAcrossWeeks } from "./devTimeAllocation";
 
 export interface ReworkCostByWeek {
@@ -45,8 +44,8 @@ function getRole(status: string, roles: Record<RoleKey, Set<string>>): RoleKey |
 }
 
 function extractReworkBlocks(
-  transitions: TransitionRow[],
-  done_at: string,
+  transitions: TransitionRecord[],
+  doneAt: string,
   roles: Record<RoleKey, Set<string>>,
 ): RoleBlock[] {
   const blocks: RoleBlock[] = [];
@@ -56,16 +55,16 @@ function extractReworkBlocks(
   let currentIsRework = false;
 
   for (const t of transitions) {
-    const role = getRole(t.to_status, roles);
+    const role = getRole(t.toStatus, roles);
     if (role !== currentRole) {
       if (currentRole !== null && currentBlockStart !== null) {
-        blocks.push({ role: currentRole, startAt: currentBlockStart, endAt: t.transitioned_at, isRework: currentIsRework });
+        blocks.push({ role: currentRole, startAt: currentBlockStart, endAt: t.transitionedAt, isRework: currentIsRework });
       }
       if (role !== null) {
         passCount[role]++;
         currentIsRework = passCount[role] > 1;
         currentRole = role;
-        currentBlockStart = t.transitioned_at;
+        currentBlockStart = t.transitionedAt;
       } else {
         currentRole = null;
         currentBlockStart = null;
@@ -74,7 +73,7 @@ function extractReworkBlocks(
     }
   }
   if (currentRole !== null && currentBlockStart !== null) {
-    blocks.push({ role: currentRole, startAt: currentBlockStart, endAt: done_at, isRework: currentIsRework });
+    blocks.push({ role: currentRole, startAt: currentBlockStart, endAt: doneAt, isRework: currentIsRework });
   }
   return blocks;
 }
@@ -85,56 +84,54 @@ export const reworkCostMetric: Metric<ReworkCostResult> = {
   description:
     "Coût en jours-ouvrés des passes rework (2e passe ou + dans un même rôle) par semaine et par sprint. Quantifie l'impact économique du rework sur la vélocité.",
 
-  compute(db: Database.Database, config: MetricConfig): ReworkCostResult {
-    const allTransitions = fetchDeliveredTransitions(db, config);
-    const byIssue = groupByIssue(allTransitions);
-
+  compute(ctx: MetricsContext): ReworkCostResult {
+    const config = ctx.config;
     const roles: Record<RoleKey, Set<string>> = {
       dev: new Set(config.devStatuses ?? []),
       qa: new Set(config.qaStatuses ?? []),
       po: new Set(config.poStatuses ?? []),
     };
 
-    const sprintRows = db.prepare(
-      "SELECT id, name, start_date, end_date FROM sprints WHERE start_date IS NOT NULL AND end_date IS NOT NULL",
-    ).all() as { id: number; name: string; start_date: string; end_date: string }[];
+    const sprintRows = ctx.store.sprints.all().filter(
+      (s): s is typeof s & { startDate: string; endDate: string } =>
+        s.startDate !== null && s.endDate !== null,
+    );
 
     const byWeekMap = new Map<string, { reworkDays: number; issues: Set<string> }>();
     const bySprintMap = new Map<number, { sprintId: number; sprintName: string; reworkDays: number; reworkedIssues: Set<string> }>();
 
-    let count = 0;
     let totalReworkDays = 0;
     let reworkedCycleTimeDays = 0;
     const reworkedKeys = new Set<string>();
 
-    for (const [issueKey, transitions] of byIssue) {
-      count++;
-      const done_at = transitions[0].done_at;
-      const started_at = transitions[0].started_at;
+    for (const sample of ctx.cycleTimePopulation) {
+      // pourquoi : SQL legacy filtrait tr.transitioned_at >= started_at AND <= done_at
+      const allTrans = ctx.transitionsByIssue.get(sample.issueKey) ?? [];
+      const trans = allTrans.filter(
+        (t) => t.transitionedAt >= sample.startedAt && t.transitionedAt <= sample.doneAt,
+      );
 
-      const blocks = extractReworkBlocks(transitions, done_at, roles);
+      const blocks = extractReworkBlocks(trans, sample.doneAt, roles);
       const reworkBlocks = blocks.filter((b) => b.isRework);
+      if (reworkBlocks.length === 0) { continue; }
 
-      if (reworkBlocks.length === 0) {continue;}
-
-      reworkedKeys.add(issueKey);
-      reworkedCycleTimeDays += workingDaysBetween(started_at, done_at);
+      reworkedKeys.add(sample.issueKey);
+      reworkedCycleTimeDays += ctx.workingDaysBetween(sample.startedAt, sample.doneAt);
 
       for (const block of reworkBlocks) {
-        const days = workingDaysBetween(block.startAt, block.endAt);
-        if (days <= 0) {continue;}
-
+        const days = ctx.workingDaysBetween(block.startAt, block.endAt);
+        if (days <= 0) { continue; }
         totalReworkDays += days;
 
         for (const [week, alloc] of distributeAcrossWeeks(block.startAt, block.endAt, days)) {
           const entry = byWeekMap.get(week) ?? { reworkDays: 0, issues: new Set<string>() };
           entry.reworkDays += alloc;
-          entry.issues.add(issueKey);
+          entry.issues.add(sample.issueKey);
           byWeekMap.set(week, entry);
         }
 
         const matchingSprint = sprintRows.find(
-          (s) => block.endAt >= s.start_date && block.endAt <= s.end_date,
+          (s) => block.endAt >= s.startDate && block.endAt <= s.endDate,
         );
         if (matchingSprint) {
           const entry = bySprintMap.get(matchingSprint.id) ?? {
@@ -144,12 +141,13 @@ export const reworkCostMetric: Metric<ReworkCostResult> = {
             reworkedIssues: new Set<string>(),
           };
           entry.reworkDays += days;
-          entry.reworkedIssues.add(issueKey);
+          entry.reworkedIssues.add(sample.issueKey);
           bySprintMap.set(matchingSprint.id, entry);
         }
       }
     }
 
+    const count = ctx.cycleTimePopulation.length;
     const reworkedCount = reworkedKeys.size;
 
     const byWeek: ReworkCostByWeek[] = Array.from(byWeekMap.entries())
