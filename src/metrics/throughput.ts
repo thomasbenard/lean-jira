@@ -1,6 +1,5 @@
-import type Database from "better-sqlite3";
-import { type Metric, type MetricConfig } from "./types";
-import { buildDeliveredCte, buildExcludeIssueTypesFragment, buildWindowFragment } from "./utils";
+import type { Metric } from "./types";
+import type { MetricsContext } from "./context";
 
 export interface ThroughputByWeek {
   week: string;
@@ -17,26 +16,23 @@ export const throughputMetric: Metric<ThroughputSummary> = {
   description:
     "Issues livrées par semaine. Livraison = 1ère transition vers statut team-done (statusCategory='done' ∪ doneStatuses config).",
 
-  compute(db: Database.Database, config: MetricConfig): ThroughputSummary {
-    const delivered = buildDeliveredCte(config.doneStatuses);
-    const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
-    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes);
-
-    const rows = db.prepare(`
-      WITH ${delivered.cte}
-      SELECT
-        strftime('%Y-W%W', substr(d.done_at, 1, 10)) AS week,
-        COUNT(*) AS count
-      FROM delivered d
-      JOIN issues i ON i.key = d.issue_key
-      WHERE 1=1 ${excludeSql} ${cutoffSql} ${endSql}
-      GROUP BY week
-      ORDER BY week ASC
-    `).all(...delivered.args, ...excludeArgs, ...cutoffArgs, ...endArgs) as ThroughputByWeek[];
-
-    const total = rows.reduce((sum, r) => sum + r.count, 0);
-    const avgPerWeek = rows.length > 0 ? total / rows.length : 0;
-
-    return { byWeek: rows, avgPerWeek };
+  compute(ctx: MetricsContext): ThroughputSummary {
+    const cutoff = ctx.config.cutoffDate;
+    const windowEnd = ctx.config.windowEndDate;
+    const counts = new Map<string, number>();
+    for (const doneAt of ctx.deliveredAt.values()) {
+      if (cutoff && doneAt < cutoff) { continue; }
+      if (windowEnd && doneAt > windowEnd) { continue; }
+      // pourquoi : isoWeek (ISO 8601) à la place de strftime('%W') SQL pour aligner
+      // le label de semaine avec snapshots/compute.ts qui utilise déjà isoWeek.
+      const week = ctx.isoWeek(doneAt);
+      counts.set(week, (counts.get(week) ?? 0) + 1);
+    }
+    const byWeek: ThroughputByWeek[] = Array.from(counts.entries())
+      .map(([week, count]) => ({ week, count }))
+      .sort((a, b) => a.week.localeCompare(b.week));
+    const total = byWeek.reduce((sum, r) => sum + r.count, 0);
+    const avgPerWeek = byWeek.length > 0 ? total / byWeek.length : 0;
+    return { byWeek, avgPerWeek };
   },
 };
