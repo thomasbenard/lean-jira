@@ -7,6 +7,7 @@ import type { SnapshotRow } from "../../src/snapshots/compute";
 import type { ScopeChangeResult, SprintScopeStats } from "../../src/metrics/scopeChange";
 import type { EstimationConfig } from "../../src/metrics/types";
 import { createTestDb } from "../helpers/db";
+import { SqliteStore } from "../../src/store/sqlite";
 import { upsertIssues, upsertSprints } from "../../src/db/store";
 import { makeIssue, seedIssueWithTransitions, TEST_CONFIG, resetSeq } from "../helpers/seeders";
 
@@ -822,7 +823,7 @@ describe("buildSprintSeries", () => {
 
   it("retourne des séries vides si aucun sprint", () => {
     const db = createTestDb();
-    const result = buildSprintSeries(db, TEST_CONFIG, []);
+    const result = buildSprintSeries(new SqliteStore(db), TEST_CONFIG, []);
     expect(result.throughput.labels).toHaveLength(0);
     expect(result.throughput.series.count).toHaveLength(0);
     expect(result.bugThroughput.labels).toHaveLength(0);
@@ -849,7 +850,7 @@ describe("buildSprintSeries", () => {
       { name: "Sprint 1", state: "closed", start_date: "2025-01-06", end_date: "2025-01-20" },
       { name: "Sprint 2", state: "closed", start_date: "2025-01-20", end_date: "2025-02-03" },
     ];
-    const result = buildSprintSeries(db, TEST_CONFIG, sprints);
+    const result = buildSprintSeries(new SqliteStore(db), TEST_CONFIG, sprints);
 
     expect(result.throughput.labels).toEqual(["Sprint 1", "Sprint 2"]);
     expect(result.throughput.series.count).toEqual([2, 1]);
@@ -866,7 +867,7 @@ describe("buildSprintSeries", () => {
     const sprints = [
       { name: "Sprint Actif", state: "active", start_date: "2025-01-06", end_date: null },
     ];
-    const result = buildSprintSeries(db, TEST_CONFIG, sprints);
+    const result = buildSprintSeries(new SqliteStore(db), TEST_CONFIG, sprints);
 
     expect(result.throughput.hasActiveSprint).toBe(true);
     expect(result.throughput.labels[0]).toContain("Sprint Actif");
@@ -879,7 +880,7 @@ describe("buildSprintSeries", () => {
     const sprints = [
       { name: "Sprint Vide", state: "closed", start_date: "2025-01-06", end_date: "2025-01-20" },
     ];
-    const result = buildSprintSeries(db, TEST_CONFIG, sprints);
+    const result = buildSprintSeries(new SqliteStore(db), TEST_CONFIG, sprints);
 
     expect(result.throughput.labels).toEqual(["Sprint Vide"]);
     expect(result.throughput.series.count).toEqual([0]);
