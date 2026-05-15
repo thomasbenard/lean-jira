@@ -67,6 +67,7 @@ export interface ReadStore {
   issues: {
     all(): IssueRecord[];
     byKey(key: string): IssueRecord | null;
+    byKeys(keys: string[]): IssueRecord[];
   };
   transitions: {
     all(): TransitionRecord[];

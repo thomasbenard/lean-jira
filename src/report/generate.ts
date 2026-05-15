@@ -19,7 +19,7 @@ import { now } from "../clock";
 import { t, getCurrentLocale, type LocaleShape, type LocaleCode } from "../i18n/index";
 import { en } from "../i18n/en";
 import { fr } from "../i18n/fr";
-import type { ReadStore, IssueRecord } from "../store/types";
+import type { ReadStore } from "../store/types";
 import { buildMetricsContext } from "../metrics/context";
 
 export function buildReportLabels(lang: LocaleCode): LocaleShape {
@@ -1386,9 +1386,7 @@ export function buildScopeSection(scopeData: ScopeChangeResult, store: ReadStore
   let tableHtml = "";
   if (scopeData.changedIssueKeys.length > 0) {
     const keys = scopeData.changedIssueKeys;
-    const summaries = keys
-      .map((k) => store.issues.byKey(k))
-      .filter((r): r is IssueRecord => r !== null);
+    const summaries = store.issues.byKeys(keys);
     const summaryByKey = new Map(summaries.map((r) => [r.key, r.summary]));
 
     const sprintNames = Object.keys(scopeData.bySprint);

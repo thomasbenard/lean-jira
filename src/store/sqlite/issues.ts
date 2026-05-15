@@ -46,6 +46,17 @@ export class IssuesSqlite {
     return row ? toRecord(row) : null;
   }
 
+  byKeys(keys: string[]): IssueRecord[] {
+    // pourquoi : court-circuit avant prepare() — `IN ()` est invalide en SQL
+    // et un appel sans clé n'a aucun row à retourner.
+    if (keys.length === 0) {return [];}
+    const placeholders = keys.map(() => "?").join(",");
+    const rows = this.db
+      .prepare(`SELECT * FROM issues WHERE key IN (${placeholders})`)
+      .all(...keys) as Row[];
+    return rows.map(toRecord);
+  }
+
   upsertMany(records: IssueRecord[]): void {
     const stmt = this.db.prepare(`
       INSERT INTO issues (key, summary, issue_type, created_at, resolved_at, current_status, assignee, priority, current_sprint_id, original_estimate_seconds, story_points, size_label)

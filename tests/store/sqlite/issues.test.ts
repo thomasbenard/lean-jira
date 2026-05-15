@@ -47,4 +47,34 @@ describe("IssuesSqlite", () => {
     issues.upsertMany([{ ...sample, summary: "Updated" }]);
     expect(issues.byKey("ABC-1")?.summary).toBe("Updated");
   });
+
+  describe("byKeys", () => {
+    it("renvoie [] sans frapper la DB pour un tableau vide", () => {
+      issues.upsertMany([sample]);
+      expect(issues.byKeys([])).toEqual([]);
+    });
+
+    it("renvoie les lignes correspondant aux clés fournies", () => {
+      const a = { ...sample, key: "ABC-1" };
+      const b = { ...sample, key: "ABC-2", summary: "Second" };
+      const c = { ...sample, key: "ABC-3", summary: "Third" };
+      issues.upsertMany([a, b, c]);
+      const result = issues.byKeys(["ABC-1", "ABC-3"]);
+      const byKey = new Map(result.map((r) => [r.key, r]));
+      expect(byKey.size).toBe(2);
+      expect(byKey.get("ABC-1")).toEqual(a);
+      expect(byKey.get("ABC-3")).toEqual(c);
+    });
+
+    it("ignore silencieusement les clés absentes (pas de null dans le résultat)", () => {
+      issues.upsertMany([sample]);
+      const result = issues.byKeys(["ABC-1", "NOPE-1", "NOPE-2"]);
+      expect(result).toEqual([sample]);
+    });
+
+    it("renvoie [] si aucune clé fournie ne matche", () => {
+      issues.upsertMany([sample]);
+      expect(issues.byKeys(["NOPE-1", "NOPE-2"])).toEqual([]);
+    });
+  });
 });
