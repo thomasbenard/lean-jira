@@ -52,8 +52,7 @@ describe("leadTimeNormalizedMetric.compute", () => {
   it("lead-normalized >= cycle-normalized pour même issue (lead > cycle)", () => {
     seedNormalized("PROJ-1", SECONDS_PER_DAY * 2);
     const ltn = leadTimeNormalizedMetric.compute(createTestContext(db, TEST_CONFIG)).medianDays;
-    // pourquoi : cycleTimeNormalized sera migré en Task 4.6 ; appel old-style en attendant (même précédent que Task 4.1)
-    const ctn = cycleTimeNormalizedMetric.compute(db as never, TEST_CONFIG as never).medianDays;
+    const ctn = cycleTimeNormalizedMetric.compute(createTestContext(db, TEST_CONFIG)).medianDays;
     expect(ltn).toBeGreaterThanOrEqual(ctn);
   });
 });
