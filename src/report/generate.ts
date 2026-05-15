@@ -1,8 +1,7 @@
-import type Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import Handlebars from "handlebars";
-import { BUCKET_LABELS, BUCKET_ORDER, placeholders, percentile } from "../metrics/utils";
+import { BUCKET_LABELS, BUCKET_ORDER, percentile } from "../metrics/utils";
 import { type MetricConfig, type EstimationConfig } from "../metrics/types";
 import { agingWipMetric, type AgingWipSummary, type AgingWipIssue, type AgingRisk } from "../metrics/agingWip";
 import { forecastMetric, type ForecastSummary } from "../metrics/forecast";
@@ -16,12 +15,11 @@ import { throughputWeightedMetric } from "../metrics/throughputWeighted";
 import { handoffReworkMetric } from "../metrics/handoffRework";
 import { firstTimeRightMetric } from "../metrics/firstTimeRight";
 import { reworkCostMetric } from "../metrics/reworkCost";
-import { getLastSyncDate } from "../db/store";
 import { now } from "../clock";
 import { t, getCurrentLocale, type LocaleShape, type LocaleCode } from "../i18n/index";
 import { en } from "../i18n/en";
 import { fr } from "../i18n/fr";
-import { SqliteStore } from "../store/sqlite";
+import type { ReadStore, IssueRecord } from "../store/types";
 import { buildMetricsContext } from "../metrics/context";
 
 export function buildReportLabels(lang: LocaleCode): LocaleShape {
@@ -245,7 +243,7 @@ export interface SprintChartSeries {
 interface SprintRow { name: string; state: string; start_date: string; end_date: string | null }
 
 export function buildSprintSeries(
-  store: SqliteStore,
+  store: ReadStore,
   config: MetricConfig,
   sprints: SprintRow[],
 ): {
@@ -302,7 +300,7 @@ export function buildSprintSeries(
 }
 
 export function buildRolesSprintSeries(
-  store: SqliteStore,
+  store: ReadStore,
   config: MetricConfig,
   sprints: SprintRow[],
 ): {
@@ -368,7 +366,7 @@ interface ChartSeries {
 
 
 export function generateReport(
-  db: Database.Database,
+  store: ReadStore,
   projectKey: string,
   jiraBaseUrl: string,
   outputPath: string,
@@ -378,25 +376,35 @@ export function generateReport(
   personalization?: ReportPersonalization,
   boardDir?: string,
 ): void {
-  // pourquoi : ticket 050 — generateReport reçoit encore db pour les requêtes snapshot/sprint/scope
-  // qui ne sont pas encore migrées vers Store. SqliteStore est instancié ici pour les appels métriques.
-  const store = new SqliteStore(db);
-
-  const snapshots = db.prepare(
-    "SELECT snapshot_date, metric_name, bucket, stat, value FROM metric_snapshots ORDER BY snapshot_date ASC"
-  ).all() as SnapshotRow[];
+  // pourquoi : ticket 050 — conversion à la frontière camelCase → snake_case
+  // pour préserver le type interne SnapshotRow utilisé dans tout le fichier.
+  const snapshots: SnapshotRow[] = store.snapshots.all().map((s) => ({
+    snapshot_date: s.snapshotDate,
+    metric_name: s.metricName,
+    bucket: s.bucket,
+    stat: s.stat,
+    value: s.value,
+  }));
 
   if (snapshots.length === 0) {
     throw new Error("Aucun snapshot. Lancer `npm run snapshots` d'abord.");
   }
 
-  const sprintRows = db.prepare(`
-    SELECT name, state, start_date, end_date
-    FROM sprints
-    WHERE start_date IS NOT NULL
-      AND (end_date IS NULL OR end_date >= ?)
-    ORDER BY start_date ASC
-  `).all(config.cutoffDate) as SprintRow[];
+  // pourquoi : ticket 050 — reproduit le filtre/tri SQL d'origine (start_date non null,
+  // end_date null ou >= cutoffDate, ORDER BY start_date ASC) sur SprintRecord[] camelCase.
+  // Si cutoffDate est undefined, la comparaison SQL `end_date >= NULL` retournait toujours faux ;
+  // on reproduit ce comportement en exigeant explicitement un cutoffDate non vide.
+  const cutoffDate = config.cutoffDate;
+  const sprintRows: SprintRow[] = store.sprints.all()
+    .filter((s) => s.startDate !== null
+      && (s.endDate === null || (cutoffDate !== undefined && s.endDate >= cutoffDate)))
+    .sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""))
+    .map((s) => ({
+      name: s.name,
+      state: s.state,
+      start_date: s.startDate as string,
+      end_date: s.endDate,
+    }));
   const sprintCharts = sprintRows.length > 0
     ? buildSprintSeries(store, config, sprintRows)
     : null;
@@ -479,7 +487,7 @@ export function generateReport(
     const cycle = buildBucketSeries(cycleBySizeRows, b, ["median", "p85", "p95", "count"]);
     if (cycle.dates.length > 0) {cycleTimeBySizeCharts[b] = cycle;}
   }
-  const lastSyncAt = getLastSyncDate(db, projectKey);
+  const lastSyncAt = store.syncLog.lastByProject(projectKey)?.syncedAt ?? null;
   const isSyncStale = lastSyncAt === null
     || (Date.now() - new Date(lastSyncAt).getTime()) > STALE_THRESHOLD_DAYS * MS_PER_DAY;
 
@@ -490,13 +498,11 @@ export function generateReport(
   const cycleTime = cycleTimeMetric.compute(liveCtx);
   const histogram = buildHistogram(cycleTime.issues.map((i) => i.cycleTimeDays));
 
-  let scopeAlertHtml = "";
-  let scopeSectionHtml = "";
-  if (isScopeChangeAvailable(db)) {
-    const scopeData = scopeChangeMetric.compute(liveCtx);
-    scopeAlertHtml = buildScopeAlertBanner(db, scopeData);
-    scopeSectionHtml = buildScopeSection(scopeData, db, jiraBaseUrl);
-  }
+  // pourquoi : ticket 050 — table issue_field_changes toujours créée par schema.sql ;
+  // l'ancien feature gate isScopeChangeAvailable() est devenu inutile.
+  const scopeData = scopeChangeMetric.compute(liveCtx);
+  const scopeAlertHtml = buildScopeAlertBanner(store, scopeData);
+  const scopeSectionHtml = buildScopeSection(scopeData, store, jiraBaseUrl);
 
   const resolvedPersonalization = resolvePersonalization(personalization, boardDir ?? process.cwd());
 
@@ -1302,17 +1308,14 @@ export function buildTop3Actions(agingWip: AgingWipSummary, jiraBaseUrl: string)
     .join("");
 }
 
-export function isScopeChangeAvailable(db: Database.Database): boolean {
-  const cols = db.prepare("PRAGMA table_info(issue_field_changes)").all() as { name: string }[];
-  return cols.length > 0;
-}
-
-export function buildScopeAlertBanner(db: Database.Database, scopeData: ScopeChangeResult): string {
+export function buildScopeAlertBanner(store: ReadStore, scopeData: ScopeChangeResult): string {
   if (scopeData.changedIssues === 0) {return "";}
 
-  const activeSprint = db.prepare(
-    "SELECT name FROM sprints WHERE state = 'active' ORDER BY start_date DESC LIMIT 1",
-  ).get() as { name: string } | undefined;
+  // pourquoi : ticket 050 — reproduit `WHERE state='active' ORDER BY start_date DESC LIMIT 1`
+  // côté JS ; localeCompare décroissant simule le ORDER BY DESC.
+  const activeSprint = store.sprints.all()
+    .filter((s) => s.state === "active")
+    .sort((a, b) => (b.startDate ?? "").localeCompare(a.startDate ?? ""))[0];
 
   if (!activeSprint) {return "";}
 
@@ -1377,21 +1380,24 @@ export function buildScopeChangeChart(scopeData: ScopeChangeResult): string {
   });
 }
 
-export function buildScopeSection(scopeData: ScopeChangeResult, db: Database.Database, jiraBaseUrl: string): string {
+export function buildScopeSection(scopeData: ScopeChangeResult, store: ReadStore, jiraBaseUrl: string): string {
   const chartCfg = buildScopeChangeChart(scopeData);
 
   let tableHtml = "";
   if (scopeData.changedIssueKeys.length > 0) {
     const keys = scopeData.changedIssueKeys;
-    const ph = placeholders(keys);
-    const summaries = db.prepare(
-      `SELECT key, summary FROM issues WHERE key IN (${ph})`,
-    ).all(...keys) as { key: string; summary: string }[];
+    const summaries = keys
+      .map((k) => store.issues.byKey(k))
+      .filter((r): r is IssueRecord => r !== null);
     const summaryByKey = new Map(summaries.map((r) => [r.key, r.summary]));
 
     const sprintNames = Object.keys(scopeData.bySprint);
+    // pourquoi : ticket 050 — Set pour O(1) lookup au lieu d'un IN(?...) SQL.
+    const sprintNamesSet = new Set(sprintNames);
     const sprintStartRows = sprintNames.length > 0
-      ? db.prepare(`SELECT name, start_date FROM sprints WHERE name IN (${placeholders(sprintNames)})`).all(...sprintNames) as { name: string; start_date: string | null }[]
+      ? store.sprints.all()
+          .filter((s) => sprintNamesSet.has(s.name))
+          .map((s) => ({ name: s.name, start_date: s.startDate ?? "" }))
       : [];
     const sprintStartByName = new Map(sprintStartRows.map((r) => [r.name, r.start_date ?? ""]));
 

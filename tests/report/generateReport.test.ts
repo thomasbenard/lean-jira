@@ -5,6 +5,7 @@ import { expect } from "vitest";
 import { createTestDb } from "../helpers/db";
 import { TEST_CONFIG } from "../helpers/seeders";
 import { generateReport } from "../../src/report/generate";
+import { SqliteStore } from "../../src/store/sqlite";
 import type Database from "better-sqlite3";
 import type { EstimationConfig } from "../../src/metrics/types";
 
@@ -31,7 +32,7 @@ describe("generateReport — câblage estimation par méthode", () => {
     it(`method=${estimation.method} ne lève pas et produit du HTML`, () => {
       const config = { ...TEST_CONFIG, estimation };
       expect(() =>
-        generateReport(db, "TEST", "https://test.atlassian.net", outPath, config),
+        generateReport(new SqliteStore(db), "TEST", "https://test.atlassian.net", outPath, config),
       ).not.toThrow();
     });
   }

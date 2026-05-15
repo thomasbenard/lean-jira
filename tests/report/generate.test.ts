@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import path from "path";
-import { issueLink, agingRowsHtml, buildBucketSeries, buildRoleSeries, syncMetaLabel, staleBannerHtml, computeMovingAvg, renderWithHandlebars, isScopeChangeAvailable, buildScopeAlertBanner, buildScopeChangeChart, buildScopeSection, estimationFlags, buildSprintSeries } from "../../src/report/generate";
+import { issueLink, agingRowsHtml, buildBucketSeries, buildRoleSeries, syncMetaLabel, staleBannerHtml, computeMovingAvg, renderWithHandlebars, buildScopeAlertBanner, buildScopeChangeChart, buildScopeSection, estimationFlags, buildSprintSeries } from "../../src/report/generate";
 import { initLocale } from "../../src/i18n/index";
 import type { AgingWipSummary } from "../../src/metrics/agingWip";
 import type { SnapshotRow } from "../../src/snapshots/compute";
@@ -447,23 +447,10 @@ function makeSprintStats(overrides: Partial<SprintScopeStats> = {}): SprintScope
   return { totalIssues: 0, changedIssues: 0, changeRatio: 0, byChangeType: { description: 0 }, issueDetails: [], ...overrides };
 }
 
-describe("isScopeChangeAvailable", () => {
-  it("retourne true si la table issue_field_changes existe", () => {
-    const db = createTestDb();
-    expect(isScopeChangeAvailable(db)).toBe(true);
-  });
-
-  it("retourne false si la table issue_field_changes est absente", () => {
-    const db = createTestDb();
-    db.exec("DROP TABLE IF EXISTS issue_field_changes");
-    expect(isScopeChangeAvailable(db)).toBe(false);
-  });
-});
-
 describe("buildScopeAlertBanner", () => {
   it("retourne chaîne vide si changedIssues = 0", () => {
     const db = createTestDb();
-    const result = buildScopeAlertBanner(db, makeScopeData({ changedIssues: 0 }));
+    const result = buildScopeAlertBanner(new SqliteStore(db), makeScopeData({ changedIssues: 0 }));
     expect(result).toBe("");
   });
 
@@ -476,7 +463,7 @@ describe("buildScopeAlertBanner", () => {
         "KECK Sprint 45": makeSprintStats({ totalIssues: 5, changedIssues: 2, changeRatio: 0.4, byChangeType: { description: 1 } }),
       },
     });
-    const result = buildScopeAlertBanner(db, scopeData);
+    const result = buildScopeAlertBanner(new SqliteStore(db), scopeData);
     expect(result).toContain("alert-orange");
     expect(result).toContain("2 issue(s)");
     expect(result).toContain("KECK Sprint 45");
@@ -494,7 +481,7 @@ describe("buildScopeAlertBanner", () => {
         "KECK Sprint 44": makeSprintStats({ totalIssues: 8, changedIssues: 3, changeRatio: 0.375, byChangeType: { description: 2 } }),
       },
     });
-    const result = buildScopeAlertBanner(db, scopeData);
+    const result = buildScopeAlertBanner(new SqliteStore(db), scopeData);
     expect(result).toBe("");
   });
 
@@ -510,7 +497,7 @@ describe("buildScopeAlertBanner", () => {
         "KECK Sprint 40": makeSprintStats({ totalIssues: 5, changedIssues: 3, changeRatio: 0.6, byChangeType: { description: 2 } }),
       },
     });
-    const result = buildScopeAlertBanner(db, scopeData);
+    const result = buildScopeAlertBanner(new SqliteStore(db), scopeData);
     expect(result).toBe("");
   });
 });
@@ -539,7 +526,7 @@ describe("buildScopeChangeChart", () => {
 describe("buildScopeSection", () => {
   it("affiche 'Aucune dérive' quand bySprint est vide", () => {
     const db = createTestDb();
-    const html = buildScopeSection(makeScopeData(), db, "https://test.atlassian.net");
+    const html = buildScopeSection(makeScopeData(), new SqliteStore(db), "https://test.atlassian.net");
     expect(html).toContain("No scope drift detected.");
     expect(html).not.toContain("<canvas");
     expect(html).not.toContain("<table");
@@ -554,7 +541,7 @@ describe("buildScopeSection", () => {
       changedIssueKeys: ["P-1"],
     });
     upsertIssues(db, [makeIssue({ key: "P-1", summary: "Ma US" })]);
-    const html = buildScopeSection(scopeData, db, "https://test.atlassian.net");
+    const html = buildScopeSection(scopeData, new SqliteStore(db), "https://test.atlassian.net");
     expect(html).toContain("<canvas");
     expect(html).not.toContain("No scope drift detected.");
   });
@@ -573,7 +560,7 @@ describe("buildScopeSection", () => {
         "Sprint 2": { totalIssues: 4, changedIssues: 1, changeRatio: 0.25, byChangeType: { description: 0 }, issueDetails: [{ key: "P-2", description: false }] },
       },
     });
-    const html = buildScopeSection(scopeData, db, "https://test.atlassian.net");
+    const html = buildScopeSection(scopeData, new SqliteStore(db), "https://test.atlassian.net");
     const p1Idx = html.indexOf("P-1");
     const p2Idx = html.indexOf("P-2");
     const sprint1AfterP1 = html.indexOf("Sprint 1", p1Idx);
@@ -592,7 +579,7 @@ describe("buildScopeSection", () => {
         "Sprint 5": { totalIssues: 2, changedIssues: 1, changeRatio: 0.5, byChangeType: { description: 1 }, issueDetails: [{ key: "P-3", description: true }] },
       },
     });
-    const html = buildScopeSection(scopeData, db, "https://test.atlassian.net");
+    const html = buildScopeSection(scopeData, new SqliteStore(db), "https://test.atlassian.net");
     expect(html).toContain("P-3");
     expect(html).toContain("Sprint 5");
     expect(html).toContain("US modifiée");

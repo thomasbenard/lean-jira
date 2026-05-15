@@ -622,7 +622,8 @@ program
     bootstrapFakeMode(config.jira);
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config);
-    generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds, config.jira.name, config.report, path.dirname(path.resolve(opts.boardConfig)));
+    const store = new SqliteStore(db);
+    generateReport(store, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds, config.jira.name, config.report, path.dirname(path.resolve(opts.boardConfig)));
     console.log(t("report.done", { path: path.resolve(opts.output) }));
   });
 
@@ -644,7 +645,7 @@ program
     const store = new SqliteStore(db);
     const count = backfillSnapshots(store, metricConfig);
     console.log(t("snapshots.done", { count }));
-    generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds, config.jira.name, config.report, path.dirname(path.resolve(opts.boardConfig)));
+    generateReport(store, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds, config.jira.name, config.report, path.dirname(path.resolve(opts.boardConfig)));
     console.log(t("report.done", { path: path.resolve(opts.output) }));
   });
 
