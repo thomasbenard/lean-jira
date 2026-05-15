@@ -57,4 +57,4 @@
 | [048](048-bottleneck-drilldown-par-colonne-board/description.md) | Regrouper byColumn par colonne board.yaml plutôt que par statut Jira individuel | livré |
 | [049](049-configurable-snapshot-window/description.md) | Fenêtre rolling snapshot configurable via metrics.snapshotWindowDays dans board.yaml | livré |
 | [050](050-store-abstraction/description.md) | Abstraction de la couche de stockage (ReadStore / WriteStore) — métriques, snapshots, rapport et sync ne dépendent plus de SQLite | livré |
-| [051](051-chart-registry/description.md) | Extraire la correspondance métrique→graphique dans un registre TypeScript centralisé | à faire |
+| [051](051-chart-registry/description.md) | Extraire la correspondance métrique→graphique dans un registre TypeScript centralisé | livré |

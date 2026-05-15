@@ -16,4 +16,4 @@ Créer `src/report/chartDefs.ts` qui déclare un tableau `CHART_DEFS: ChartDef[]
 
 ## Statut
 
-**à faire**
+**livré**
