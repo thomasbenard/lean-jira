@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "../helpers/db";
 import { makeIssue, resetSeq, TEST_CONFIG } from "../helpers/seeders";
-import { upsertIssues } from "../../src/db/store";
+import { SqliteStore } from "../../src/store/sqlite";
 import { wipPerRoleMetric } from "../../src/metrics/wipPerRole";
 import { createTestContext } from "../_helpers/createTestContext";
 import type Database from "better-sqlite3";
@@ -22,7 +22,7 @@ const CONFIG_WITH_ROLES: MetricConfig = {
 
 describe("wipPerRoleMetric.compute", () => {
   it("retourne vide avec avertissement si aucun rôle configuré", () => {
-    upsertIssues(db, [makeIssue({ currentStatus: "In Progress" })]);
+    new SqliteStore(db).issues.upsertMany([makeIssue({ currentStatus: "In Progress" })]);
     const result = wipPerRoleMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.byRole.dev.count).toBe(0);
     expect(result.byRole.qa.count).toBe(0);
@@ -31,7 +31,7 @@ describe("wipPerRoleMetric.compute", () => {
   });
 
   it("compte les issues dans les statuts dev", () => {
-    upsertIssues(db, [
+    new SqliteStore(db).issues.upsertMany([
       makeIssue({ key: "PROJ-1", currentStatus: "In Progress" }),
       makeIssue({ key: "PROJ-2", currentStatus: "In Progress" }),
       makeIssue({ key: "PROJ-3", currentStatus: "In Review" }),
@@ -43,7 +43,7 @@ describe("wipPerRoleMetric.compute", () => {
   });
 
   it("compte les issues dans les statuts qa", () => {
-    upsertIssues(db, [
+    new SqliteStore(db).issues.upsertMany([
       makeIssue({ key: "PROJ-1", currentStatus: "In Review" }),
       makeIssue({ key: "PROJ-2", currentStatus: "In Progress" }),
     ]);
@@ -53,7 +53,7 @@ describe("wipPerRoleMetric.compute", () => {
   });
 
   it("compte les issues dans les statuts po", () => {
-    upsertIssues(db, [
+    new SqliteStore(db).issues.upsertMany([
       makeIssue({ key: "PROJ-1", currentStatus: "To Validate" }),
       makeIssue({ key: "PROJ-2", currentStatus: "To Validate" }),
     ]);
@@ -67,14 +67,14 @@ describe("wipPerRoleMetric.compute", () => {
       ...CONFIG_WITH_ROLES,
       qaStatuses: [],
     };
-    upsertIssues(db, [makeIssue({ currentStatus: "In Review" })]);
+    new SqliteStore(db).issues.upsertMany([makeIssue({ currentStatus: "In Review" })]);
     const result = wipPerRoleMetric.compute(createTestContext(db, configSansQa));
     expect(result.byRole.qa.count).toBe(0);
     expect(result.byRole.qa.issueKeys).toHaveLength(0);
   });
 
   it("applique excludeIssueTypes", () => {
-    upsertIssues(db, [
+    new SqliteStore(db).issues.upsertMany([
       makeIssue({ key: "PROJ-1", currentStatus: "In Progress", issueType: "Bug" }),
       makeIssue({ key: "PROJ-2", currentStatus: "In Progress", issueType: "Story" }),
     ]);
@@ -88,7 +88,7 @@ describe("wipPerRoleMetric.compute", () => {
 
   it("issues done ne sont pas filtrées (WIP point-in-time basé sur current_status)", () => {
     // current_status peut être 'To Validate' (statut PO/done) — doit compter
-    upsertIssues(db, [
+    new SqliteStore(db).issues.upsertMany([
       makeIssue({ key: "PROJ-1", currentStatus: "To Validate" }),
     ]);
     const result = wipPerRoleMetric.compute(createTestContext(db, CONFIG_WITH_ROLES));
@@ -96,7 +96,7 @@ describe("wipPerRoleMetric.compute", () => {
   });
 
   it("pas de scoping sprint — compte toutes les issues indépendamment du sprint", () => {
-    upsertIssues(db, [
+    new SqliteStore(db).issues.upsertMany([
       makeIssue({ key: "PROJ-1", currentStatus: "In Progress", currentSprintId: 1 }),
       makeIssue({ key: "PROJ-2", currentStatus: "In Progress", currentSprintId: null }),
     ]);

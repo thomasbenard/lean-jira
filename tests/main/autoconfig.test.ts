@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import type { JiraBoardConfig, JiraStatus } from "../../src/jira/types";
 import { createTestDb } from "../helpers/db";
-import { upsertIssues, replaceTransitions } from "../../src/db/store";
 import { makeIssue, makeTransitions, resetSeq } from "../helpers/seeders";
 import type Database from "better-sqlite3";
 import { SqliteStore } from "../../src/store/sqlite";
@@ -175,8 +174,8 @@ describe("enrichWithLegacyStatuses", () => {
   });
 
   function seedTransition(issueKey: string, toStatus: string, at: string): void {
-    upsertIssues(db, [makeIssue({ key: issueKey })]);
-    replaceTransitions(db, issueKey, makeTransitions(issueKey, [{ to: toStatus, at }]));
+    store.issues.upsertMany([makeIssue({ key: issueKey })]);
+    store.transitions.replaceForIssue(issueKey, makeTransitions(issueKey, [{ to: toStatus, at }]));
   }
 
   it("statut en DB catégorie new, absent du board → legacyStatuses du todo column", () => {

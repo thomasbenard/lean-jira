@@ -5,7 +5,7 @@ import fs from "fs";
 import yaml from "yaml";
 import type Database from "better-sqlite3";
 import { sync } from "../../src/sync";
-import { openDb } from "../../src/db/store";
+import { openDb } from "../../src/store/sqlite";
 import { runAllMetrics } from "../../src/metrics/index";
 import { loadConfigs, buildMetricConfig } from "../../src/main";
 import { SqliteStore } from "../../src/store/sqlite/index";

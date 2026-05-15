@@ -8,7 +8,6 @@ import type { ScopeChangeResult, SprintScopeStats } from "../../src/metrics/scop
 import type { EstimationConfig } from "../../src/metrics/types";
 import { createTestDb } from "../helpers/db";
 import { SqliteStore } from "../../src/store/sqlite";
-import { upsertIssues, upsertSprints } from "../../src/db/store";
 import { makeIssue, seedIssueWithTransitions, TEST_CONFIG, resetSeq } from "../helpers/seeders";
 
 beforeEach(() => { initLocale("en"); });
@@ -456,7 +455,7 @@ describe("buildScopeAlertBanner", () => {
 
   it("retourne bannière si le sprint actif a des changements", () => {
     const db = createTestDb();
-    upsertSprints(db, [{ id: 1, name: "KECK Sprint 45", state: "active", startDate: "2025-01-06T00:00:00.000Z", endDate: "2025-01-20T00:00:00.000Z", boardId: 1 }]);
+    new SqliteStore(db).sprints.upsertMany([{ id: 1, name: "KECK Sprint 45", state: "active", startDate: "2025-01-06T00:00:00.000Z", endDate: "2025-01-20T00:00:00.000Z", boardId: 1 }]);
     const scopeData = makeScopeData({
       changedIssues: 2,
       bySprint: {
@@ -471,7 +470,7 @@ describe("buildScopeAlertBanner", () => {
 
   it("retourne chaîne vide si les changements sont uniquement sur le sprint précédent (closed)", () => {
     const db = createTestDb();
-    upsertSprints(db, [
+    new SqliteStore(db).sprints.upsertMany([
       { id: 1, name: "KECK Sprint 45", state: "active", startDate: "2025-01-20T00:00:00.000Z", endDate: "2025-02-03T00:00:00.000Z", boardId: 1 },
       { id: 2, name: "KECK Sprint 44", state: "closed", startDate: "2025-01-06T00:00:00.000Z", endDate: "2025-01-20T00:00:00.000Z", boardId: 1 },
     ]);
@@ -487,7 +486,7 @@ describe("buildScopeAlertBanner", () => {
 
   it("retourne chaîne vide si les changements sont uniquement sur des sprints anciens", () => {
     const db = createTestDb();
-    upsertSprints(db, [
+    new SqliteStore(db).sprints.upsertMany([
       { id: 1, name: "KECK Sprint 45", state: "active", startDate: "2025-01-20T00:00:00.000Z", endDate: "2025-02-03T00:00:00.000Z", boardId: 1 },
       { id: 2, name: "KECK Sprint 44", state: "closed", startDate: "2025-01-06T00:00:00.000Z", endDate: "2025-01-20T00:00:00.000Z", boardId: 1 },
     ]);
@@ -540,7 +539,7 @@ describe("buildScopeSection", () => {
       },
       changedIssueKeys: ["P-1"],
     });
-    upsertIssues(db, [makeIssue({ key: "P-1", summary: "Ma US" })]);
+    new SqliteStore(db).issues.upsertMany([makeIssue({ key: "P-1", summary: "Ma US" })]);
     const html = buildScopeSection(scopeData, new SqliteStore(db), "https://test.atlassian.net");
     expect(html).toContain("<canvas");
     expect(html).not.toContain("No scope drift detected.");
@@ -548,7 +547,7 @@ describe("buildScopeSection", () => {
 
   it("mappe chaque issue à son sprint réel dans le tableau (2 issues, 2 sprints différents)", () => {
     const db = createTestDb();
-    upsertIssues(db, [
+    new SqliteStore(db).issues.upsertMany([
       makeIssue({ key: "P-1", summary: "Issue alpha" }),
       makeIssue({ key: "P-2", summary: "Issue beta" }),
     ]);
@@ -571,7 +570,7 @@ describe("buildScopeSection", () => {
 
   it("affiche l'issue et son sprint dans le tableau sans colonne Changements", () => {
     const db = createTestDb();
-    upsertIssues(db, [makeIssue({ key: "P-3", summary: "US modifiée" })]);
+    new SqliteStore(db).issues.upsertMany([makeIssue({ key: "P-3", summary: "US modifiée" })]);
     const scopeData = makeScopeData({
       changedIssues: 1,
       changedIssueKeys: ["P-3"],

@@ -3,7 +3,7 @@ import { createTestDb } from "../helpers/db";
 import { makeIssue, seedIssueWithTransitions, TEST_CONFIG, resetSeq } from "../helpers/seeders";
 import { bugBacklogMetric } from "../../src/metrics/bugBacklog";
 import type Database from "better-sqlite3";
-import { upsertIssues } from "../../src/db/store";
+import { SqliteStore } from "../../src/store/sqlite";
 import { createTestContext } from "../_helpers/createTestContext";
 
 let db: Database.Database;
@@ -17,7 +17,7 @@ const WINDOW_CONFIG = { ...TEST_CONFIG, windowEndDate: END_DATE };
 
 describe("bugBacklogMetric — openCount", () => {
   it("inclut un bug sans aucune transition", () => {
-    upsertIssues(db, [makeIssue({ key: "BUG-1", issueType: "Bug", createdAt: "2025-01-01T00:00:00Z" })]);
+    new SqliteStore(db).issues.upsertMany([makeIssue({ key: "BUG-1", issueType: "Bug", createdAt: "2025-01-01T00:00:00Z" })]);
     const result = bugBacklogMetric.compute(createTestContext(db, WINDOW_CONFIG));
     expect(result.openCount).toBe(1);
   });
@@ -46,7 +46,7 @@ describe("bugBacklogMetric — openCount", () => {
   });
 
   it("n'inclut pas un bug créé après D", () => {
-    upsertIssues(db, [makeIssue({ key: "BUG-1", issueType: "Bug", createdAt: "2025-07-01T00:00:00Z" })]);
+    new SqliteStore(db).issues.upsertMany([makeIssue({ key: "BUG-1", issueType: "Bug", createdAt: "2025-07-01T00:00:00Z" })]);
     const result = bugBacklogMetric.compute(createTestContext(db, WINDOW_CONFIG));
     expect(result.openCount).toBe(0);
   });
@@ -66,7 +66,7 @@ describe("bugBacklogMetric — openCount", () => {
   });
 
   it("n'inclut pas les non-bugs dans openCount", () => {
-    upsertIssues(db, [makeIssue({ key: "STORY-1", issueType: "Story", createdAt: "2025-01-01T00:00:00Z" })]);
+    new SqliteStore(db).issues.upsertMany([makeIssue({ key: "STORY-1", issueType: "Story", createdAt: "2025-01-01T00:00:00Z" })]);
     const result = bugBacklogMetric.compute(createTestContext(db, WINDOW_CONFIG));
     expect(result.openCount).toBe(0);
   });
@@ -110,7 +110,7 @@ describe("bugBacklogMetric — netFlow / created / closed", () => {
   });
 
   it("netFlow = closed - created", () => {
-    upsertIssues(db, [makeIssue({ key: "BUG-NEW1", issueType: "Bug", createdAt: "2025-05-29T00:00:00Z" })]);
+    new SqliteStore(db).issues.upsertMany([makeIssue({ key: "BUG-NEW1", issueType: "Bug", createdAt: "2025-05-29T00:00:00Z" })]);
     seedIssueWithTransitions(
       db,
       makeIssue({ key: "BUG-NEW2", issueType: "Bug", createdAt: "2025-05-30T00:00:00Z" }),
@@ -125,13 +125,13 @@ describe("bugBacklogMetric — netFlow / created / closed", () => {
 
 describe("bugBacklogMetric — cas limites", () => {
   it("retourne zéros si bugIssueTypes vide", () => {
-    upsertIssues(db, [makeIssue({ key: "BUG-1", issueType: "Bug", createdAt: "2025-01-01T00:00:00Z" })]);
+    new SqliteStore(db).issues.upsertMany([makeIssue({ key: "BUG-1", issueType: "Bug", createdAt: "2025-01-01T00:00:00Z" })]);
     const result = bugBacklogMetric.compute(createTestContext(db, { ...TEST_CONFIG, bugIssueTypes: [] }));
     expect(result).toEqual({ openCount: 0, netFlow: 0, created: 0, closed: 0 });
   });
 
   it("retourne zéros si doneStatuses vide → tous les bugs comptent comme ouverts", () => {
-    upsertIssues(db, [makeIssue({ key: "BUG-1", issueType: "Bug", createdAt: "2025-01-01T00:00:00Z" })]);
+    new SqliteStore(db).issues.upsertMany([makeIssue({ key: "BUG-1", issueType: "Bug", createdAt: "2025-01-01T00:00:00Z" })]);
     const result = bugBacklogMetric.compute(createTestContext(db, { ...WINDOW_CONFIG, doneStatuses: [] }));
     expect(result.openCount).toBe(1);
   });

@@ -14,7 +14,7 @@ import os from "os";
 import path from "path";
 import yaml from "yaml";
 import { sync } from "../../src/sync";
-import { openDb } from "../../src/db/store";
+import { openDb } from "../../src/store/sqlite";
 import { SqliteStore } from "../../src/store/sqlite/index";
 import { initClock } from "../../src/clock";
 import { initRandom } from "../../src/random";
