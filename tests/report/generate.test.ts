@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import path from "path";
-import { issueLink, agingRowsHtml, buildBucketSeries, buildRoleSeries, syncMetaLabel, staleBannerHtml, computeMovingAvg, renderWithHandlebars, buildScopeAlertBanner, buildScopeChangeChart, buildScopeSection, estimationFlags, buildSprintSeries } from "../../src/report/generate";
+import { issueLink, agingRowsHtml, buildBucketSeries, buildRoleSeries, syncMetaLabel, staleBannerHtml, computeMovingAvg, renderWithHandlebars, isScopeChangeAvailable, buildScopeAlertBanner, buildScopeChangeChart, buildScopeSection, estimationFlags, buildSprintSeries, buildTemplateContext } from "../../src/report/generate";
 import { initLocale } from "../../src/i18n/index";
 import type { AgingWipSummary } from "../../src/metrics/agingWip";
 import type { SnapshotRow } from "../../src/snapshots/compute";
@@ -896,5 +896,24 @@ describe("renderDefault — toggle sprint/semaines", () => {
   it("SPRINT_CHARTS est null dans le JS si sprintCharts est null", () => {
     const html = renderDefault({ ...makeRenderInput(), sprintCharts: null });
     expect(html).toContain("const SPRINT_CHARTS = null");
+  });
+});
+
+describe("buildTemplateContext", () => {
+  it("chartDefsJson est un JSON valide avec id et title résolus", () => {
+    const ctx = buildTemplateContext(makeRenderInput(), [], "{}");
+    const parsed = JSON.parse(ctx.chartDefsJson);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBeGreaterThan(0);
+    expect(parsed[0]).toHaveProperty("id");
+    expect(parsed[0]).toHaveProperty("title");
+    expect(parsed[0]).not.toHaveProperty("titleKey");
+  });
+
+  it("estimationFlagsJson est un JSON valide avec showWeighted et weightedUnit", () => {
+    const ctx = buildTemplateContext(makeRenderInput(), [], "{}");
+    const parsed = JSON.parse(ctx.estimationFlagsJson);
+    expect(typeof parsed.showWeighted).toBe("boolean");
+    expect(typeof parsed.weightedUnit).toBe("string");
   });
 });

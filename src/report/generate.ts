@@ -17,6 +17,7 @@ import { firstTimeRightMetric } from "../metrics/firstTimeRight";
 import { reworkCostMetric } from "../metrics/reworkCost";
 import { now } from "../clock";
 import { t, getCurrentLocale, type LocaleShape, type LocaleCode } from "../i18n/index";
+import { CHART_DEFS, serializeChartDefs, type ChartDef } from "./chartDefs";
 import { en } from "../i18n/en";
 import { fr } from "../i18n/fr";
 import type { ReadStore } from "../store/types";
@@ -421,31 +422,7 @@ export function generateReport(
   }
   const metricRows = (name: string): SnapshotRow[] => byMetric.get(name) ?? [];
 
-  const charts = {
-    leadTime: buildSeries(metricRows("lead-time"), "", ["median", "p85"]),
-    cycleTime: buildSeries(metricRows("cycle-time"), "", ["median", "p85"]),
-    throughput: buildSeries(metricRows("throughput"), "", ["count"]),
-    throughputWeighted: buildSeries(metricRows("throughput-weighted"), "", ["count", "estimatedDays"]),
-    wip: buildSeries(metricRows("wip"), "", ["count"]),
-    bugThroughput: buildSeries(metricRows("bug-throughput"), "", ["count"]),
-    bugCycleTime: buildSeries(metricRows("bug-cycle-time"), "", ["median", "p85"]),
-    leadTimeNormalized: buildSeries(metricRows("lead-time-normalized"), "", ["median", "p85"]),
-    cycleTimeNormalized: buildSeries(metricRows("cycle-time-normalized"), "", ["median", "p85"]),
-    flowEfficiency: buildSeries(metricRows("flow-efficiency"), "", ["aggregate", "median"]),
-    agingWipRisk: buildSeries(metricRows("aging-wip"), "", ["ok", "watch", "atRisk", "critical"]),
-    devTimeAllocation: buildSeries(metricRows("dev-time-allocation"), "", ["featureDays", "bugDays", "bugRatio"]),
-    bugBacklog: buildSeries(metricRows("bug-backlog"), "", ["openCount", "netFlow"]),
-    stageTimeByRole: buildRoleSeries(metricRows("stage-time-breakdown"), ["dev", "qa", "po"], "median"),
-    stageTimeByRoleP85: buildRoleSeries(metricRows("stage-time-breakdown"), ["dev", "qa", "po"], "p85"),
-    stageTimeShare: buildRoleSeries(metricRows("stage-time-breakdown"), ["dev", "qa", "po"], "avgShare"),
-    wipPerRole: buildRoleSeries(metricRows("wip-per-role"), ["dev", "qa", "po"], "count"),
-    stageThroughputNet: buildRoleSeries(metricRows("stage-throughput-gap"), ["dev", "qa", "po"], "avgNet"),
-    handoffReworkRatio: buildSeries(metricRows("handoff-rework"), "", ["reworkRatio", "avgReworks"]),
-    handoffReworkByType: buildRoleSeries(metricRows("handoff-rework"), ["qaToDev", "poToQa", "poDev"], "count"),
-    ftrByRole: buildRoleSeries(metricRows("first-time-right"), ["dev", "qa", "po"], "ftrRate"),
-    bottleneckScores: buildRoleSeries(metricRows("bottleneck-analysis"), ["dev", "qa", "po"], "score"),
-    reworkCost: buildSeries(metricRows("rework-cost"), "", ["totalReworkDays", "reworkCostRatio", "reworkedCount"]),
-  };
+  const charts = buildAllChartData(metricRows, CHART_DEFS);
 
   const lastDate = snapshots[snapshots.length - 1].snapshot_date;
   const latestRows = snapshots.filter((s) => s.snapshot_date === lastDate);
@@ -572,6 +549,23 @@ export function buildRoleSeries(snapshots: SnapshotRow[], buckets: string[], sta
     series[b] = dates.map((d) => m?.get(d) ?? 0);
   }
   return { dates, series };
+}
+
+export function buildAllChartData(
+  metricRows: (name: string) => SnapshotRow[],
+  defs: ChartDef[],
+): Record<string, ChartSeries> {
+  const result: Record<string, ChartSeries> = {};
+  for (const def of defs) {
+    if (def.data === null) { continue; }
+    const rows = metricRows(def.data.metricName);
+    if (def.data.mode === "stats") {
+      result[def.id] = buildSeries(rows, def.data.bucket, def.data.stats);
+    } else {
+      result[def.id] = buildRoleSeries(rows, def.data.roles, def.data.stat);
+    }
+  }
+  return result;
 }
 
 function buildSeries(snapshots: SnapshotRow[], bucket: string, stats: string[]): ChartSeries {
@@ -974,6 +968,8 @@ export interface TemplateContext {
   agingWip: AgingWipSummary;
   forecast: ForecastSummary;
   cycleStats: { median: number; p85: number; p95: number; avg: number; count: number };
+  chartDefsJson: string;
+  estimationFlagsJson: string;
 }
 
 const DEFAULT_FONT_LINK = `<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">`;
@@ -1023,6 +1019,8 @@ export function buildTemplateContext(
     agingWip: input.agingWip,
     forecast: input.forecast,
     cycleStats: input.cycleStats,
+    chartDefsJson: serializeChartDefs(CHART_DEFS, (k) => t(k as keyof LocaleShape)),
+    estimationFlagsJson: JSON.stringify(estimationFlags(input.estimation ?? { method: "time" })),
   };
 }
 
