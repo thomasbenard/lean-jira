@@ -7,7 +7,7 @@ export function openDb(dbPath: string): Database.Database {
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
 
-  const schema = fs.readFileSync(path.join(__dirname, "..", "..", "db", "schema.sql"), "utf-8");
+  const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf-8");
   db.exec(schema);
   migrate(db);
 
