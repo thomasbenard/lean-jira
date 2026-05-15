@@ -4,6 +4,7 @@ import { createTestDb } from "../helpers/db";
 import { upsertIssues, replaceTransitions } from "../../src/db/store";
 import { makeIssue, makeTransitions, resetSeq } from "../helpers/seeders";
 import type Database from "better-sqlite3";
+import { SqliteStore } from "../../src/store/sqlite";
 
 import {
   inferBoardColumns,
@@ -165,9 +166,11 @@ describe("renderBoardColumnsYaml", () => {
 
 describe("enrichWithLegacyStatuses", () => {
   let db: Database.Database;
+  let store: SqliteStore;
 
   beforeEach(() => {
     db = createTestDb();
+    store = new SqliteStore(db);
     resetSeq();
   });
 
@@ -181,7 +184,7 @@ describe("enrichWithLegacyStatuses", () => {
     const cols = inferBoardColumns(board, defaultStatuses);
     const allStatuses = [...defaultStatuses, makeStatus("10", "Ready to do", "new")];
     seedTransition("PROJ-1", "Ready to do", "2026-01-01T09:00:00Z");
-    const result = enrichWithLegacyStatuses(cols, board, allStatuses, db);
+    const result = enrichWithLegacyStatuses(cols, board, allStatuses, store);
     expect(cols[0].legacyStatuses).toContain("Ready to do");
     expect(result.unresolvable).not.toContain("Ready to do");
   });
@@ -191,7 +194,7 @@ describe("enrichWithLegacyStatuses", () => {
     const cols = inferBoardColumns(board, defaultStatuses);
     const allStatuses = [...defaultStatuses, makeStatus("10", "Delivred", "done")];
     seedTransition("PROJ-1", "Delivred", "2026-01-01T09:00:00Z");
-    const result = enrichWithLegacyStatuses(cols, board, allStatuses, db);
+    const result = enrichWithLegacyStatuses(cols, board, allStatuses, store);
     expect(cols[2].legacyStatuses).toContain("Delivred");
     expect(result.unresolvable).not.toContain("Delivred");
   });
@@ -201,7 +204,7 @@ describe("enrichWithLegacyStatuses", () => {
     const cols = inferBoardColumns(board, defaultStatuses);
     const allStatuses = [...defaultStatuses, makeStatus("10", "Ancien WIP", "indeterminate")];
     seedTransition("PROJ-1", "Ancien WIP", "2026-01-01T09:00:00Z");
-    const result = enrichWithLegacyStatuses(cols, board, allStatuses, db);
+    const result = enrichWithLegacyStatuses(cols, board, allStatuses, store);
     expect(result.unresolvable).toContain("Ancien WIP");
   });
 
@@ -210,7 +213,7 @@ describe("enrichWithLegacyStatuses", () => {
     const cols = inferBoardColumns(board, defaultStatuses);
     seedTransition("PROJ-1", "Statut fantôme", "2026-01-01T09:00:00Z");
     // "Statut fantôme" absent de defaultStatuses
-    const result = enrichWithLegacyStatuses(cols, board, defaultStatuses, db);
+    const result = enrichWithLegacyStatuses(cols, board, defaultStatuses, store);
     expect(result.unresolvable).toContain("Statut fantôme");
   });
 
@@ -219,7 +222,7 @@ describe("enrichWithLegacyStatuses", () => {
     const cols = inferBoardColumns(board, defaultStatuses);
     // "En cours" est déjà dans la colonne courante
     seedTransition("PROJ-1", "En cours", "2026-01-01T09:00:00Z");
-    const result = enrichWithLegacyStatuses(cols, board, defaultStatuses, db);
+    const result = enrichWithLegacyStatuses(cols, board, defaultStatuses, store);
     expect(result.unresolvable).not.toContain("En cours");
     expect(cols[0].legacyStatuses ?? []).not.toContain("En cours");
   });
@@ -231,7 +234,7 @@ describe("enrichWithLegacyStatuses", () => {
     cols[1].legacyStatuses = ["À réaliser"];
     const allStatuses = [...defaultStatuses, makeStatus("10", "À réaliser", "indeterminate")];
     seedTransition("PROJ-1", "À réaliser", "2026-01-01T09:00:00Z");
-    const result = enrichWithLegacyStatuses(cols, board, allStatuses, db);
+    const result = enrichWithLegacyStatuses(cols, board, allStatuses, store);
     expect(result.unresolvable).not.toContain("À réaliser");
   });
 
@@ -240,7 +243,7 @@ describe("enrichWithLegacyStatuses", () => {
     const cols = inferBoardColumns(board, defaultStatuses);
     const allStatuses = [...defaultStatuses, makeStatus("10", "Ancien", "new")];
     seedTransition("PROJ-1", "Ancien", "2024-01-01T09:00:00Z");
-    const result = enrichWithLegacyStatuses(cols, board, allStatuses, db);
+    const result = enrichWithLegacyStatuses(cols, board, allStatuses, store);
     expect(cols[0].legacyStatuses).toContain("Ancien");
     expect(result.unresolvable).not.toContain("Ancien");
   });

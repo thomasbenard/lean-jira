@@ -79,14 +79,14 @@ Jira REST API v2 (ou fixtures JSON) → SQLite (WAL) → metric computations →
 ```
 
 **Layers** (`src/`):
-- `main.ts` — Commander.js CLI; routes `sync` / `metrics` / `snapshots` / `report` / `refresh` / `autoconfig` / `list-metrics`; exports `inferBoardColumns()`, `renderBoardColumnsYaml()`, `enrichWithLegacyStatuses()`, `mergeColumns()`, `buildUnresolvableComment()`, `inferEstimationConfig()`, `buildEstimationWarnings()`, `loadJiraConfig()`, `loadBoardConfig()`, `loadConfigs()`, `InferredColumn`, `BoardColumn`, `RoleType`, `JiraFileConfig`, `BoardFileConfig`; bootstrap `initClock`/`initRandom` si `jira.mode=fake`
+- `main.ts` — Commander.js CLI; routes `sync` / `metrics` / `snapshots` / `report` / `refresh` / `autoconfig` / `list-metrics`; instancie `SqliteStore` per-command et propage la façade `Store`/`ReadStore` aux helpers internes (`buildMetricConfig`, `calibrateThresholds`, `enrichWithLegacyStatuses`); aucun import direct de `src/db/store`; exports `inferBoardColumns()`, `renderBoardColumnsYaml()`, `enrichWithLegacyStatuses()`, `mergeColumns()`, `buildUnresolvableComment()`, `inferEstimationConfig()`, `buildEstimationWarnings()`, `loadJiraConfig()`, `loadBoardConfig()`, `loadConfigs()`, `InferredColumn`, `BoardColumn`, `RoleType`, `JiraFileConfig`, `BoardFileConfig`; bootstrap `initClock`/`initRandom` si `jira.mode=fake`
 - `sync.ts` — fetches sprints + issues (with changelog), upserts to DB; `replaceTransitions` per issue; incremental mode via `getLastSyncDate()` (JQL `updated >= "<date>"` filter when prior sync exists)
 - `jira/clientFactory.ts` — `JiraClientLike` interface + `createJiraClient(config)` factory; retourne `JiraClient` (real) ou `FakeJiraClient` (fake) selon `jira.mode`
 - `jira/client.ts` — Axios + 200ms sleep between pages
 - `jira/fakeClient.ts` — charge `statuses.json` / `sprints.json` / `issues.json` / `boardConfig.json` depuis `src/jira/fixtures/` (ou `jira.fixturesPath`)
 - `clock.ts` — `now()` injectable; figée à `jira.frozenNow` en mode fake; utilisée par toutes les métriques sensibles à "aujourd'hui"
 - `random.ts` — `random()` injectable; Mulberry32 seedé par `jira.frozenNow` en mode fake; utilisée par `forecast` Monte Carlo
-- `db/store.ts` — better-sqlite3; WAL; atomic transactions
+- `store/sqlite/` — `SqliteStore` façade (better-sqlite3, WAL, atomic transactions) ; implémente `Store = ReadStore & WriteStore` (sub-namespaces `issues` / `transitions` / `sprints` / `statuses` / `issueFieldChanges` / `issueSprints` / `snapshots` / `appConfig` / `syncLog`) ; `openDb` re-exporté depuis `./store/sqlite/schema`
 - `metrics/` — plugin registry: implement `Metric<T>`, register in `ALL_METRICS` (`index.ts`)
 - `snapshots/compute.ts` — backfills `metric_snapshots` weekly; used by report
 - `report/generate.ts` — reads `metric_snapshots`, renders standalone HTML with Chart.js

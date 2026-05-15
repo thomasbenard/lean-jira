@@ -2,11 +2,11 @@ import { Command } from "commander";
 import fs from "fs";
 import yaml from "yaml";
 import path from "path";
-import type Database from "better-sqlite3";
 import { sync } from "./sync";
-import { openDb, getDoneStatusNames, getAllStatuses, getDistinctTransitionStatuses, getStoredSnapshotWindowDays } from "./db/store";
+import { openDb } from "./store/sqlite/schema";
 import { runAllMetrics, runMetric, ALL_METRICS } from "./metrics/index";
 import { SqliteStore } from "./store/sqlite/index";
+import type { ReadStore } from "./store/types";
 import { buildMetricsContext } from "./metrics/context";
 import { BUCKET_LABELS, BUCKET_ORDER, percentile, SECONDS_PER_DAY, getDefaultThresholds } from "./metrics/utils";
 import { backfillSnapshots, DEFAULT_ROLLING_WINDOW_DAYS } from "./snapshots/compute";
@@ -202,14 +202,17 @@ export function loadConfigs(configPath: string, boardPath: string): AppConfig {
 // Tout statut dont category_key='done' est retiré des listes in-progress / active / queue
 // et ajouté à doneStatuses. Évite les biais quand un statut "done" du board est listé
 // dans inProgressStatuses du config (ex: "À valider" sur le board KECK).
-export function buildMetricConfig(db: Database.Database, app: AppConfig, opts: { excludeOutliers?: boolean } = {}): MetricConfig {
+export function buildMetricConfig(store: ReadStore, app: AppConfig, opts: { excludeOutliers?: boolean } = {}): MetricConfig {
   const derived = deriveStatusConfig(app.board);
   // Source 1 : statusCategory.key='done' depuis l'API Jira (statuses table).
   // Source 2 : derived.doneStatuses pour les statuts historiques renommés
   //   qui n'apparaissent plus dans l'API mais existent dans l'historique des
   //   transitions (ex: "To Be Validated", "Delivred"). Sans ce fallback, ces
   //   statuts polluent inProgressStatuses.
-  const doneSet = new Set([...getDoneStatusNames(db), ...derived.doneStatuses]);
+  const doneStatusNames = new Set(
+    store.statuses.all().filter((s) => s.categoryKey === "done").map((s) => s.name),
+  );
+  const doneSet = new Set([...doneStatusNames, ...derived.doneStatuses]);
   const filter = (list: string[]): string[] => list.filter((s) => !doneSet.has(s));
 
   const stripped = {
@@ -331,31 +334,28 @@ export function inferBoardColumns(
 const CALIBRATION_MIN_ISSUES = 30;
 
 function calibrateThresholds(
-  db: Database.Database,
+  store: ReadStore,
   method: EstimationMethod,
 ): EstimationBucketThresholds | null {
+  const issues = store.issues.all();
   let values: number[];
 
   if (method === "time") {
-    const rows = db.prepare(
-      `SELECT original_estimate_seconds * 1.0 / ? AS val
-       FROM issues
-       WHERE original_estimate_seconds IS NOT NULL AND original_estimate_seconds > 0
-       ORDER BY val`,
-    ).all(SECONDS_PER_DAY) as { val: number }[];
-    values = rows.map((r) => r.val);
+    values = issues
+      .map((i) => i.originalEstimateSeconds)
+      .filter((v): v is number => v != null && v > 0)
+      .map((v) => v / SECONDS_PER_DAY);
   } else if (method === "story-points") {
-    const rows = db.prepare(
-      `SELECT story_points AS val FROM issues
-       WHERE story_points IS NOT NULL AND story_points > 0
-       ORDER BY val`,
-    ).all() as { val: number }[];
-    values = rows.map((r) => r.val);
+    values = issues
+      .map((i) => i.storyPoints)
+      .filter((v): v is number => v != null && v > 0);
   } else {
     return null;
   }
 
   if (values.length < CALIBRATION_MIN_ISSUES) { return null; }
+
+  values.sort((a, b) => a - b);
 
   const round = method === "time"
     ? (v: number) => Math.max(0.1, Math.round(v * 2) / 2)
@@ -454,9 +454,9 @@ export function enrichWithLegacyStatuses(
   columns: InferredColumn[],
   boardConfig: JiraBoardConfig,
   allStatuses: JiraStatus[],
-  db: Database.Database,
+  store: ReadStore,
 ): EnrichmentResult {
-  const dbNames = getDistinctTransitionStatuses(db);
+  const dbNames = Array.from(new Set(store.transitions.all().map((t) => t.toStatus)));
   const currentNames = new Set(columns.flatMap((c) => [...c.statuses, ...(c.legacyStatuses ?? [])]));
   const legacyCandidates = dbNames.filter((n) => !currentNames.has(n));
 
@@ -568,9 +568,8 @@ program
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     bootstrapFakeMode(config.jira);
     const db = openDb(config.db.path);
-    const metricConfig = buildMetricConfig(db, config, { excludeOutliers: !opts.includeOutliers });
-    // pourquoi : ticket 050 — main.ts injectera SqliteStore en Task 6.1, transitoire ici.
     const store = new SqliteStore(db);
+    const metricConfig = buildMetricConfig(store, config, { excludeOutliers: !opts.includeOutliers });
     const ctx = buildMetricsContext(store, metricConfig);
 
     const results = opts.metric
@@ -595,13 +594,14 @@ program
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     bootstrapFakeMode(config.jira);
     const db = openDb(config.db.path);
-    const metricConfig = buildMetricConfig(db, config);
+    const store = new SqliteStore(db);
+    const metricConfig = buildMetricConfig(store, config);
     const currentWindow = metricConfig.snapshotWindowDays ?? DEFAULT_ROLLING_WINDOW_DAYS;
-    const storedWindow = getStoredSnapshotWindowDays(db);
+    const stored = store.appConfig.get("snapshot_window_days");
+    const storedWindow = stored != null ? Number(stored) : null;
     if (storedWindow !== null && storedWindow !== currentWindow) {
       console.warn(`⚠ snapshotWindowDays a changé (${storedWindow} → ${currentWindow}). Recalcul intégral des snapshots.`);
     }
-    const store = new SqliteStore(db);
     const count = backfillSnapshots(store, metricConfig);
     console.log(t("snapshots.done", { count }));
   });
@@ -623,8 +623,8 @@ program
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     bootstrapFakeMode(config.jira);
     const db = openDb(config.db.path);
-    const metricConfig = buildMetricConfig(db, config);
     const store = new SqliteStore(db);
+    const metricConfig = buildMetricConfig(store, config);
     generateReport(store, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds, config.jira.name, config.report, path.dirname(path.resolve(opts.boardConfig)));
     console.log(t("report.done", { path: path.resolve(opts.output) }));
   });
@@ -644,7 +644,7 @@ program
     const store = new SqliteStore(db);
     await sync(store, jiraConfig);
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
-    const metricConfig = buildMetricConfig(db, config);
+    const metricConfig = buildMetricConfig(store, config);
     const count = backfillSnapshots(store, metricConfig);
     console.log(t("snapshots.done", { count }));
     generateReport(store, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds, config.jira.name, config.report, path.dirname(path.resolve(opts.boardConfig)));
@@ -661,8 +661,9 @@ program
     initLocale(opts.lang);
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     const db = openDb(config.db.path);
+    const store = new SqliteStore(db);
 
-    const dbStatuses = getAllStatuses(db);
+    const dbStatuses = store.statuses.all();
     if (dbStatuses.length === 0) {
       console.error(t("validateConfig.empty"));
       process.exit(1);
@@ -760,11 +761,12 @@ program
     }
 
     let unresolvable: string[] = [];
-    let db: Database.Database | null = null;
+    let store: SqliteStore | null = null;
     const dbPath = path.resolve(jiraConfig.db.path);
     if (fs.existsSync(dbPath)) {
-      db = openDb(dbPath);
-      unresolvable = enrichWithLegacyStatuses(columns, boardConfig, allStatuses, db).unresolvable;
+      const db = openDb(dbPath);
+      store = new SqliteStore(db);
+      unresolvable = enrichWithLegacyStatuses(columns, boardConfig, allStatuses, store).unresolvable;
       for (const name of unresolvable) {
         warnings.push(`⚠ Statut legacy non assignable automatiquement : "${name}" — ajouter manuellement comme legacyStatus dans la bonne colonne`);
       }
@@ -775,14 +777,14 @@ program
     const detectedEstimation = inferEstimationConfig(boardConfig);
     warnings.push(...buildEstimationWarnings(detectedEstimation, boardConfig));
 
-    const calibrated = db !== null ? calibrateThresholds(db, detectedEstimation.method) : null;
+    const calibrated = store !== null ? calibrateThresholds(store, detectedEstimation.method) : null;
     const defaults = getDefaultThresholds(detectedEstimation.method);
     if (calibrated !== null) {
       detectedEstimation.bucketThresholds = calibrated;
       warnings.push("ℹ bucketThresholds calibrés sur les données réelles de la DB.");
     } else if (defaults !== undefined) {
       detectedEstimation.bucketThresholds = defaults;
-      const reason = db === null ? "DB absente" : `< ${CALIBRATION_MIN_ISSUES} issues estimées`;
+      const reason = store === null ? "DB absente" : `< ${CALIBRATION_MIN_ISSUES} issues estimées`;
       warnings.push(`ℹ bucketThresholds: valeurs par défaut (${reason}).`);
     }
 
