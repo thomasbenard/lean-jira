@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { MetricsContext } from "./context";
 
 export type EstimationMethod = "time" | "story-points" | "numeric" | "t-shirt" | "none";
 
@@ -68,5 +68,5 @@ export interface MetricConfig {
 export interface Metric<T> {
   name: string;
   description: string;
-  compute(db: Database.Database, config: MetricConfig): T;
+  compute(ctx: MetricsContext): T;
 }
