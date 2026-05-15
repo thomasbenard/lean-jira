@@ -1,6 +1,5 @@
-import type Database from "better-sqlite3";
-import { type Metric, type MetricConfig } from "./types";
-import { buildExcludeIssueTypesFragment, placeholders } from "./utils";
+import type { Metric } from "./types";
+import type { MetricsContext } from "./context";
 
 export interface WipRoleSlice {
   count: number;
@@ -20,11 +19,11 @@ export const wipPerRoleMetric: Metric<WipPerRoleResult> = {
   description:
     "WIP actuel ventilé par rôle (dev/qa/po). Détecte la saturation par étape du process.",
 
-  compute(db: Database.Database, config: MetricConfig): WipPerRoleResult {
+  compute(ctx: MetricsContext): WipPerRoleResult {
     const roles = {
-      dev: config.devStatuses ?? [],
-      qa: config.qaStatuses ?? [],
-      po: config.poStatuses ?? [],
+      dev: ctx.config.devStatuses ?? [],
+      qa: ctx.config.qaStatuses ?? [],
+      po: ctx.config.poStatuses ?? [],
     };
 
     const allEmpty = Object.values(roles).every((r) => r.length === 0);
@@ -35,20 +34,17 @@ export const wipPerRoleMetric: Metric<WipPerRoleResult> = {
       return emptyResult();
     }
 
-    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes, "");
-
     const byRole: WipPerRoleResult["byRole"] = { dev: empty(), qa: empty(), po: empty() };
 
     for (const role of ["dev", "qa", "po"] as const) {
       const statuses = roles[role];
       if (statuses.length === 0) {continue;}
-      const ph = placeholders(statuses);
-      const rows = db
-        .prepare(
-          `SELECT key FROM issues WHERE current_status IN (${ph}) ${excludeSql}`,
-        )
-        .all(...statuses, ...excludeArgs) as { key: string }[];
-      byRole[role] = { count: rows.length, issueKeys: rows.map((r) => r.key) };
+      const inSet = new Set(statuses);
+      const keys = ctx.issues
+        .filter((issue) => inSet.has(issue.currentStatus))
+        .map((issue) => issue.key)
+        .sort();
+      byRole[role] = { count: keys.length, issueKeys: keys };
     }
 
     return { byRole };
