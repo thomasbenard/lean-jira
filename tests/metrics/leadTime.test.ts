@@ -40,7 +40,7 @@ describe("leadTimeMetric.compute", () => {
   it("lead-time >= cycle-time pour la même issue", () => {
     seedCanonical();
     const lt = leadTimeMetric.compute(createTestContext(db, TEST_CONFIG)).issues[0].leadTimeDays;
-    const ct = cycleTimeMetric.compute(db, TEST_CONFIG).issues[0].cycleTimeDays;
+    const ct = cycleTimeMetric.compute(createTestContext(db, TEST_CONFIG)).issues[0].cycleTimeDays;
     expect(lt).toBeGreaterThanOrEqual(ct);
   });
 

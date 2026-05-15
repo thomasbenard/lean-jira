@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "../helpers/db";
 import { makeIssue, seedIssueWithTransitions, TEST_CONFIG, resetSeq } from "../helpers/seeders";
 import { cycleTimeMetric } from "../../src/metrics/cycleTime";
+import { createTestContext } from "../_helpers/createTestContext";
 import type Database from "better-sqlite3";
 
 let db: Database.Database;
@@ -21,14 +22,14 @@ function seedCanonical(key = "PROJ-1") {
 
 describe("cycleTimeMetric.compute", () => {
   it("retourne stats vides quand aucune issue livrée", () => {
-    const result = cycleTimeMetric.compute(db, TEST_CONFIG);
+    const result = cycleTimeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.count).toBe(0);
     expect(result.issues).toHaveLength(0);
   });
 
   it("durée correcte pour l'issue canonique (2 jours ouvrés)", () => {
     seedCanonical();
-    const result = cycleTimeMetric.compute(db, TEST_CONFIG);
+    const result = cycleTimeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.count).toBe(1);
     expect(result.issues[0].cycleTimeDays).toBe(2);
     expect(result.avgDays).toBe(2);
@@ -41,7 +42,7 @@ describe("cycleTimeMetric.compute", () => {
       { to: "In Progress", at: "2025-01-08T09:00:00Z" },
       { to: "Done",        at: "2025-01-10T09:00:00Z" },
     ]);
-    const result = cycleTimeMetric.compute(db, TEST_CONFIG);
+    const result = cycleTimeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.count).toBe(1);
   });
 
@@ -50,7 +51,7 @@ describe("cycleTimeMetric.compute", () => {
       { to: "To Do", at: "2025-01-06T09:00:00Z" },
       { to: "Done",  at: "2025-01-10T09:00:00Z" },
     ]);
-    const result = cycleTimeMetric.compute(db, TEST_CONFIG);
+    const result = cycleTimeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.count).toBe(0);
   });
 
@@ -60,28 +61,28 @@ describe("cycleTimeMetric.compute", () => {
       { to: "Done",        at: "2025-01-07T09:00:00Z" }, // done avant dev start
       { to: "In Progress", at: "2025-01-10T09:00:00Z" }, // dev start après done
     ]);
-    const result = cycleTimeMetric.compute(db, TEST_CONFIG);
+    const result = cycleTimeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.count).toBe(0);
   });
 
   it("cutoffDate exclut les issues livrées avant la date", () => {
     seedCanonical(); // done 2025-01-10
     const cfg = { ...TEST_CONFIG, cutoffDate: "2025-01-11" };
-    const result = cycleTimeMetric.compute(db, cfg);
+    const result = cycleTimeMetric.compute(createTestContext(db, cfg));
     expect(result.count).toBe(0);
   });
 
   it("cutoffDate inclut les issues livrées exactement à la date", () => {
     seedCanonical(); // done 2025-01-10
     const cfg = { ...TEST_CONFIG, cutoffDate: "2025-01-10" };
-    const result = cycleTimeMetric.compute(db, cfg);
+    const result = cycleTimeMetric.compute(createTestContext(db, cfg));
     expect(result.count).toBe(1);
   });
 
   it("windowEndDate exclut les issues livrées après la fenêtre", () => {
     seedCanonical(); // done 2025-01-10
     const cfg = { ...TEST_CONFIG, windowEndDate: "2025-01-09" };
-    const result = cycleTimeMetric.compute(db, cfg);
+    const result = cycleTimeMetric.compute(createTestContext(db, cfg));
     expect(result.count).toBe(0);
   });
 
@@ -89,7 +90,7 @@ describe("cycleTimeMetric.compute", () => {
     seedCanonical(); // done 2025-01-10
     // "2025-01-10T09:00:00Z" < "2025-01-11" lexicographiquement → inclus
     const cfg = { ...TEST_CONFIG, windowEndDate: "2025-01-11" };
-    const result = cycleTimeMetric.compute(db, cfg);
+    const result = cycleTimeMetric.compute(createTestContext(db, cfg));
     expect(result.count).toBe(1);
   });
 
@@ -101,7 +102,7 @@ describe("cycleTimeMetric.compute", () => {
       { to: "Delivered",   at: "2025-01-10T09:00:00Z" },
     ]);
     const cfg = { ...TEST_CONFIG, doneStatuses: ["Done", "Delivered"] };
-    const result = cycleTimeMetric.compute(db, cfg);
+    const result = cycleTimeMetric.compute(createTestContext(db, cfg));
     expect(result.count).toBe(1);
   });
 
@@ -114,7 +115,7 @@ describe("cycleTimeMetric.compute", () => {
       { to: "In Progress", at: "2025-01-09T12:00:00Z" }, // 2ème
       { to: "Done",        at: "2025-01-10T09:00:00Z" },
     ]);
-    const result = cycleTimeMetric.compute(db, TEST_CONFIG);
+    const result = cycleTimeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.count).toBe(1);
     // startedAt doit être la 1ère (Jan 8)
     expect(result.issues[0].startedAt).toBe("2025-01-08T09:00:00Z");
@@ -140,7 +141,7 @@ describe("cycleTimeMetric.compute", () => {
       { to: "In Progress", at: "2025-01-06T09:00:00Z" },
       { to: "Done",        at: "2025-01-14T09:00:00Z" },
     ]);
-    const result = cycleTimeMetric.compute(db, TEST_CONFIG);
+    const result = cycleTimeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.count).toBe(3);
     const days = result.issues.map((i) => i.cycleTimeDays).sort((a, b) => a - b);
     expect(days[0]).toBe(2);
