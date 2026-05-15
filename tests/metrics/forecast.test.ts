@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "../helpers/db";
 import { makeIssue, seedIssueWithTransitions, TEST_CONFIG, resetSeq } from "../helpers/seeders";
 import { forecastMetric } from "../../src/metrics/forecast";
+import { createTestContext } from "../_helpers/createTestContext";
 import type Database from "better-sqlite3";
 
 let db: Database.Database;
@@ -40,7 +41,7 @@ function seedUniformPool(issuesPerWeek: number, weeks: number) {
 
 describe("forecastMetric.compute", () => {
   it("retourne résultat vide si aucune données", () => {
-    const result = forecastMetric.compute(db, TEST_CONFIG);
+    const result = forecastMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.recentWeeks).toHaveLength(0);
     expect(result.weeksUsed).toBe(0);
     expect(result.byHorizon).toHaveLength(0);
@@ -49,19 +50,19 @@ describe("forecastMetric.compute", () => {
 
   it("byHorizon contient exactement [1,2,4,8] semaines", () => {
     seedUniformPool(3, 4);
-    const result = forecastMetric.compute(db, TEST_CONFIG);
+    const result = forecastMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.byHorizon.map((h) => h.weeks)).toEqual([1, 2, 4, 8]);
   });
 
   it("simulations = 10000", () => {
     seedUniformPool(3, 4);
-    const result = forecastMetric.compute(db, TEST_CONFIG);
+    const result = forecastMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.simulations).toBe(10_000);
   });
 
   it("recentWeeks en ordre chronologique (le plus ancien en premier)", () => {
     seedUniformPool(2, 3);
-    const result = forecastMetric.compute(db, TEST_CONFIG);
+    const result = forecastMetric.compute(createTestContext(db, TEST_CONFIG));
     // recentWeeks = samples.reverse() dans le code (ORDER DESC puis reverse)
     expect(result.recentWeeks).toHaveLength(3);
     // tous égaux dans un pool uniforme
@@ -71,7 +72,7 @@ describe("forecastMetric.compute", () => {
   it("pool uniforme → tous les percentiles déterministes par horizon", () => {
     const iPerWeek = 5;
     seedUniformPool(iPerWeek, 4);
-    const result = forecastMetric.compute(db, TEST_CONFIG);
+    const result = forecastMetric.compute(createTestContext(db, TEST_CONFIG));
     // Chaque simulation tire toujours `iPerWeek` → sum = weeks * iPerWeek
     for (const h of result.byHorizon) {
       const expected = h.weeks * iPerWeek;
@@ -90,7 +91,7 @@ describe("forecastMetric.compute", () => {
       seedWeek(MONDAYS_2025[i], c, seq);
       seq += c;
     });
-    const result = forecastMetric.compute(db, TEST_CONFIG);
+    const result = forecastMetric.compute(createTestContext(db, TEST_CONFIG));
     for (const h of result.byHorizon) {
       expect(h.p15).toBeLessThanOrEqual(h.p50);
       expect(h.p50).toBeLessThanOrEqual(h.p85);
@@ -100,17 +101,17 @@ describe("forecastMetric.compute", () => {
 
   it("weeksUsed = nb semaines en DB (max 12)", () => {
     seedUniformPool(2, 6);
-    const result = forecastMetric.compute(db, TEST_CONFIG);
+    const result = forecastMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.weeksUsed).toBe(6);
   });
 
   it("windowEndDate exclut les semaines après la fenêtre", () => {
     seedWeek("2025-01-06", 3, 1);  // W01
     seedWeek("2025-01-13", 5, 10); // W02
-    const result = forecastMetric.compute(db, {
+    const result = forecastMetric.compute(createTestContext(db, {
       ...TEST_CONFIG,
       windowEndDate: "2025-01-10", // avant W02
-    });
+    }));
     expect(result.weeksUsed).toBe(1);
     expect(result.recentWeeks[0]).toBe(3);
   });
@@ -119,8 +120,8 @@ describe("forecastMetric.compute", () => {
     seedUniformPool(2, 4);
     const cfgWithCutoff = { ...TEST_CONFIG, cutoffDate: "2020-01-01" };
     const cfgWithout = { ...TEST_CONFIG };
-    const r1 = forecastMetric.compute(db, cfgWithCutoff);
-    const r2 = forecastMetric.compute(db, cfgWithout);
+    const r1 = forecastMetric.compute(createTestContext(db, cfgWithCutoff));
+    const r2 = forecastMetric.compute(createTestContext(db, cfgWithout));
     expect(r1.weeksUsed).toBe(r2.weeksUsed);
   });
 });

@@ -1,7 +1,7 @@
-import type Database from "better-sqlite3";
-import { type Metric, type MetricConfig } from "./types";
-import { buildDeliveredCte, buildExcludeIssueTypesFragment, percentile } from "./utils";
+import { type Metric } from "./types";
+import { percentile } from "./utils";
 import { random } from "../random";
+import type { MetricsContext } from "./context";
 
 export interface ForecastHorizon {
   weeks: number;
@@ -31,27 +31,23 @@ export const forecastMetric: Metric<ForecastSummary> = {
   description:
     "Forecast Monte Carlo. Tire 10k simulations sur 12 dernières semaines de throughput. Donne, par horizon (1/2/4/8 semaines), la fourchette de livraison à différents niveaux de confiance.",
 
-  compute(db: Database.Database, config: MetricConfig): ForecastSummary {
+  compute(ctx: MetricsContext): ForecastSummary {
     // Volontairement sans filtre cutoffDate : LIMIT 12 borne déjà l'historique
     // utilisé. Permet aux snapshots historiques de ne pas se retrouver avec
     // 4 semaines de données quand le cutoff snapshot est de 30j.
-    const delivered = buildDeliveredCte(config.doneStatuses);
-    const endSql = config.windowEndDate ? "AND d.done_at <= ?" : "";
-    const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
-    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes);
+    const windowEnd = ctx.config.windowEndDate;
+    const countsByWeek = new Map<string, number>();
+    for (const doneAt of ctx.deliveredAt.values()) {
+      // pourquoi : reproduit la comparaison lexicographique de SQLite
+      // (`done_at <= ?`) — un `done_at` du jour même que `windowEndDate`
+      // est exclu (préfixe identique mais plus long → lex-greater).
+      if (windowEnd && doneAt > windowEnd) { continue; }
+      const week = ctx.isoWeek(doneAt);
+      countsByWeek.set(week, (countsByWeek.get(week) ?? 0) + 1);
+    }
 
-    const rows = db.prepare(`
-      WITH ${delivered.cte}
-      SELECT strftime('%Y-W%W', substr(d.done_at, 1, 10)) AS week, COUNT(*) AS c
-      FROM delivered d
-      JOIN issues i ON i.key = d.issue_key
-      WHERE 1=1 ${excludeSql} ${endSql}
-      GROUP BY week
-      ORDER BY week DESC
-      LIMIT ?
-    `).all(...delivered.args, ...excludeArgs, ...endArgs, HISTORY_WEEKS) as { week: string; c: number }[];
-
-    const samples = rows.map((r) => r.c).reverse();
+    const sortedWeeks = [...countsByWeek.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+    const samples = sortedWeeks.slice(0, HISTORY_WEEKS).map(([, c]) => c).reverse();
     if (samples.length === 0) {
       return {
         recentWeeks: [],
