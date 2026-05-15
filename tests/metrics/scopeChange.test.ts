@@ -5,6 +5,7 @@ import { upsertIssues, upsertSprints, replaceAllFieldChanges, replaceAllIssueSpr
 import { scopeChangeMetric, normalizeText, similarityRatio } from "../../src/metrics/scopeChange";
 import type Database from "better-sqlite3";
 import type { FieldChange } from "../../src/jira/types";
+import { createTestContext } from "../_helpers/createTestContext";
 
 let db: Database.Database;
 beforeEach(() => {
@@ -92,7 +93,7 @@ describe("similarityRatio", () => {
 
 describe("scopeChangeMetric.compute — structure de base", () => {
   it("retourne totalIssues = 0 si aucune donnée", () => {
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.totalIssues).toBe(0);
     expect(result.changedIssues).toBe(0);
     expect(result.changeRatio).toBe(0);
@@ -106,7 +107,7 @@ describe("scopeChangeMetric.compute — structure de base", () => {
     seedFieldChanges("PROJ-1", [
       { issueKey: "PROJ-1", fieldName: "description", fromValue: "Avant", toValue: "Après", changedAt: "2025-03-15T10:00:00.000Z" },
     ]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.totalIssues).toBe(0);
   });
 
@@ -116,7 +117,7 @@ describe("scopeChangeMetric.compute — structure de base", () => {
     seedSprint(2, "Sprint New", "2025-03-10T00:00:00.000Z");
     replaceAllIssueSprints(db, [{ key: "PROJ-1", sprintIds: [1, 2] }]);
     const config = { ...TEST_CONFIG, cutoffDate: "2025-01-01" };
-    const result = scopeChangeMetric.compute(db, config);
+    const result = scopeChangeMetric.compute(createTestContext(db, config));
     expect(result.bySprint["Sprint Old"]).toBeUndefined();
     expect(result.bySprint["Sprint New"]).toBeDefined();
     expect(result.totalIssues).toBe(1);
@@ -129,7 +130,7 @@ describe("scopeChangeMetric.compute — structure de base", () => {
       { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint Orphelin", changedAt: "2025-03-01T00:00:00.000Z" },
       { issueKey: "PROJ-1", fieldName: "description", fromValue: "Avant", toValue: "Totalement différent et nouveau contenu complet entier", changedAt: "2025-03-15T10:00:00.000Z" },
     ]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.totalIssues).toBe(0);
   });
 });
@@ -155,7 +156,7 @@ describe("Règle 1 — changements description/summary", () => {
         { issueKey: "PROJ-1", fieldName: "description", fromValue: "Faire le module de login", toValue: "Faire  le module de login  ", changedAt: "2025-03-15T10:00:00.000Z" },
       ],
     }]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
   });
 
@@ -167,7 +168,7 @@ describe("Règle 1 — changements description/summary", () => {
         { issueKey: "PROJ-1", fieldName: "description", fromValue: null, toValue: "Contenu initial très long", changedAt: "2025-03-15T10:00:00.000Z" },
       ],
     }]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
   });
 
@@ -182,7 +183,7 @@ describe("Règle 1 — changements description/summary", () => {
       ],
     }]);
     replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(1);
     expect(result.bySprint["Sprint 42"].byChangeType.description).toBe(1);
   });
@@ -198,7 +199,7 @@ describe("Règle 1 — changements description/summary", () => {
       ],
     }]);
     replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(1);
     expect(result.bySprint["Sprint 42"].byChangeType.description).toBe(1);
   });
@@ -221,7 +222,7 @@ describe("Règle 2 — Story Points", () => {
         { issueKey: "PROJ-1", fieldName: "Story Points", fromValue: null, toValue: "3", changedAt: "2025-03-15T10:00:00.000Z" },
       ],
     }]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
   });
 
@@ -233,7 +234,7 @@ describe("Règle 2 — Story Points", () => {
         { issueKey: "PROJ-1", fieldName: "Story Points", fromValue: "3", toValue: "8", changedAt: "2025-03-15T10:00:00.000Z" },
       ],
     }]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
   });
 });
@@ -257,7 +258,7 @@ describe("Règle 3 — Périmètre temporel", () => {
         { issueKey: "PROJ-1", fieldName: "description", fromValue: longText, toValue: shortText, changedAt: "2025-03-08T10:00:00.000Z" },
       ],
     }]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
   });
 
@@ -272,7 +273,7 @@ describe("Règle 3 — Périmètre temporel", () => {
       ],
     }]);
     replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(1);
   });
 
@@ -291,7 +292,7 @@ describe("Règle 3 — Périmètre temporel", () => {
       ],
     }]);
     replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     // Premier sprint = Sprint 42 (start 2025-03-10, plus ancien que Sprint 43)
     // Changement le 2025-03-12 > 2025-03-10 → comptabilisé
     expect(result.changedIssues).toBe(1);
@@ -316,7 +317,7 @@ describe("Règle 4 — Sprint change", () => {
         { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" },
       ],
     }]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
     expect(result.totalIssues).toBe(1);
   });
@@ -329,7 +330,7 @@ describe("Règle 4 — Sprint change", () => {
         { issueKey: "PROJ-1", fieldName: "Sprint", fromValue: "Sprint 42", toValue: "Sprint 43", changedAt: "2025-03-15T12:00:00.000Z" },
       ],
     }]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
   });
 });
@@ -378,7 +379,7 @@ describe("Agrégation bySprint", () => {
     ]);
 
     replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.totalIssues).toBe(3);
     expect(result.changedIssues).toBe(1);
     expect(result.changeRatio).toBeCloseTo(1 / 3);
@@ -417,7 +418,7 @@ describe("Agrégation bySprint", () => {
     ]);
 
     replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-11T09:00:00.000Z" }]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.totalIssues).toBe(2);
     expect(Object.keys(result.bySprint)).toHaveLength(2);
     expect(result.bySprint["Sprint 42"].changedIssues).toBe(1);
@@ -442,7 +443,7 @@ describe("Règle 5 — Dénominateur depuis issue_sprints", () => {
       key: "PROJ-2",
       changes: [{ issueKey: "PROJ-2", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" }],
     }]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.bySprint["Sprint 42"].totalIssues).toBe(2);
     expect(result.totalIssues).toBe(2);
   });
@@ -455,7 +456,7 @@ describe("Règle 5 — Dénominateur depuis issue_sprints", () => {
       changes: [{ issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" }],
     }]);
     // issue_sprints non peuplé
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.totalIssues).toBe(0);
     expect(result.bySprint).toEqual({});
   });
@@ -475,7 +476,7 @@ describe("Règle 5 — Dénominateur depuis issue_sprints", () => {
       key: "PROJ-1",
       changes: [{ issueKey: "PROJ-1", fieldName: "Sprint", fromValue: null, toValue: "Sprint 42", changedAt: "2025-03-09T08:00:00.000Z" }],
     }]);
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.bySprint["Sprint 42"].totalIssues).toBe(1);
     expect(result.bySprint["Sprint 43"].totalIssues).toBe(2);
     expect(result.totalIssues).toBe(3);
@@ -492,7 +493,7 @@ describe("Règle 5 — Dénominateur depuis issue_sprints", () => {
       { key: "PROJ-2", sprintIds: [1] },
     ]);
     const config = { ...TEST_CONFIG, excludeIssueTypes: ["Epic"] };
-    const result = scopeChangeMetric.compute(db, config);
+    const result = scopeChangeMetric.compute(createTestContext(db, config));
     expect(result.bySprint["Sprint 42"].totalIssues).toBe(1);
   });
 });
@@ -578,7 +579,7 @@ describe("scopeChangeMetric — Règle 6 first vs last", () => {
       { issueKey: "PROJ-1", fieldName: "description", fromValue: c, toValue: d, changedAt: "2025-03-13T10:00:00.000Z" },
     ]);
     replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T09:00:00.000Z" }]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(1);
   });
 
@@ -597,7 +598,7 @@ describe("scopeChangeMetric — Règle 6 first vs last", () => {
       { issueKey: "PROJ-1", fieldName: "description", fromValue: v2, toValue: v1, changedAt: "2025-03-12T10:00:00.000Z" },
     ]);
     replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T09:00:00.000Z" }]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
   });
 });
@@ -618,7 +619,7 @@ describe("scopeChangeMetric — Règle 7 grace period", () => {
     ]);
     replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T00:00:00.000Z" }]));
     const config = { ...TEST_CONFIG, scopeChangeGracePeriodHours: 24 };
-    const result = scopeChangeMetric.compute(db, config);
+    const result = scopeChangeMetric.compute(createTestContext(db, config));
     expect(result.changedIssues).toBe(0);
   });
 
@@ -635,7 +636,7 @@ describe("scopeChangeMetric — Règle 7 grace period", () => {
     ]);
     replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T00:00:00.000Z" }]));
     const config = { ...TEST_CONFIG, scopeChangeGracePeriodHours: 24 };
-    const result = scopeChangeMetric.compute(db, config);
+    const result = scopeChangeMetric.compute(createTestContext(db, config));
     expect(result.changedIssues).toBe(1);
   });
 
@@ -651,7 +652,7 @@ describe("scopeChangeMetric — Règle 7 grace period", () => {
       { issueKey: "PROJ-1", fieldName: "description", fromValue: from, toValue: to, changedAt: "2025-03-10T01:00:00.000Z" },
     ]);
     replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [{ to: "In Progress", at: "2025-03-10T00:00:00.000Z" }]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(1);
   });
 });
@@ -670,7 +671,7 @@ describe("scopeChangeMetric — Règle 10 devStart comme borne de détection", (
       { issueKey: "PROJ-1", fieldName: "description", fromValue: from, toValue: to, changedAt: "2025-03-15T10:00:00.000Z" },
     ]);
     // Pas de transition "In Progress" → devStart absent → skip détection
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
     expect(result.totalIssues).toBe(1); // reste dans le dénominateur
   });
@@ -689,7 +690,7 @@ describe("scopeChangeMetric — Règle 10 devStart comme borne de détection", (
     replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [
       { to: "In Progress", at: "2025-03-14T09:00:00.000Z" },
     ]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(0);
   });
 
@@ -706,7 +707,7 @@ describe("scopeChangeMetric — Règle 10 devStart comme borne de détection", (
     replaceTransitions(db, "PROJ-1", makeTransitions("PROJ-1", [
       { to: "In Progress", at: "2025-03-14T09:00:00.000Z" },
     ]));
-    const result = scopeChangeMetric.compute(db, TEST_CONFIG);
+    const result = scopeChangeMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.changedIssues).toBe(1);
   });
 });

@@ -1,6 +1,6 @@
-import type Database from "better-sqlite3";
-import { type Metric, type MetricConfig } from "./types";
-import { placeholders } from "./utils";
+import { type Metric } from "./types";
+import type { MetricsContext } from "./context";
+import type { IssueFieldChangeRecord } from "../store/types";
 
 export interface ScopeChangedIssueDetail {
   key: string;
@@ -26,7 +26,8 @@ export interface ScopeChangeResult {
 }
 
 const SIMILARITY_THRESHOLD = 0.85;
-const WATCHED_TEXT_FIELDS = new Set(["description", "summary"]);
+const WATCHED_TEXT_FIELDS = ["description", "summary"] as const;
+const WATCHED_TEXT_FIELDS_SET: ReadonlySet<string> = new Set(WATCHED_TEXT_FIELDS);
 const FIELD_SPRINT = "Sprint";
 
 interface FieldState { first: string; last: string }
@@ -66,25 +67,17 @@ export function similarityRatio(from: string, to: string): number {
   return Math.max(0, 1 - levenshtein(a, b) / a.length);
 }
 
-interface FieldChangeRow {
-  issue_key: string;
-  field_name: string;
-  from_value: string | null;
-  to_value: string | null;
-  changed_at: string;
-}
-
 function findFirstSprint(
-  changes: FieldChangeRow[],
+  changes: IssueFieldChangeRecord[],
   sprintStartByName: Map<string, string>,
 ): string | null {
   let firstSprintStart: string | null = null;
   let firstSprintName: string | null = null;
 
   for (const c of changes) {
-    if (c.field_name !== FIELD_SPRINT || !c.to_value) {continue;}
+    if (c.fieldName !== FIELD_SPRINT || !c.toValue) {continue;}
     for (const [name, start] of sprintStartByName) {
-      if (c.to_value.includes(name) && (!firstSprintStart || start < firstSprintStart)) {
+      if (c.toValue.includes(name) && (!firstSprintStart || start < firstSprintStart)) {
         firstSprintStart = start;
         firstSprintName = name;
       }
@@ -108,40 +101,29 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
   name: "scope-change-rate",
   description: "Taux d'issues dont la description ou le résumé a changé après entrée en sprint. Mesure la dérive de périmètre.",
 
-  compute(db: Database.Database, config: MetricConfig): ScopeChangeResult {
+  compute(ctx: MetricsContext): ScopeChangeResult {
+    const config = ctx.config;
     const cutoff = config.cutoffDate ?? "1970-01-01";
-    const sprintRows = db.prepare(
-      "SELECT name, start_date FROM sprints WHERE start_date IS NOT NULL AND start_date >= ?",
-    ).all(cutoff) as { name: string; start_date: string }[];
-    const sprintStartByName = new Map(sprintRows.map((s) => [s.name, s.start_date]));
 
-    const excluded = config.excludeIssueTypes;
-    const excludeClause = excluded.length > 0
-      ? `AND i.issue_type NOT IN (${placeholders(excluded)})`
-      : "";
+    const filteredSprints = ctx.store.sprints.all().filter(
+      (s) => s.startDate !== null && s.startDate >= cutoff,
+    );
+    const sprintStartByName = new Map(filteredSprints.map((s) => [s.name, s.startDate as string]));
 
     // Limité aux issues ayant un changelog Sprint : seule façon de dériver firstSprintStart.
     // Limitation connue : une issue créée directement dans un sprint (sans changelog Sprint)
     // sera comptée dans totalIssues mais exclue du scan de dérive de périmètre.
-    const allChanges = db.prepare(`
-      SELECT f.issue_key, f.field_name, f.from_value, f.to_value, f.changed_at
-      FROM issue_field_changes f
-      JOIN issues i ON i.key = f.issue_key
-      WHERE f.issue_key IN (
-        SELECT DISTINCT issue_key FROM issue_field_changes WHERE field_name = 'Sprint'
-      )
-      ${excludeClause}
-      ORDER BY f.issue_key, f.changed_at
-    `).all(...excluded) as FieldChangeRow[];
-
-    const byIssue = new Map<string, FieldChangeRow[]>();
-    for (const row of allChanges) {
-      let issueChanges = byIssue.get(row.issue_key);
-      if (!issueChanges) {
-        issueChanges = [];
-        byIssue.set(row.issue_key, issueChanges);
+    // pourquoi : ctx.issueByKey est déjà filtré par excludeIssueTypes en amont (buildMetricsContext)
+    const byIssue = new Map<string, IssueFieldChangeRecord[]>();
+    for (const issueKey of ctx.issueByKey.keys()) {
+      const sprintChanges = ctx.store.issueFieldChanges.byIssueAndField(issueKey, FIELD_SPRINT);
+      if (sprintChanges.length === 0) {continue;}
+      const all: IssueFieldChangeRecord[] = [...sprintChanges];
+      for (const field of WATCHED_TEXT_FIELDS) {
+        all.push(...ctx.store.issueFieldChanges.byIssueAndField(issueKey, field));
       }
-      issueChanges.push(row);
+      all.sort((a, b) => a.changedAt.localeCompare(b.changedAt));
+      byIssue.set(issueKey, all);
     }
 
     const bySprint: Partial<Record<string, SprintScopeStats>> = {};
@@ -149,32 +131,21 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
     let totalIssues = 0;
     let changedIssues = 0;
 
-    // issue_sprints (customfield_10020) contient l'effectif réel — inclut les issues créées directement dans le sprint sans passer par un changelog Sprint
-    const totalsRows = db.prepare(`
-      SELECT s.name AS sprint_name, COUNT(DISTINCT isp.issue_key) AS cnt
-      FROM issue_sprints isp
-      JOIN issues i ON i.key = isp.issue_key
-      JOIN sprints s ON s.id = isp.sprint_id
-      WHERE s.start_date IS NOT NULL AND s.start_date >= ?
-      ${excludeClause}
-      GROUP BY s.name
-    `).all(cutoff, ...excluded) as { sprint_name: string; cnt: number }[];
-
-    for (const row of totalsRows) {
-      const sprintStats = bySprint[row.sprint_name] ?? emptySprintStats();
-      bySprint[row.sprint_name] = sprintStats;
-      sprintStats.totalIssues = row.cnt;
-      totalIssues += row.cnt; // une issue dans N sprints compte N fois — intentionnel pour que changeRatio soit cohérent par sprint
+    // issue_sprints (customfield_10020) contient l'effectif réel — inclut les issues créées directement dans le sprint sans passer par un changelog Sprint.
+    // pourquoi : plusieurs sprints peuvent partager le même nom dans les fixtures de test → on somme les counts par nom.
+    for (const sprint of filteredSprints) {
+      const count = ctx.store.issueSprints
+        .bySprint(sprint.id)
+        .filter((rec) => ctx.issueByKey.has(rec.issueKey))
+        .length;
+      if (count === 0) {continue;}
+      const sprintStats = bySprint[sprint.name] ?? emptySprintStats();
+      bySprint[sprint.name] = sprintStats;
+      sprintStats.totalIssues += count;
+      totalIssues += count; // une issue dans N sprints compte N fois — intentionnel pour que changeRatio soit cohérent par sprint
     }
 
-    const issueKeys = Array.from(byIssue.keys());
-    const devStartRows = issueKeys.length > 0
-      ? db.prepare(
-          `SELECT issue_key, MIN(transitioned_at) AS first_dev_start FROM transitions WHERE issue_key IN (${placeholders(issueKeys)}) AND to_status IN (${placeholders(config.devStartStatuses)}) GROUP BY issue_key`,
-        ).all(...issueKeys, ...config.devStartStatuses) as { issue_key: string; first_dev_start: string }[]
-      : [];
-    const firstDevStartByIssue = new Map(devStartRows.map((r) => [r.issue_key, r.first_dev_start]));
-
+    const devStartSet = new Set(config.devStartStatuses);
     const gracePeriodMs = (config.scopeChangeGracePeriodHours ?? 0) * 3_600_000;
 
     for (const [issueKey, changes] of byIssue) {
@@ -184,21 +155,21 @@ export const scopeChangeMetric: Metric<ScopeChangeResult> = {
       const currentSprintStats = bySprint[firstSprintName];
       if (!currentSprintStats) {continue;}
 
-      const firstDevStart = firstDevStartByIssue.get(issueKey);
-      if (!firstDevStart) {continue;}
+      const firstDev = ctx.transitionsByIssue.get(issueKey)?.find((t) => devStartSet.has(t.toStatus));
+      if (!firstDev) {continue;}
 
-      const graceCutoff = new Date(Date.parse(firstDevStart) + gracePeriodMs).toISOString();
+      const graceCutoff = new Date(Date.parse(firstDev.transitionedAt) + gracePeriodMs).toISOString();
 
       const fieldStates = new Map<string, FieldState>();
 
       for (const c of changes) {
-        if (c.changed_at <= graceCutoff) {continue;}
-        if (!WATCHED_TEXT_FIELDS.has(c.field_name) || c.from_value === null) {continue;}
-        if (!fieldStates.has(c.field_name)) {
-          fieldStates.set(c.field_name, { first: c.from_value, last: c.to_value ?? "" });
+        if (c.changedAt <= graceCutoff) {continue;}
+        if (!WATCHED_TEXT_FIELDS_SET.has(c.fieldName) || c.fromValue === null) {continue;}
+        if (!fieldStates.has(c.fieldName)) {
+          fieldStates.set(c.fieldName, { first: c.fromValue, last: c.toValue ?? "" });
         } else {
-          const state = fieldStates.get(c.field_name);
-          if (state) {state.last = c.to_value ?? "";}
+          const state = fieldStates.get(c.fieldName);
+          if (state) {state.last = c.toValue ?? "";}
         }
       }
 
