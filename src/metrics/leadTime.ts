@@ -5,7 +5,7 @@ import { type DurationStats, statsFromDays } from "./utils";
 export interface LeadTimeIssue {
   issueKey: string;
   todoAt: string;
-  resolvedAt: string;
+  resolvedAt: string; // pourquoi : = done_at (1ère transition team-done), pas Jira resolutiondate
   leadTimeDays: number;
 }
 
