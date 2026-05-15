@@ -56,3 +56,4 @@
 | [047](047-rework-cost/description.md) | Coût en jours-ouvrés des retraitements par semaine et par sprint | livré |
 | [048](048-bottleneck-drilldown-par-colonne-board/description.md) | Regrouper byColumn par colonne board.yaml plutôt que par statut Jira individuel | livré |
 | [049](049-configurable-snapshot-window/description.md) | Fenêtre rolling snapshot configurable via metrics.snapshotWindowDays dans board.yaml | livré |
+| [050](050-store-abstraction/description.md) | Abstraction de la couche de stockage (ReadStore / WriteStore) — métriques, snapshots, rapport et sync ne dépendent plus de SQLite | à faire |
