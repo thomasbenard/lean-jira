@@ -1,6 +1,5 @@
-import type Database from "better-sqlite3";
-import { type Metric, type MetricConfig } from "./types";
-import { placeholders } from "./utils";
+import type { Metric } from "./types";
+import type { MetricsContext } from "./context";
 import { now } from "../clock";
 
 export interface BugBacklogResult {
@@ -12,81 +11,69 @@ export interface BugBacklogResult {
 
 export const bugBacklogMetric: Metric<BugBacklogResult> = {
   name: "bug-backlog",
-  description: "Bugs ouverts (point-in-time) et flux net hebdo. Détecte si le backlog grossit.",
+  description:
+    "Bugs ouverts (point-in-time) et flux net hebdo. Détecte si le backlog grossit.",
 
-  compute(db: Database.Database, config: MetricConfig): BugBacklogResult {
-    if (config.bugIssueTypes.length === 0) {
+  compute(ctx: MetricsContext): BugBacklogResult {
+    const { config } = ctx;
+    const bugTypes = new Set(config.bugIssueTypes);
+    if (bugTypes.size === 0) {
       return { openCount: 0, netFlow: 0, created: 0, closed: 0 };
     }
-
     const endDate = config.windowEndDate ?? now().toISOString().slice(0, 10);
     const startDate = config.cutoffDate ?? endDate;
-    const bugPh = placeholders(config.bugIssueTypes);
-    const donePh = config.doneStatuses.length > 0 ? placeholders(config.doneStatuses) : "";
+    const doneSet = new Set(config.doneStatuses);
 
-    let openCount: number;
-    if (config.doneStatuses.length === 0) {
-      const row = db.prepare(`
-        SELECT COUNT(*) AS c FROM issues
-        WHERE issue_type IN (${bugPh})
-          AND substr(created_at, 1, 10) <= ?
-      `).get(...config.bugIssueTypes, endDate) as { c: number };
-      openCount = row.c;
-    } else {
-      // Sous-requête corrélée pour garantir que to_status appartient bien à la transition MAX.
-      // SELECT to_status + MAX() non-corrélé dans un GROUP BY est non-déterministe en SQLite.
-      const row = db.prepare(`
-        WITH last_status AS (
-          SELECT t.issue_key, t.to_status
-          FROM transitions t
-          WHERE substr(t.transitioned_at, 1, 10) <= ?
-            AND t.transitioned_at = (
-              SELECT MAX(t2.transitioned_at)
-              FROM transitions t2
-              WHERE t2.issue_key = t.issue_key
-                AND substr(t2.transitioned_at, 1, 10) <= ?
-            )
-        )
-        SELECT COUNT(*) AS c
-        FROM issues i
-        LEFT JOIN last_status ls ON ls.issue_key = i.key
-        WHERE i.issue_type IN (${bugPh})
-          AND substr(i.created_at, 1, 10) <= ?
-          AND (ls.to_status IS NULL OR ls.to_status NOT IN (${donePh}))
-      `).get(endDate, endDate, ...config.bugIssueTypes, endDate, ...config.doneStatuses) as { c: number };
-      openCount = row.c;
+    let openCount = 0;
+    for (const issue of ctx.issues) {
+      if (!bugTypes.has(issue.issueType)) { continue; }
+      if (issue.createdAt.slice(0, 10) > endDate) { continue; }
+
+      if (doneSet.size === 0) {
+        openCount += 1;
+        continue;
+      }
+
+      // pourquoi : transitionsByIssue est trié par (transitionedAt, id) ;
+      // le DERNIER élément dont la date <= endDate est l'état déterministe
+      // à la fin de la fenêtre (équivalent SQL MAX(transitioned_at) sans
+      // l'ambiguïté en cas d'ex æquo).
+      const tList = ctx.transitionsByIssue.get(issue.key) ?? [];
+      let lastBeforeEnd: string | null = null;
+      for (const t of tList) {
+        if (t.transitionedAt.slice(0, 10) <= endDate) {
+          lastBeforeEnd = t.toStatus;
+        } else {
+          break;
+        }
+      }
+      if (lastBeforeEnd === null || !doneSet.has(lastBeforeEnd)) {
+        openCount += 1;
+      }
     }
 
-    const createdRow = db.prepare(`
-      SELECT COUNT(*) AS c FROM issues
-      WHERE issue_type IN (${bugPh})
-        AND substr(created_at, 1, 10) BETWEEN ? AND ?
-    `).get(...config.bugIssueTypes, startDate, endDate) as { c: number };
+    let created = 0;
+    for (const issue of ctx.issues) {
+      if (!bugTypes.has(issue.issueType)) { continue; }
+      const d = issue.createdAt.slice(0, 10);
+      if (d >= startDate && d <= endDate) {
+        created += 1;
+      }
+    }
 
     let closed = 0;
-    if (config.doneStatuses.length > 0) {
-      const closedRow = db.prepare(`
-        WITH first_done AS (
-          SELECT issue_key, MIN(transitioned_at) AS done_at
-          FROM transitions
-          WHERE to_status IN (${donePh})
-          GROUP BY issue_key
-        )
-        SELECT COUNT(*) AS c
-        FROM first_done fd
-        JOIN issues i ON i.key = fd.issue_key
-        WHERE i.issue_type IN (${bugPh})
-          AND substr(fd.done_at, 1, 10) BETWEEN ? AND ?
-      `).get(...config.doneStatuses, ...config.bugIssueTypes, startDate, endDate) as { c: number };
-      closed = closedRow.c;
+    if (doneSet.size > 0) {
+      for (const [key, doneAt] of ctx.deliveredAt) {
+        const issue = ctx.issueByKey.get(key);
+        if (!issue) { continue; }
+        if (!bugTypes.has(issue.issueType)) { continue; }
+        const d = doneAt.slice(0, 10);
+        if (d >= startDate && d <= endDate) {
+          closed += 1;
+        }
+      }
     }
 
-    const created = createdRow.c;
-    return {
-      openCount,
-      netFlow: closed - created,
-      created,
-      closed,
-    };
+    return { openCount, netFlow: closed - created, created, closed };
   },
 };
