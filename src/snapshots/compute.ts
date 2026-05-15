@@ -1,7 +1,8 @@
-import type Database from "better-sqlite3";
+import type { Store } from "../store/types";
+import type { IssueRecord, TransitionRecord, SnapshotRecord } from "../store/types";
 import { type MetricConfig } from "../metrics/types";
 import { ALL_METRICS } from "../metrics";
-import { BUCKET_ORDER, placeholders, type DurationStats, isoWeek } from "../metrics/utils";
+import { BUCKET_ORDER, type DurationStats, isoWeek } from "../metrics/utils";
 import { type DevTimeAllocationSummary } from "../metrics/devTimeAllocation";
 import { type BugBacklogResult } from "../metrics/bugBacklog";
 import { type StageTimeSummary } from "../metrics/stageTimeBreakdown";
@@ -12,6 +13,7 @@ import { type FirstTimeRightResult } from "../metrics/firstTimeRight";
 import { type ReworkCostResult } from "../metrics/reworkCost";
 import { type BottleneckAnalysisResult } from "../metrics/bottleneckAnalysis";
 import { now } from "../clock";
+import { buildMetricsContext } from "../metrics/context";
 
 export const DEFAULT_ROLLING_WINDOW_DAYS = 30;
 const WEEK_DAYS = 7;
@@ -21,6 +23,9 @@ const WEEKLY_METRICS = new Set(["throughput", "throughput-weighted", "bug-throug
 // rework-cost est cumulatif : byWeek couvre tout l'historique, on extrait la semaine du snapshot.
 const CUMULATIVE_METRICS = new Set(["lead-time-by-size", "cycle-time-by-size", "aging-wip", "rework-cost"]);
 
+// Métriques gérées manuellement ou à sauter dans la boucle runAllMetrics.
+const SKIP_METRICS = new Set(["wip", "wip-per-role", "forecast", "scope-change-rate"]);
+
 export interface SnapshotRow {
   snapshot_date: string;
   metric_name: string;
@@ -29,24 +34,31 @@ export interface SnapshotRow {
   value: number;
 }
 
-export function backfillSnapshots(db: Database.Database, baseConfig: MetricConfig): number {
+function toSnapshotRecord(row: SnapshotRow): SnapshotRecord {
+  return {
+    snapshotDate: row.snapshot_date,
+    metricName: row.metric_name,
+    bucket: row.bucket,
+    stat: row.stat,
+    value: row.value,
+  };
+}
+
+export function backfillSnapshots(store: Store, baseConfig: MetricConfig): number {
   const cutoff = baseConfig.cutoffDate ?? "2024-01-01";
   const dates = generateWeekEndings(cutoff);
 
-  const insert = db.prepare(`
-    INSERT OR REPLACE INTO metric_snapshots (snapshot_date, metric_name, bucket, stat, value)
-    VALUES (?, ?, ?, ?, ?)
-  `);
-
-  const tx = db.transaction(() => {
-    db.exec("DELETE FROM metric_snapshots");
-    for (const date of dates) {
-      for (const row of computeSnapshot(db, date, baseConfig)) {
-        insert.run(row.snapshot_date, row.metric_name, row.bucket, row.stat, row.value);
-      }
+  const allRows: SnapshotRecord[] = [];
+  for (const date of dates) {
+    for (const row of computeSnapshot(store, date, baseConfig)) {
+      allRows.push(toSnapshotRecord(row));
     }
-  });
-  tx();
+  }
+
+  store.snapshots.replaceAll(allRows);
+
+  const currentWindow = baseConfig.snapshotWindowDays ?? DEFAULT_ROLLING_WINDOW_DAYS;
+  store.appConfig.set("snapshot_window_days", String(currentWindow));
 
   return dates.length;
 }
@@ -73,27 +85,27 @@ function subDaysISO(dateISO: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function computeSnapshot(db: Database.Database, date: string, baseConfig: MetricConfig): SnapshotRow[] {
+function computeSnapshot(store: Store, date: string, baseConfig: MetricConfig): SnapshotRow[] {
   const rows: SnapshotRow[] = [];
   const rollingWindow = baseConfig.snapshotWindowDays ?? DEFAULT_ROLLING_WINDOW_DAYS;
 
+  // Charger transitions et issues une seule fois pour les helpers WIP (JS pur, pas de SQL)
+  const allTransitions = store.transitions.all();
+  const allIssues = store.issues.all();
+
+  // WIP historique (pas de contexte de métriques — logique point-in-time sur transitions brutes)
+  const wipValue = computeHistoricWip(allTransitions, allIssues, date, baseConfig);
+  rows.push({ snapshot_date: date, metric_name: "wip", bucket: "", stat: "count", value: wipValue });
+
+  const wipPerRole = computeHistoricWipPerRole(allTransitions, allIssues, date, baseConfig);
+  for (const role of ["dev", "qa", "po"] as const) {
+    rows.push({ snapshot_date: date, metric_name: "wip-per-role", bucket: role, stat: "count", value: wipPerRole[role] });
+  }
+
+  // Pour chaque métrique non exclue, on construit un contexte avec la fenêtre adaptée
+  // et on exécute uniquement cette métrique (via runAllMetrics sur un store, résultat filtré)
   for (const metric of ALL_METRICS) {
-    if (metric.name === "wip") {
-      const wipValue = computeHistoricWip(db, date, baseConfig);
-      rows.push({ snapshot_date: date, metric_name: "wip", bucket: "", stat: "count", value: wipValue });
-      continue;
-    }
-    if (metric.name === "wip-per-role") {
-      const counts = computeHistoricWipPerRole(db, date, baseConfig);
-      for (const role of ["dev", "qa", "po"] as const) {
-        rows.push({ snapshot_date: date, metric_name: "wip-per-role", bucket: role, stat: "count", value: counts[role] });
-      }
-      continue;
-    }
-    // forecast = Monte Carlo non déterministe, pas de stat utile à snapshotter.
-    if (metric.name === "forecast") {continue;}
-    // scope-change-rate = sortie bySprint non mappable au format (snapshot_date, bucket, stat).
-    if (metric.name === "scope-change-rate") {continue;}
+    if (SKIP_METRICS.has(metric.name)) { continue; }
 
     const isWeekly = WEEKLY_METRICS.has(metric.name);
     const isCumulative = CUMULATIVE_METRICS.has(metric.name);
@@ -104,7 +116,8 @@ function computeSnapshot(db: Database.Database, date: string, baseConfig: Metric
       windowEndDate: date,
     };
 
-    const result = metric.compute(db, cfg) as unknown as Record<string, unknown>;
+    const ctx = buildMetricsContext(store, cfg);
+    const result = metric.compute(ctx) as unknown as Record<string, unknown>;
     rows.push(...extractStats(date, metric.name, result));
   }
 
@@ -263,38 +276,35 @@ export function extractStats(date: string, metricName: string, result: Record<st
 }
 
 // WIP par rôle historique : même logique que computeHistoricWip mais filtré par statuts de rôle.
+// Implémentation JS pure : pas de SQL direct — satisfait l'invariant "pas de SQL hors src/store/sqlite".
 function computeHistoricWipPerRole(
-  db: Database.Database,
+  allTransitions: TransitionRecord[],
+  allIssues: IssueRecord[],
   date: string,
   config: MetricConfig,
 ): { dev: number; qa: number; po: number } {
   const roles = {
-    dev: config.devStatuses ?? [],
-    qa: config.qaStatuses ?? [],
-    po: config.poStatuses ?? [],
+    dev: new Set(config.devStatuses ?? []),
+    qa: new Set(config.qaStatuses ?? []),
+    po: new Set(config.poStatuses ?? []),
   };
-  const result = { dev: 0, qa: 0, po: 0 };
 
-  for (const role of ["dev", "qa", "po"] as const) {
-    const statuses = roles[role];
-    if (statuses.length === 0) {continue;}
-    const ph = placeholders(statuses);
-    const row = db
-      .prepare(
-        `WITH last_status AS (
-          SELECT issue_key, to_status, MAX(transitioned_at) AS last_at
-          FROM transitions
-          WHERE substr(transitioned_at, 1, 10) <= ?
-          GROUP BY issue_key
-        )
-        SELECT COUNT(*) AS c
-        FROM last_status l
-        JOIN issues i ON i.key = l.issue_key
-        WHERE l.to_status IN (${ph})
-          AND (i.resolved_at IS NULL OR substr(i.resolved_at, 1, 10) > ?)`,
-      )
-      .get(date, ...statuses, date) as { c: number };
-    result[role] = row.c;
+  const issueByKey = new Map<string, IssueRecord>();
+  for (const i of allIssues) { issueByKey.set(i.key, i); }
+
+  const lastStatus = computeLastStatusByIssue(allTransitions, date);
+
+  const result = { dev: 0, qa: 0, po: 0 };
+  for (const [issueKey, status] of lastStatus) {
+    const issue = issueByKey.get(issueKey);
+    if (!issue) { continue; }
+    // Exclusion des issues résolues avant ou à la date (comparaison lexicographique ISO)
+    if (issue.resolvedAt !== null && issue.resolvedAt.slice(0, 10) <= date) { continue; }
+    for (const role of ["dev", "qa", "po"] as const) {
+      if (roles[role].size > 0 && roles[role].has(status)) {
+        result[role]++;
+      }
+    }
   }
   return result;
 }
@@ -302,20 +312,41 @@ function computeHistoricWipPerRole(
 // WIP historique : pour chaque issue, dernier statut connu avant la date D.
 // Si ce statut est in_progress et que l'issue n'est pas résolue avant D, c'est WIP.
 // Note: pas de scoping sprint car les sprints historiques ne sont pas tracés.
-function computeHistoricWip(db: Database.Database, date: string, config: MetricConfig): number {
-  const inProgressPh = config.inProgressStatuses.map(() => "?").join(",");
-  const row = db.prepare(`
-    WITH last_status AS (
-      SELECT issue_key, to_status, MAX(transitioned_at) AS last_at
-      FROM transitions
-      WHERE substr(transitioned_at, 1, 10) <= ?
-      GROUP BY issue_key
-    )
-    SELECT COUNT(*) AS c
-    FROM last_status l
-    JOIN issues i ON i.key = l.issue_key
-    WHERE l.to_status IN (${inProgressPh})
-      AND (i.resolved_at IS NULL OR substr(i.resolved_at, 1, 10) > ?)
-  `).get(date, ...config.inProgressStatuses, date) as { c: number };
-  return row.c;
+// Note: resolved_at = Jira resolutiondate, pas done_at — comportement préservé intentionnellement.
+// Implémentation JS pure : pas de SQL direct — satisfait l'invariant "pas de SQL hors src/store/sqlite".
+function computeHistoricWip(
+  allTransitions: TransitionRecord[],
+  allIssues: IssueRecord[],
+  date: string,
+  config: MetricConfig,
+): number {
+  const inProgressSet = new Set(config.inProgressStatuses);
+
+  const issueByKey = new Map<string, IssueRecord>();
+  for (const i of allIssues) { issueByKey.set(i.key, i); }
+
+  const lastStatus = computeLastStatusByIssue(allTransitions, date);
+
+  let count = 0;
+  for (const [issueKey, status] of lastStatus) {
+    if (!inProgressSet.has(status)) { continue; }
+    const issue = issueByKey.get(issueKey);
+    if (!issue) { continue; }
+    // Exclusion des issues résolues avant ou à la date (comparaison lexicographique ISO)
+    if (issue.resolvedAt !== null && issue.resolvedAt.slice(0, 10) <= date) { continue; }
+    count++;
+  }
+  return count;
+}
+
+// Retourne la Map<issueKey, lastStatus> pour toutes les transitions dont transitionedAt <= date.
+// Les transitions doivent être ordonnées chronologiquement (ordre d'insertion en DB = ordre temporel).
+function computeLastStatusByIssue(allTransitions: TransitionRecord[], date: string): Map<string, string> {
+  const lastStatus = new Map<string, string>();
+  for (const t of allTransitions) {
+    if (t.transitionedAt.slice(0, 10) <= date) {
+      lastStatus.set(t.issueKey, t.toStatus);
+    }
+  }
+  return lastStatus;
 }

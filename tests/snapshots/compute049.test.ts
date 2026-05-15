@@ -3,6 +3,7 @@ import { createTestDb } from "../helpers/db";
 import { makeIssue, seedIssueWithTransitions, TEST_CONFIG, resetSeq } from "../helpers/seeders";
 import { backfillSnapshots } from "../../src/snapshots/compute";
 import { getStoredSnapshotWindowDays, persistSnapshotWindowDays } from "../../src/db/store";
+import { SqliteStore } from "../../src/store/sqlite";
 import type Database from "better-sqlite3";
 
 let db: Database.Database;
@@ -37,7 +38,7 @@ describe("backfillSnapshots — snapshotWindowDays", () => {
       { to: "Done",        at: "2025-04-10T09:00:00Z" }, // livré 10j avant 2025-04-20 (snapshot date)
     ]);
 
-    const countWith14 = backfillSnapshots(db, { ...TEST_CONFIG, cutoffDate: "2025-04-14", snapshotWindowDays: 14 });
+    const countWith14 = backfillSnapshots(new SqliteStore(db), { ...TEST_CONFIG, cutoffDate: "2025-04-14", snapshotWindowDays: 14 });
     expect(countWith14).toBeGreaterThan(0);
 
     // Le snapshot du 2025-04-20 (dimanche après cutoff) doit contenir un cycle-time
@@ -53,7 +54,7 @@ describe("backfillSnapshots — snapshotWindowDays", () => {
       { to: "Done",        at: "2025-04-10T09:00:00Z" }, // livré 10j avant 2025-04-20 (snapshot date)
     ]);
 
-    backfillSnapshots(db, { ...TEST_CONFIG, cutoffDate: "2025-04-14", snapshotWindowDays: 7 });
+    backfillSnapshots(new SqliteStore(db), { ...TEST_CONFIG, cutoffDate: "2025-04-14", snapshotWindowDays: 7 });
 
     // Avec fenêtre 7j, le snapshot du 2025-04-20 regarde du 2025-04-13 au 2025-04-20 :
     // l'issue livrée le 05-04 est hors fenêtre → count=0 pour ce point
@@ -65,7 +66,7 @@ describe("backfillSnapshots — snapshotWindowDays", () => {
 
   it("défaut 30j si snapshotWindowDays absent", () => {
     // Sans le champ, le comportement doit être identique à snapshotWindowDays=30
-    const count = backfillSnapshots(db, { ...TEST_CONFIG, cutoffDate: "2099-01-01" });
+    const count = backfillSnapshots(new SqliteStore(db), { ...TEST_CONFIG, cutoffDate: "2099-01-01" });
     expect(count).toBe(0); // futur → 0 semaines
   });
 });

@@ -512,59 +512,59 @@
   "throughput": {
     "byWeek": [
       {
-        "week": "2025-W35",
-        "count": 1
-      },
-      {
         "week": "2025-W36",
-        "count": 3
+        "count": 1
       },
       {
         "week": "2025-W37",
-        "count": 1
+        "count": 3
       },
       {
         "week": "2025-W38",
-        "count": 3
+        "count": 1
       },
       {
         "week": "2025-W39",
-        "count": 1
+        "count": 3
       },
       {
         "week": "2025-W40",
-        "count": 3
+        "count": 1
       },
       {
         "week": "2025-W41",
-        "count": 1
-      },
-      {
-        "week": "2025-W42",
         "count": 3
       },
       {
-        "week": "2025-W44",
-        "count": 5
-      },
-      {
-        "week": "2025-W45",
+        "week": "2025-W42",
         "count": 1
       },
       {
-        "week": "2025-W46",
-        "count": 4
+        "week": "2025-W43",
+        "count": 3
       },
       {
-        "week": "2025-W48",
+        "week": "2025-W45",
         "count": 5
       },
       {
+        "week": "2025-W46",
+        "count": 1
+      },
+      {
+        "week": "2025-W47",
+        "count": 4
+      },
+      {
         "week": "2025-W49",
-        "count": 2
+        "count": 5
       },
       {
         "week": "2025-W50",
+        "count": 2
+      },
+      {
+        "week": "2025-W51",
         "count": 3
       }
     ],
@@ -573,85 +573,85 @@
   "throughput-weighted": {
     "byWeek": [
       {
-        "week": "2025-W35",
+        "week": "2025-W36",
         "estimatedDays": 0.25,
         "estimatedCount": 1,
         "unestimatedCount": 0
       },
       {
-        "week": "2025-W36",
+        "week": "2025-W37",
         "estimatedDays": 2,
         "estimatedCount": 1,
         "unestimatedCount": 1
       },
       {
-        "week": "2025-W37",
+        "week": "2025-W38",
         "estimatedDays": 0.75,
         "estimatedCount": 1,
         "unestimatedCount": 0
       },
       {
-        "week": "2025-W38",
+        "week": "2025-W39",
         "estimatedDays": 10,
         "estimatedCount": 2,
         "unestimatedCount": 0
       },
       {
-        "week": "2025-W39",
+        "week": "2025-W40",
         "estimatedDays": 0.25,
         "estimatedCount": 1,
         "unestimatedCount": 0
       },
       {
-        "week": "2025-W40",
+        "week": "2025-W41",
         "estimatedDays": 6,
         "estimatedCount": 2,
         "unestimatedCount": 0
       },
       {
-        "week": "2025-W41",
+        "week": "2025-W42",
         "estimatedDays": 0.75,
         "estimatedCount": 1,
         "unestimatedCount": 0
       },
       {
-        "week": "2025-W42",
+        "week": "2025-W43",
         "estimatedDays": 2,
         "estimatedCount": 1,
         "unestimatedCount": 1
       },
       {
-        "week": "2025-W44",
+        "week": "2025-W45",
         "estimatedDays": 10.25,
         "estimatedCount": 3,
         "unestimatedCount": 0
       },
       {
-        "week": "2025-W45",
+        "week": "2025-W46",
         "estimatedDays": 0.75,
         "estimatedCount": 1,
         "unestimatedCount": 0
       },
       {
-        "week": "2025-W46",
+        "week": "2025-W47",
         "estimatedDays": 8,
         "estimatedCount": 2,
         "unestimatedCount": 0
       },
       {
-        "week": "2025-W48",
+        "week": "2025-W49",
         "estimatedDays": 6,
         "estimatedCount": 2,
         "unestimatedCount": 1
       },
       {
-        "week": "2025-W49",
+        "week": "2025-W50",
         "estimatedDays": 1,
         "estimatedCount": 2,
         "unestimatedCount": 0
       },
       {
-        "week": "2025-W50",
+        "week": "2025-W51",
         "estimatedDays": 4,
         "estimatedCount": 1,
         "unestimatedCount": 0
@@ -673,35 +673,35 @@
   "bug-throughput": {
     "byWeek": [
       {
-        "week": "2025-W36",
+        "week": "2025-W37",
         "count": 1
       },
       {
-        "week": "2025-W38",
+        "week": "2025-W39",
         "count": 1
       },
       {
-        "week": "2025-W40",
+        "week": "2025-W41",
         "count": 1
       },
       {
-        "week": "2025-W42",
+        "week": "2025-W43",
         "count": 1
       },
       {
-        "week": "2025-W44",
+        "week": "2025-W45",
         "count": 2
       },
       {
-        "week": "2025-W46",
+        "week": "2025-W47",
         "count": 2
       },
       {
-        "week": "2025-W48",
+        "week": "2025-W49",
         "count": 2
       },
       {
-        "week": "2025-W50",
+        "week": "2025-W51",
         "count": 2
       }
     ],

@@ -4,7 +4,7 @@ import yaml from "yaml";
 import path from "path";
 import type Database from "better-sqlite3";
 import { sync } from "./sync";
-import { openDb, getDoneStatusNames, getAllStatuses, getDistinctTransitionStatuses, getStoredSnapshotWindowDays, persistSnapshotWindowDays } from "./db/store";
+import { openDb, getDoneStatusNames, getAllStatuses, getDistinctTransitionStatuses, getStoredSnapshotWindowDays } from "./db/store";
 import { runAllMetrics, runMetric, ALL_METRICS } from "./metrics/index";
 import { SqliteStore } from "./store/sqlite/index";
 import { buildMetricsContext } from "./metrics/context";
@@ -599,8 +599,8 @@ program
     if (storedWindow !== null && storedWindow !== currentWindow) {
       console.warn(`⚠ snapshotWindowDays a changé (${storedWindow} → ${currentWindow}). Recalcul intégral des snapshots.`);
     }
-    const count = backfillSnapshots(db, metricConfig);
-    persistSnapshotWindowDays(db, currentWindow);
+    const store = new SqliteStore(db);
+    const count = backfillSnapshots(store, metricConfig);
     console.log(t("snapshots.done", { count }));
   });
 
@@ -641,7 +641,8 @@ program
     const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
     const db = openDb(config.db.path);
     const metricConfig = buildMetricConfig(db, config);
-    const count = backfillSnapshots(db, metricConfig);
+    const store = new SqliteStore(db);
+    const count = backfillSnapshots(store, metricConfig);
     console.log(t("snapshots.done", { count }));
     generateReport(db, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds, config.jira.name, config.report, path.dirname(path.resolve(opts.boardConfig)));
     console.log(t("report.done", { path: path.resolve(opts.output) }));

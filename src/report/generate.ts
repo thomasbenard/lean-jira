@@ -21,6 +21,8 @@ import { now } from "../clock";
 import { t, getCurrentLocale, type LocaleShape, type LocaleCode } from "../i18n/index";
 import { en } from "../i18n/en";
 import { fr } from "../i18n/fr";
+import { SqliteStore } from "../store/sqlite";
+import { buildMetricsContext } from "../metrics/context";
 
 export function buildReportLabels(lang: LocaleCode): LocaleShape {
   return lang === "fr" ? fr : en;
@@ -243,7 +245,7 @@ export interface SprintChartSeries {
 interface SprintRow { name: string; state: string; start_date: string; end_date: string | null }
 
 export function buildSprintSeries(
-  db: Database.Database,
+  store: SqliteStore,
   config: MetricConfig,
   sprints: SprintRow[],
 ): {
@@ -268,23 +270,24 @@ export function buildSprintSeries(
     const isActive = sprint.state === "active";
     const windowEnd = sprint.end_date ?? now().toISOString().slice(0, 10);
     const cfg: MetricConfig = { ...config, cutoffDate: sprint.start_date, windowEndDate: windowEnd };
+    const ctx = buildMetricsContext(store, cfg);
 
     labels.push(isActive ? `${sprint.name} (en cours)` : sprint.name);
 
-    const thrResult = throughputMetric.compute(db, cfg);
+    const thrResult = throughputMetric.compute(ctx);
     thrCounts.push(thrResult.byWeek.reduce((s, w) => s + w.count, 0));
 
-    const bugResult = bugThroughputMetric.compute(db, cfg);
+    const bugResult = bugThroughputMetric.compute(ctx);
     bugCounts.push(bugResult.byWeek.reduce((s, w) => s + w.count, 0));
 
-    const wgtResult = throughputWeightedMetric.compute(db, cfg);
+    const wgtResult = throughputWeightedMetric.compute(ctx);
     wgtDays.push(wgtResult.byWeek.reduce((s, w) => s + w.estimatedDays, 0));
 
-    const leadResult = leadTimeMetric.compute(db, cfg);
+    const leadResult = leadTimeMetric.compute(ctx);
     leadMedians.push(leadResult.count > 0 ? leadResult.medianDays : 0);
     leadP85s.push(leadResult.count > 0 ? leadResult.p85Days : 0);
 
-    const cycleResult = cycleTimeMetric.compute(db, cfg);
+    const cycleResult = cycleTimeMetric.compute(ctx);
     cycleMedians.push(cycleResult.count > 0 ? cycleResult.medianDays : 0);
     cycleP85s.push(cycleResult.count > 0 ? cycleResult.p85Days : 0);
   }
@@ -299,7 +302,7 @@ export function buildSprintSeries(
 }
 
 export function buildRolesSprintSeries(
-  db: Database.Database,
+  store: SqliteStore,
   config: MetricConfig,
   sprints: SprintRow[],
 ): {
@@ -324,21 +327,22 @@ export function buildRolesSprintSeries(
     const isActive = sprint.state === "active";
     const windowEnd = sprint.end_date ?? now().toISOString().slice(0, 10);
     const cfg: MetricConfig = { ...config, cutoffDate: sprint.start_date, windowEndDate: windowEnd };
+    const ctx = buildMetricsContext(store, cfg);
 
     labels.push(isActive ? `${sprint.name} (en cours)` : sprint.name);
 
-    const ftr = firstTimeRightMetric.compute(db, cfg);
+    const ftr = firstTimeRightMetric.compute(ctx);
     ftrDev.push(ftr.ftrByRole.dev.ftrRate);
     ftrQa.push(ftr.ftrByRole.qa.ftrRate);
     ftrPo.push(ftr.ftrByRole.po.ftrRate);
 
-    const handoff = handoffReworkMetric.compute(db, cfg);
+    const handoff = handoffReworkMetric.compute(ctx);
     reworkRatioArr.push(handoff.reworkRatio);
     qaToDevArr.push(handoff.byReworkType.qaToDev);
     poToQaArr.push(handoff.byReworkType.poToQa);
     poDevArr.push(handoff.byReworkType.poDev);
 
-    const rework = reworkCostMetric.compute(db, cfg);
+    const rework = reworkCostMetric.compute(ctx);
     reworkDaysArr.push(rework.totalReworkDays);
   }
 
@@ -374,6 +378,10 @@ export function generateReport(
   personalization?: ReportPersonalization,
   boardDir?: string,
 ): void {
+  // pourquoi : ticket 050 — generateReport reçoit encore db pour les requêtes snapshot/sprint/scope
+  // qui ne sont pas encore migrées vers Store. SqliteStore est instancié ici pour les appels métriques.
+  const store = new SqliteStore(db);
+
   const snapshots = db.prepare(
     "SELECT snapshot_date, metric_name, bucket, stat, value FROM metric_snapshots ORDER BY snapshot_date ASC"
   ).all() as SnapshotRow[];
@@ -390,10 +398,10 @@ export function generateReport(
     ORDER BY start_date ASC
   `).all(config.cutoffDate) as SprintRow[];
   const sprintCharts = sprintRows.length > 0
-    ? buildSprintSeries(db, config, sprintRows)
+    ? buildSprintSeries(store, config, sprintRows)
     : null;
   const rolesSprintCharts = sprintRows.length > 0
-    ? buildRolesSprintSeries(db, config, sprintRows)
+    ? buildRolesSprintSeries(store, config, sprintRows)
     : null;
 
   // Pré-grouper par metric_name pour un parcours O(N) au lieu de O(N×M).
@@ -475,16 +483,17 @@ export function generateReport(
   const isSyncStale = lastSyncAt === null
     || (Date.now() - new Date(lastSyncAt).getTime()) > STALE_THRESHOLD_DAYS * MS_PER_DAY;
 
-  const agingWip = agingWipMetric.compute(db, config);
-  const forecast = forecastMetric.compute(db, config);
-  const bottleneck = bottleneckAnalysisMetric.compute(db, config);
-  const cycleTime = cycleTimeMetric.compute(db, config);
+  const liveCtx = buildMetricsContext(store, config);
+  const agingWip = agingWipMetric.compute(liveCtx);
+  const forecast = forecastMetric.compute(liveCtx);
+  const bottleneck = bottleneckAnalysisMetric.compute(liveCtx);
+  const cycleTime = cycleTimeMetric.compute(liveCtx);
   const histogram = buildHistogram(cycleTime.issues.map((i) => i.cycleTimeDays));
 
   let scopeAlertHtml = "";
   let scopeSectionHtml = "";
   if (isScopeChangeAvailable(db)) {
-    const scopeData = scopeChangeMetric.compute(db, config);
+    const scopeData = scopeChangeMetric.compute(liveCtx);
     scopeAlertHtml = buildScopeAlertBanner(db, scopeData);
     scopeSectionHtml = buildScopeSection(scopeData, db, jiraBaseUrl);
   }

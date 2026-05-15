@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "../helpers/db";
 import { makeIssue, seedIssueWithTransitions, TEST_CONFIG, resetSeq } from "../helpers/seeders";
 import { generateWeekEndings, extractStats, backfillSnapshots } from "../../src/snapshots/compute";
+import { SqliteStore } from "../../src/store/sqlite";
 import type Database from "better-sqlite3";
 import type { DurationStats } from "../../src/metrics/utils";
 
@@ -358,7 +359,7 @@ describe("backfillSnapshots — wip-per-role snapshot", () => {
       cutoffDate: "2025-04-14",
     };
 
-    backfillSnapshots(db, configWithRoles);
+    backfillSnapshots(new SqliteStore(db), configWithRoles);
 
     const rows = db
       .prepare(
@@ -380,7 +381,7 @@ describe("backfillSnapshots — wip-per-role snapshot", () => {
       poStatuses: ["To Validate"],
       cutoffDate: "2025-04-14",
     };
-    backfillSnapshots(db, configWithRoles);
+    backfillSnapshots(new SqliteStore(db), configWithRoles);
 
     for (const role of ["dev", "qa", "po"]) {
       const rows = db
@@ -397,7 +398,7 @@ describe("backfillSnapshots — wip-per-role snapshot", () => {
 
 describe("backfillSnapshots", () => {
   it("retourne 0 si cutoffDate est dans le futur", () => {
-    const count = backfillSnapshots(db, { ...TEST_CONFIG, cutoffDate: "2099-01-01" });
+    const count = backfillSnapshots(new SqliteStore(db), { ...TEST_CONFIG, cutoffDate: "2099-01-01" });
     expect(count).toBe(0);
   });
 
@@ -405,7 +406,7 @@ describe("backfillSnapshots", () => {
     // Insère un faux snapshot
     db.exec(`INSERT INTO metric_snapshots (snapshot_date, metric_name, bucket, stat, value)
              VALUES ('2020-01-01', 'test', '', 'count', 99)`);
-    backfillSnapshots(db, { ...TEST_CONFIG, cutoffDate: "2099-01-01" }); // no-op (futur)
+    backfillSnapshots(new SqliteStore(db), { ...TEST_CONFIG, cutoffDate: "2099-01-01" }); // no-op (futur)
     // Le DELETE est dans la transaction quoi qu'il arrive
     const count = (db.prepare("SELECT COUNT(*) AS c FROM metric_snapshots WHERE metric_name = 'test'").get() as { c: number }).c;
     expect(count).toBe(0);
@@ -419,7 +420,7 @@ describe("backfillSnapshots", () => {
       { to: "Done",        at: "2025-01-10T09:00:00Z" },
     ]);
     // Cutoff proche : juste quelques semaines à traiter
-    const weeksCount = backfillSnapshots(db, { ...TEST_CONFIG, cutoffDate: "2025-04-14" });
+    const weeksCount = backfillSnapshots(new SqliteStore(db), { ...TEST_CONFIG, cutoffDate: "2025-04-14" });
     expect(weeksCount).toBeGreaterThan(0);
     const rowCount = (db.prepare("SELECT COUNT(*) AS c FROM metric_snapshots").get() as { c: number }).c;
     expect(rowCount).toBeGreaterThan(0);
