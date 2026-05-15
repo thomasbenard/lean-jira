@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **TDD is mandatory** (Red → Green → Refactor) for every change: feature, bug fix, refactor with behavior change. Tests are written *before* production code, never after.
 - TypeScript 6 strict, double quotes, 2-space indent, semicolons, trailing commas.
-- camelCase in TS, snake_case in SQL — explicit mapping in `db/store.ts` and `sync.ts`.
+- camelCase in TS, snake_case in SQL — explicit mapping in `store/sqlite/*.ts` and `sync.ts`.
 - Plugin pattern for metrics: implement `Metric<T>`, register in `ALL_METRICS`, use `buildDeliveredCte()` for delivery endpoints.
 - French for prose / logs / test names, English for code identifiers.
 - Comments explain *why*, never *what*.
