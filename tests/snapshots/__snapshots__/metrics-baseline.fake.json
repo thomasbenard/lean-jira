@@ -1,0 +1,1883 @@
+{
+  "lead-time": {
+    "count": 24,
+    "excludedOutliers": 0,
+    "avgDays": 7.166666666666665,
+    "medianDays": 7.291666666666666,
+    "p85Days": 9.291666666666666,
+    "p95Days": 9.291666666666666,
+    "issues": [
+      {
+        "issueKey": "DEMO-1",
+        "todoAt": "2025-09-01T09:00:00.000Z",
+        "resolvedAt": "2025-09-10T16:00:00.000Z",
+        "leadTimeDays": 7.291666666666666
+      },
+      {
+        "issueKey": "DEMO-10",
+        "todoAt": "2025-09-29T09:00:00.000Z",
+        "resolvedAt": "2025-10-03T16:00:00.000Z",
+        "leadTimeDays": 4.291666666666667
+      },
+      {
+        "issueKey": "DEMO-11",
+        "todoAt": "2025-09-29T09:00:00.000Z",
+        "resolvedAt": "2025-10-10T16:00:00.000Z",
+        "leadTimeDays": 9.291666666666666
+      },
+      {
+        "issueKey": "DEMO-13",
+        "todoAt": "2025-10-13T09:00:00.000Z",
+        "resolvedAt": "2025-10-22T16:00:00.000Z",
+        "leadTimeDays": 7.291666666666666
+      },
+      {
+        "issueKey": "DEMO-14",
+        "todoAt": "2025-10-13T09:00:00.000Z",
+        "resolvedAt": "2025-10-17T16:00:00.000Z",
+        "leadTimeDays": 4.291666666666667
+      },
+      {
+        "issueKey": "DEMO-15",
+        "todoAt": "2025-10-13T09:00:00.000Z",
+        "resolvedAt": "2025-10-24T16:00:00.000Z",
+        "leadTimeDays": 9.291666666666666
+      },
+      {
+        "issueKey": "DEMO-17",
+        "todoAt": "2025-10-27T09:00:00.000Z",
+        "resolvedAt": "2025-11-07T16:00:00.000Z",
+        "leadTimeDays": 9.291666666666666
+      },
+      {
+        "issueKey": "DEMO-18",
+        "todoAt": "2025-10-27T09:00:00.000Z",
+        "resolvedAt": "2025-11-07T16:00:00.000Z",
+        "leadTimeDays": 9.291666666666666
+      },
+      {
+        "issueKey": "DEMO-19",
+        "todoAt": "2025-10-27T09:00:00.000Z",
+        "resolvedAt": "2025-11-03T16:00:00.000Z",
+        "leadTimeDays": 5.291666666666667
+      },
+      {
+        "issueKey": "DEMO-2",
+        "todoAt": "2025-09-01T09:00:00.000Z",
+        "resolvedAt": "2025-09-05T16:00:00.000Z",
+        "leadTimeDays": 4.291666666666667
+      },
+      {
+        "issueKey": "DEMO-22",
+        "todoAt": "2025-11-10T09:00:00.000Z",
+        "resolvedAt": "2025-11-19T16:00:00.000Z",
+        "leadTimeDays": 7.291666666666666
+      },
+      {
+        "issueKey": "DEMO-23",
+        "todoAt": "2025-11-10T09:00:00.000Z",
+        "resolvedAt": "2025-11-14T16:00:00.000Z",
+        "leadTimeDays": 4.291666666666667
+      },
+      {
+        "issueKey": "DEMO-25",
+        "todoAt": "2025-11-10T09:00:00.000Z",
+        "resolvedAt": "2025-11-21T16:00:00.000Z",
+        "leadTimeDays": 9.291666666666666
+      },
+      {
+        "issueKey": "DEMO-26",
+        "todoAt": "2025-11-24T09:00:00.000Z",
+        "resolvedAt": "2025-12-03T16:00:00.000Z",
+        "leadTimeDays": 7.291666666666666
+      },
+      {
+        "issueKey": "DEMO-27",
+        "todoAt": "2025-11-24T09:00:00.000Z",
+        "resolvedAt": "2025-12-05T16:00:00.000Z",
+        "leadTimeDays": 9.291666666666666
+      },
+      {
+        "issueKey": "DEMO-29",
+        "todoAt": "2025-11-24T09:00:00.000Z",
+        "resolvedAt": "2025-12-05T16:00:00.000Z",
+        "leadTimeDays": 9.291666666666666
+      },
+      {
+        "issueKey": "DEMO-3",
+        "todoAt": "2025-09-02T09:00:00.000Z",
+        "resolvedAt": "2025-09-12T16:00:00.000Z",
+        "leadTimeDays": 8.291666666666666
+      },
+      {
+        "issueKey": "DEMO-30",
+        "todoAt": "2025-12-08T09:00:00.000Z",
+        "resolvedAt": "2025-12-11T16:00:00.000Z",
+        "leadTimeDays": 3.2916666666666665
+      },
+      {
+        "issueKey": "DEMO-31",
+        "todoAt": "2025-12-08T09:00:00.000Z",
+        "resolvedAt": "2025-12-12T16:00:00.000Z",
+        "leadTimeDays": 4.291666666666667
+      },
+      {
+        "issueKey": "DEMO-32",
+        "todoAt": "2025-12-08T09:00:00.000Z",
+        "resolvedAt": "2025-12-19T16:00:00.000Z",
+        "leadTimeDays": 9.291666666666666
+      },
+      {
+        "issueKey": "DEMO-5",
+        "todoAt": "2025-09-15T09:00:00.000Z",
+        "resolvedAt": "2025-09-26T16:00:00.000Z",
+        "leadTimeDays": 9.291666666666666
+      },
+      {
+        "issueKey": "DEMO-6",
+        "todoAt": "2025-09-15T09:00:00.000Z",
+        "resolvedAt": "2025-09-19T16:00:00.000Z",
+        "leadTimeDays": 4.291666666666667
+      },
+      {
+        "issueKey": "DEMO-7",
+        "todoAt": "2025-09-15T09:00:00.000Z",
+        "resolvedAt": "2025-09-26T16:00:00.000Z",
+        "leadTimeDays": 9.291666666666666
+      },
+      {
+        "issueKey": "DEMO-9",
+        "todoAt": "2025-09-29T09:00:00.000Z",
+        "resolvedAt": "2025-10-08T16:00:00.000Z",
+        "leadTimeDays": 7.291666666666666
+      }
+    ]
+  },
+  "lead-time-by-size": {
+    "buckets": {
+      "XS": {
+        "count": 4,
+        "excludedOutliers": 0,
+        "avgDays": 4.291666666666667,
+        "medianDays": 4.291666666666667,
+        "p85Days": 5.291666666666667,
+        "p95Days": 5.291666666666667
+      },
+      "S": {
+        "count": 4,
+        "excludedOutliers": 0,
+        "avgDays": 4.291666666666667,
+        "medianDays": 4.291666666666667,
+        "p85Days": 4.291666666666667,
+        "p95Days": 4.291666666666667
+      },
+      "M": {
+        "count": 4,
+        "excludedOutliers": 1,
+        "avgDays": 7.291666666666666,
+        "medianDays": 7.291666666666666,
+        "p85Days": 7.291666666666666,
+        "p95Days": 7.291666666666666
+      },
+      "L": {
+        "count": 5,
+        "excludedOutliers": 0,
+        "avgDays": 9.291666666666666,
+        "medianDays": 9.291666666666666,
+        "p85Days": 9.291666666666666,
+        "p95Days": 9.291666666666666
+      },
+      "XL": {
+        "count": 3,
+        "excludedOutliers": 0,
+        "avgDays": 9.291666666666666,
+        "medianDays": 9.291666666666666,
+        "p85Days": 9.291666666666666,
+        "p95Days": 9.291666666666666
+      },
+      "UNESTIMATED": {
+        "count": 3,
+        "excludedOutliers": 0,
+        "avgDays": 8.291666666666666,
+        "medianDays": 8.291666666666666,
+        "p85Days": 9.291666666666666,
+        "p95Days": 9.291666666666666
+      }
+    }
+  },
+  "lead-time-normalized": {
+    "count": 17,
+    "excludedOutliers": 4,
+    "avgDays": 3.4340277777777772,
+    "medianDays": 3.645833333333333,
+    "p85Days": 5.722222222222222,
+    "p95Days": 5.722222222222222,
+    "unit": "ratio (lead réel / estimé)"
+  },
+  "cycle-time": {
+    "count": 36,
+    "excludedOutliers": 0,
+    "avgDays": 5.652777777777776,
+    "medianDays": 6.291666666666666,
+    "p85Days": 8.291666666666666,
+    "p95Days": 8.291666666666666,
+    "issues": [
+      {
+        "issueKey": "DEMO-1",
+        "startedAt": "2025-09-02T09:00:00.000Z",
+        "resolvedAt": "2025-09-10T16:00:00.000Z",
+        "cycleTimeDays": 6.291666666666666
+      },
+      {
+        "issueKey": "DEMO-10",
+        "startedAt": "2025-10-01T09:00:00.000Z",
+        "resolvedAt": "2025-10-03T16:00:00.000Z",
+        "cycleTimeDays": 2.2916666666666665
+      },
+      {
+        "issueKey": "DEMO-11",
+        "startedAt": "2025-09-30T09:00:00.000Z",
+        "resolvedAt": "2025-10-10T16:00:00.000Z",
+        "cycleTimeDays": 8.291666666666666
+      },
+      {
+        "issueKey": "DEMO-12",
+        "startedAt": "2025-10-01T09:00:00.000Z",
+        "resolvedAt": "2025-10-07T16:00:00.000Z",
+        "cycleTimeDays": 4.291666666666667
+      },
+      {
+        "issueKey": "DEMO-13",
+        "startedAt": "2025-10-14T09:00:00.000Z",
+        "resolvedAt": "2025-10-22T16:00:00.000Z",
+        "cycleTimeDays": 6.291666666666666
+      },
+      {
+        "issueKey": "DEMO-14",
+        "startedAt": "2025-10-15T09:00:00.000Z",
+        "resolvedAt": "2025-10-17T16:00:00.000Z",
+        "cycleTimeDays": 2.2916666666666665
+      },
+      {
+        "issueKey": "DEMO-15",
+        "startedAt": "2025-10-14T09:00:00.000Z",
+        "resolvedAt": "2025-10-24T16:00:00.000Z",
+        "cycleTimeDays": 8.291666666666666
+      },
+      {
+        "issueKey": "DEMO-16",
+        "startedAt": "2025-10-15T09:00:00.000Z",
+        "resolvedAt": "2025-10-21T16:00:00.000Z",
+        "cycleTimeDays": 4.291666666666667
+      },
+      {
+        "issueKey": "DEMO-17",
+        "startedAt": "2025-10-28T09:00:00.000Z",
+        "resolvedAt": "2025-11-07T16:00:00.000Z",
+        "cycleTimeDays": 8.291666666666666
+      },
+      {
+        "issueKey": "DEMO-18",
+        "startedAt": "2025-10-29T09:00:00.000Z",
+        "resolvedAt": "2025-11-07T16:00:00.000Z",
+        "cycleTimeDays": 7.291666666666666
+      },
+      {
+        "issueKey": "DEMO-19",
+        "startedAt": "2025-10-30T09:00:00.000Z",
+        "resolvedAt": "2025-11-03T16:00:00.000Z",
+        "cycleTimeDays": 2.291666666666667
+      },
+      {
+        "issueKey": "DEMO-2",
+        "startedAt": "2025-09-03T09:00:00.000Z",
+        "resolvedAt": "2025-09-05T16:00:00.000Z",
+        "cycleTimeDays": 2.2916666666666665
+      },
+      {
+        "issueKey": "DEMO-20",
+        "startedAt": "2025-10-29T09:00:00.000Z",
+        "resolvedAt": "2025-11-04T16:00:00.000Z",
+        "cycleTimeDays": 4.291666666666667
+      },
+      {
+        "issueKey": "DEMO-21",
+        "startedAt": "2025-10-28T09:00:00.000Z",
+        "resolvedAt": "2025-11-07T16:00:00.000Z",
+        "cycleTimeDays": 8.291666666666666
+      },
+      {
+        "issueKey": "DEMO-22",
+        "startedAt": "2025-11-11T09:00:00.000Z",
+        "resolvedAt": "2025-11-19T16:00:00.000Z",
+        "cycleTimeDays": 6.291666666666666
+      },
+      {
+        "issueKey": "DEMO-23",
+        "startedAt": "2025-11-12T09:00:00.000Z",
+        "resolvedAt": "2025-11-14T16:00:00.000Z",
+        "cycleTimeDays": 2.2916666666666665
+      },
+      {
+        "issueKey": "DEMO-24",
+        "startedAt": "2025-11-11T09:00:00.000Z",
+        "resolvedAt": "2025-11-21T16:00:00.000Z",
+        "cycleTimeDays": 8.291666666666666
+      },
+      {
+        "issueKey": "DEMO-25",
+        "startedAt": "2025-11-12T09:00:00.000Z",
+        "resolvedAt": "2025-11-21T16:00:00.000Z",
+        "cycleTimeDays": 7.291666666666666
+      },
+      {
+        "issueKey": "DEMO-26",
+        "startedAt": "2025-11-25T09:00:00.000Z",
+        "resolvedAt": "2025-12-03T16:00:00.000Z",
+        "cycleTimeDays": 6.291666666666666
+      },
+      {
+        "issueKey": "DEMO-27",
+        "startedAt": "2025-11-25T09:00:00.000Z",
+        "resolvedAt": "2025-12-05T16:00:00.000Z",
+        "cycleTimeDays": 8.291666666666666
+      },
+      {
+        "issueKey": "DEMO-28",
+        "startedAt": "2025-11-26T09:00:00.000Z",
+        "resolvedAt": "2025-12-02T16:00:00.000Z",
+        "cycleTimeDays": 4.291666666666667
+      },
+      {
+        "issueKey": "DEMO-29",
+        "startedAt": "2025-11-25T09:00:00.000Z",
+        "resolvedAt": "2025-12-05T16:00:00.000Z",
+        "cycleTimeDays": 8.291666666666666
+      },
+      {
+        "issueKey": "DEMO-3",
+        "startedAt": "2025-09-04T09:00:00.000Z",
+        "resolvedAt": "2025-09-12T16:00:00.000Z",
+        "cycleTimeDays": 6.291666666666666
+      },
+      {
+        "issueKey": "DEMO-30",
+        "startedAt": "2025-12-09T09:00:00.000Z",
+        "resolvedAt": "2025-12-11T16:00:00.000Z",
+        "cycleTimeDays": 2.2916666666666665
+      },
+      {
+        "issueKey": "DEMO-31",
+        "startedAt": "2025-12-10T09:00:00.000Z",
+        "resolvedAt": "2025-12-12T16:00:00.000Z",
+        "cycleTimeDays": 2.2916666666666665
+      },
+      {
+        "issueKey": "DEMO-32",
+        "startedAt": "2025-12-09T09:00:00.000Z",
+        "resolvedAt": "2025-12-19T16:00:00.000Z",
+        "cycleTimeDays": 8.291666666666666
+      },
+      {
+        "issueKey": "DEMO-33",
+        "startedAt": "2025-12-10T09:00:00.000Z",
+        "resolvedAt": "2025-12-16T16:00:00.000Z",
+        "cycleTimeDays": 4.291666666666667
+      },
+      {
+        "issueKey": "DEMO-39",
+        "startedAt": "2025-11-10T09:00:00.000Z",
+        "resolvedAt": "2025-11-18T16:00:00.000Z",
+        "cycleTimeDays": 6.291666666666666
+      },
+      {
+        "issueKey": "DEMO-4",
+        "startedAt": "2025-09-03T09:00:00.000Z",
+        "resolvedAt": "2025-09-09T16:00:00.000Z",
+        "cycleTimeDays": 4.291666666666667
+      },
+      {
+        "issueKey": "DEMO-40",
+        "startedAt": "2025-11-24T09:00:00.000Z",
+        "resolvedAt": "2025-12-04T16:00:00.000Z",
+        "cycleTimeDays": 8.291666666666666
+      },
+      {
+        "issueKey": "DEMO-41",
+        "startedAt": "2025-12-08T09:00:00.000Z",
+        "resolvedAt": "2025-12-15T16:00:00.000Z",
+        "cycleTimeDays": 5.291666666666667
+      },
+      {
+        "issueKey": "DEMO-5",
+        "startedAt": "2025-09-16T09:00:00.000Z",
+        "resolvedAt": "2025-09-26T16:00:00.000Z",
+        "cycleTimeDays": 8.291666666666666
+      },
+      {
+        "issueKey": "DEMO-6",
+        "startedAt": "2025-09-17T09:00:00.000Z",
+        "resolvedAt": "2025-09-19T16:00:00.000Z",
+        "cycleTimeDays": 2.2916666666666665
+      },
+      {
+        "issueKey": "DEMO-7",
+        "startedAt": "2025-09-16T09:00:00.000Z",
+        "resolvedAt": "2025-09-26T16:00:00.000Z",
+        "cycleTimeDays": 8.291666666666666
+      },
+      {
+        "issueKey": "DEMO-8",
+        "startedAt": "2025-09-17T09:00:00.000Z",
+        "resolvedAt": "2025-09-23T16:00:00.000Z",
+        "cycleTimeDays": 4.291666666666667
+      },
+      {
+        "issueKey": "DEMO-9",
+        "startedAt": "2025-09-30T09:00:00.000Z",
+        "resolvedAt": "2025-10-08T16:00:00.000Z",
+        "cycleTimeDays": 6.291666666666666
+      }
+    ]
+  },
+  "cycle-time-by-size": {
+    "buckets": {
+      "XS": {
+        "count": 3,
+        "excludedOutliers": 1,
+        "avgDays": 2.2916666666666665,
+        "medianDays": 2.2916666666666665,
+        "p85Days": 2.2916666666666665,
+        "p95Days": 2.2916666666666665
+      },
+      "S": {
+        "count": 4,
+        "excludedOutliers": 0,
+        "avgDays": 2.2916666666666665,
+        "medianDays": 2.2916666666666665,
+        "p85Days": 2.2916666666666665,
+        "p95Days": 2.2916666666666665
+      },
+      "M": {
+        "count": 4,
+        "excludedOutliers": 1,
+        "avgDays": 6.291666666666666,
+        "medianDays": 6.291666666666666,
+        "p85Days": 6.291666666666666,
+        "p95Days": 6.291666666666666
+      },
+      "L": {
+        "count": 5,
+        "excludedOutliers": 0,
+        "avgDays": 8.091666666666665,
+        "medianDays": 8.291666666666666,
+        "p85Days": 8.291666666666666,
+        "p95Days": 8.291666666666666
+      },
+      "XL": {
+        "count": 3,
+        "excludedOutliers": 0,
+        "avgDays": 7.958333333333333,
+        "medianDays": 8.291666666666666,
+        "p85Days": 8.291666666666666,
+        "p95Days": 8.291666666666666
+      },
+      "BUG": {
+        "count": 12,
+        "excludedOutliers": 0,
+        "avgDays": 5.541666666666667,
+        "medianDays": 4.291666666666667,
+        "p85Days": 8.291666666666666,
+        "p95Days": 8.291666666666666
+      },
+      "UNESTIMATED": {
+        "count": 3,
+        "excludedOutliers": 0,
+        "avgDays": 6.958333333333333,
+        "medianDays": 6.291666666666666,
+        "p85Days": 8.291666666666666,
+        "p95Days": 8.291666666666666
+      }
+    }
+  },
+  "cycle-time-normalized": {
+    "count": 17,
+    "excludedOutliers": 4,
+    "avgDays": 2.5320669934640527,
+    "medianDays": 3.0555555555555554,
+    "p85Days": 3.145833333333333,
+    "p95Days": 4.145833333333333,
+    "unit": "ratio (cycle réel / estimé)"
+  },
+  "throughput": {
+    "byWeek": [
+      {
+        "week": "2025-W35",
+        "count": 1
+      },
+      {
+        "week": "2025-W36",
+        "count": 3
+      },
+      {
+        "week": "2025-W37",
+        "count": 1
+      },
+      {
+        "week": "2025-W38",
+        "count": 3
+      },
+      {
+        "week": "2025-W39",
+        "count": 1
+      },
+      {
+        "week": "2025-W40",
+        "count": 3
+      },
+      {
+        "week": "2025-W41",
+        "count": 1
+      },
+      {
+        "week": "2025-W42",
+        "count": 3
+      },
+      {
+        "week": "2025-W44",
+        "count": 5
+      },
+      {
+        "week": "2025-W45",
+        "count": 1
+      },
+      {
+        "week": "2025-W46",
+        "count": 4
+      },
+      {
+        "week": "2025-W48",
+        "count": 5
+      },
+      {
+        "week": "2025-W49",
+        "count": 2
+      },
+      {
+        "week": "2025-W50",
+        "count": 3
+      }
+    ],
+    "avgPerWeek": 2.5714285714285716
+  },
+  "throughput-weighted": {
+    "byWeek": [
+      {
+        "week": "2025-W35",
+        "estimatedDays": 0.25,
+        "estimatedCount": 1,
+        "unestimatedCount": 0
+      },
+      {
+        "week": "2025-W36",
+        "estimatedDays": 2,
+        "estimatedCount": 1,
+        "unestimatedCount": 1
+      },
+      {
+        "week": "2025-W37",
+        "estimatedDays": 0.75,
+        "estimatedCount": 1,
+        "unestimatedCount": 0
+      },
+      {
+        "week": "2025-W38",
+        "estimatedDays": 10,
+        "estimatedCount": 2,
+        "unestimatedCount": 0
+      },
+      {
+        "week": "2025-W39",
+        "estimatedDays": 0.25,
+        "estimatedCount": 1,
+        "unestimatedCount": 0
+      },
+      {
+        "week": "2025-W40",
+        "estimatedDays": 6,
+        "estimatedCount": 2,
+        "unestimatedCount": 0
+      },
+      {
+        "week": "2025-W41",
+        "estimatedDays": 0.75,
+        "estimatedCount": 1,
+        "unestimatedCount": 0
+      },
+      {
+        "week": "2025-W42",
+        "estimatedDays": 2,
+        "estimatedCount": 1,
+        "unestimatedCount": 1
+      },
+      {
+        "week": "2025-W44",
+        "estimatedDays": 10.25,
+        "estimatedCount": 3,
+        "unestimatedCount": 0
+      },
+      {
+        "week": "2025-W45",
+        "estimatedDays": 0.75,
+        "estimatedCount": 1,
+        "unestimatedCount": 0
+      },
+      {
+        "week": "2025-W46",
+        "estimatedDays": 8,
+        "estimatedCount": 2,
+        "unestimatedCount": 0
+      },
+      {
+        "week": "2025-W48",
+        "estimatedDays": 6,
+        "estimatedCount": 2,
+        "unestimatedCount": 1
+      },
+      {
+        "week": "2025-W49",
+        "estimatedDays": 1,
+        "estimatedCount": 2,
+        "unestimatedCount": 0
+      },
+      {
+        "week": "2025-W50",
+        "estimatedDays": 4,
+        "estimatedCount": 1,
+        "unestimatedCount": 0
+      }
+    ],
+    "avgPerWeek": 3.7142857142857144,
+    "unit": "j-h",
+    "disabled": false
+  },
+  "bug-cycle-time": {
+    "count": 12,
+    "excludedOutliers": 0,
+    "avgDays": 5.541666666666667,
+    "medianDays": 4.291666666666667,
+    "p85Days": 8.291666666666666,
+    "p95Days": 8.291666666666666,
+    "unit": "j"
+  },
+  "bug-throughput": {
+    "byWeek": [
+      {
+        "week": "2025-W36",
+        "count": 1
+      },
+      {
+        "week": "2025-W38",
+        "count": 1
+      },
+      {
+        "week": "2025-W40",
+        "count": 1
+      },
+      {
+        "week": "2025-W42",
+        "count": 1
+      },
+      {
+        "week": "2025-W44",
+        "count": 2
+      },
+      {
+        "week": "2025-W46",
+        "count": 2
+      },
+      {
+        "week": "2025-W48",
+        "count": 2
+      },
+      {
+        "week": "2025-W50",
+        "count": 2
+      }
+    ],
+    "avgPerWeek": 1.5
+  },
+  "wip": {
+    "currentWip": 7,
+    "sprintName": "Sprint 9",
+    "issueKeys": [
+      "DEMO-34",
+      "DEMO-35",
+      "DEMO-36",
+      "DEMO-37",
+      "DEMO-38",
+      "DEMO-42",
+      "DEMO-43"
+    ]
+  },
+  "wip-per-role": {
+    "byRole": {
+      "dev": {
+        "count": 5,
+        "issueKeys": [
+          "DEMO-34",
+          "DEMO-35",
+          "DEMO-38",
+          "DEMO-42",
+          "DEMO-43"
+        ]
+      },
+      "qa": {
+        "count": 1,
+        "issueKeys": [
+          "DEMO-36"
+        ]
+      },
+      "po": {
+        "count": 1,
+        "issueKeys": [
+          "DEMO-37"
+        ]
+      }
+    }
+  },
+  "flow-efficiency": {
+    "count": 36,
+    "excludedOutliers": 0,
+    "aggregateFlowEfficiency": 0.7145782145782147,
+    "medianFlowEfficiency": 1,
+    "p15FlowEfficiency": 0.4768211920529801,
+    "totalActiveDays": 145.41666666666669,
+    "totalQueueDays": 58.08333333333332,
+    "issues": [
+      {
+        "issueKey": "DEMO-1",
+        "startedAt": "2025-09-02T09:00:00.000Z",
+        "resolvedAt": "2025-09-10T16:00:00.000Z",
+        "activeDays": 2,
+        "queueDays": 4.291666666666666,
+        "totalDays": 6.291666666666666,
+        "flowEfficiency": 0.31788079470198677
+      },
+      {
+        "issueKey": "DEMO-10",
+        "startedAt": "2025-10-01T09:00:00.000Z",
+        "resolvedAt": "2025-10-03T16:00:00.000Z",
+        "activeDays": 2.2916666666666665,
+        "queueDays": 0,
+        "totalDays": 2.2916666666666665,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-11",
+        "startedAt": "2025-09-30T09:00:00.000Z",
+        "resolvedAt": "2025-10-10T16:00:00.000Z",
+        "activeDays": 3,
+        "queueDays": 5.291666666666666,
+        "totalDays": 8.291666666666666,
+        "flowEfficiency": 0.36180904522613067
+      },
+      {
+        "issueKey": "DEMO-12",
+        "startedAt": "2025-10-01T09:00:00.000Z",
+        "resolvedAt": "2025-10-07T16:00:00.000Z",
+        "activeDays": 4.291666666666667,
+        "queueDays": 0,
+        "totalDays": 4.291666666666667,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-13",
+        "startedAt": "2025-10-14T09:00:00.000Z",
+        "resolvedAt": "2025-10-22T16:00:00.000Z",
+        "activeDays": 3,
+        "queueDays": 3.291666666666667,
+        "totalDays": 6.291666666666667,
+        "flowEfficiency": 0.4768211920529801
+      },
+      {
+        "issueKey": "DEMO-14",
+        "startedAt": "2025-10-15T09:00:00.000Z",
+        "resolvedAt": "2025-10-17T16:00:00.000Z",
+        "activeDays": 2.2916666666666665,
+        "queueDays": 0,
+        "totalDays": 2.2916666666666665,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-15",
+        "startedAt": "2025-10-14T09:00:00.000Z",
+        "resolvedAt": "2025-10-24T16:00:00.000Z",
+        "activeDays": 8.291666666666666,
+        "queueDays": 0,
+        "totalDays": 8.291666666666666,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-16",
+        "startedAt": "2025-10-15T09:00:00.000Z",
+        "resolvedAt": "2025-10-21T16:00:00.000Z",
+        "activeDays": 4.291666666666667,
+        "queueDays": 0,
+        "totalDays": 4.291666666666667,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-17",
+        "startedAt": "2025-10-28T09:00:00.000Z",
+        "resolvedAt": "2025-11-07T16:00:00.000Z",
+        "activeDays": 4,
+        "queueDays": 4.291666666666667,
+        "totalDays": 8.291666666666668,
+        "flowEfficiency": 0.48241206030150746
+      },
+      {
+        "issueKey": "DEMO-18",
+        "startedAt": "2025-10-29T09:00:00.000Z",
+        "resolvedAt": "2025-11-07T16:00:00.000Z",
+        "activeDays": 4,
+        "queueDays": 3.2916666666666665,
+        "totalDays": 7.291666666666666,
+        "flowEfficiency": 0.5485714285714286
+      },
+      {
+        "issueKey": "DEMO-19",
+        "startedAt": "2025-10-30T09:00:00.000Z",
+        "resolvedAt": "2025-11-03T16:00:00.000Z",
+        "activeDays": 2.291666666666667,
+        "queueDays": 0,
+        "totalDays": 2.291666666666667,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-2",
+        "startedAt": "2025-09-03T09:00:00.000Z",
+        "resolvedAt": "2025-09-05T16:00:00.000Z",
+        "activeDays": 2.2916666666666665,
+        "queueDays": 0,
+        "totalDays": 2.2916666666666665,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-20",
+        "startedAt": "2025-10-29T09:00:00.000Z",
+        "resolvedAt": "2025-11-04T16:00:00.000Z",
+        "activeDays": 4.291666666666667,
+        "queueDays": 0,
+        "totalDays": 4.291666666666667,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-21",
+        "startedAt": "2025-10-28T09:00:00.000Z",
+        "resolvedAt": "2025-11-07T16:00:00.000Z",
+        "activeDays": 7.291666666666666,
+        "queueDays": 1,
+        "totalDays": 8.291666666666666,
+        "flowEfficiency": 0.8793969849246231
+      },
+      {
+        "issueKey": "DEMO-22",
+        "startedAt": "2025-11-11T09:00:00.000Z",
+        "resolvedAt": "2025-11-19T16:00:00.000Z",
+        "activeDays": 3,
+        "queueDays": 3.291666666666667,
+        "totalDays": 6.291666666666667,
+        "flowEfficiency": 0.4768211920529801
+      },
+      {
+        "issueKey": "DEMO-23",
+        "startedAt": "2025-11-12T09:00:00.000Z",
+        "resolvedAt": "2025-11-14T16:00:00.000Z",
+        "activeDays": 2.2916666666666665,
+        "queueDays": 0,
+        "totalDays": 2.2916666666666665,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-24",
+        "startedAt": "2025-11-11T09:00:00.000Z",
+        "resolvedAt": "2025-11-21T16:00:00.000Z",
+        "activeDays": 5,
+        "queueDays": 3.2916666666666665,
+        "totalDays": 8.291666666666666,
+        "flowEfficiency": 0.6030150753768845
+      },
+      {
+        "issueKey": "DEMO-25",
+        "startedAt": "2025-11-12T09:00:00.000Z",
+        "resolvedAt": "2025-11-21T16:00:00.000Z",
+        "activeDays": 7.291666666666666,
+        "queueDays": 0,
+        "totalDays": 7.291666666666666,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-26",
+        "startedAt": "2025-11-25T09:00:00.000Z",
+        "resolvedAt": "2025-12-03T16:00:00.000Z",
+        "activeDays": 6.291666666666666,
+        "queueDays": 0,
+        "totalDays": 6.291666666666666,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-27",
+        "startedAt": "2025-11-25T09:00:00.000Z",
+        "resolvedAt": "2025-12-05T16:00:00.000Z",
+        "activeDays": 4,
+        "queueDays": 4.291666666666667,
+        "totalDays": 8.291666666666668,
+        "flowEfficiency": 0.48241206030150746
+      },
+      {
+        "issueKey": "DEMO-28",
+        "startedAt": "2025-11-26T09:00:00.000Z",
+        "resolvedAt": "2025-12-02T16:00:00.000Z",
+        "activeDays": 4.291666666666667,
+        "queueDays": 0,
+        "totalDays": 4.291666666666667,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-29",
+        "startedAt": "2025-11-25T09:00:00.000Z",
+        "resolvedAt": "2025-12-05T16:00:00.000Z",
+        "activeDays": 4,
+        "queueDays": 4.291666666666667,
+        "totalDays": 8.291666666666668,
+        "flowEfficiency": 0.48241206030150746
+      },
+      {
+        "issueKey": "DEMO-3",
+        "startedAt": "2025-09-04T09:00:00.000Z",
+        "resolvedAt": "2025-09-12T16:00:00.000Z",
+        "activeDays": 6.291666666666666,
+        "queueDays": 0,
+        "totalDays": 6.291666666666666,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-30",
+        "startedAt": "2025-12-09T09:00:00.000Z",
+        "resolvedAt": "2025-12-11T16:00:00.000Z",
+        "activeDays": 2.2916666666666665,
+        "queueDays": 0,
+        "totalDays": 2.2916666666666665,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-31",
+        "startedAt": "2025-12-10T09:00:00.000Z",
+        "resolvedAt": "2025-12-12T16:00:00.000Z",
+        "activeDays": 2.2916666666666665,
+        "queueDays": 0,
+        "totalDays": 2.2916666666666665,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-32",
+        "startedAt": "2025-12-09T09:00:00.000Z",
+        "resolvedAt": "2025-12-19T16:00:00.000Z",
+        "activeDays": 3,
+        "queueDays": 5.291666666666667,
+        "totalDays": 8.291666666666668,
+        "flowEfficiency": 0.3618090452261306
+      },
+      {
+        "issueKey": "DEMO-33",
+        "startedAt": "2025-12-10T09:00:00.000Z",
+        "resolvedAt": "2025-12-16T16:00:00.000Z",
+        "activeDays": 4.291666666666667,
+        "queueDays": 0,
+        "totalDays": 4.291666666666667,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-39",
+        "startedAt": "2025-11-10T09:00:00.000Z",
+        "resolvedAt": "2025-11-18T16:00:00.000Z",
+        "activeDays": 6.291666666666666,
+        "queueDays": 0,
+        "totalDays": 6.291666666666666,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-4",
+        "startedAt": "2025-09-03T09:00:00.000Z",
+        "resolvedAt": "2025-09-09T16:00:00.000Z",
+        "activeDays": 4.291666666666667,
+        "queueDays": 0,
+        "totalDays": 4.291666666666667,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-40",
+        "startedAt": "2025-11-24T09:00:00.000Z",
+        "resolvedAt": "2025-12-04T16:00:00.000Z",
+        "activeDays": 4,
+        "queueDays": 4.291666666666667,
+        "totalDays": 8.291666666666668,
+        "flowEfficiency": 0.48241206030150746
+      },
+      {
+        "issueKey": "DEMO-41",
+        "startedAt": "2025-12-08T09:00:00.000Z",
+        "resolvedAt": "2025-12-15T16:00:00.000Z",
+        "activeDays": 5.291666666666667,
+        "queueDays": 0,
+        "totalDays": 5.291666666666667,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-5",
+        "startedAt": "2025-09-16T09:00:00.000Z",
+        "resolvedAt": "2025-09-26T16:00:00.000Z",
+        "activeDays": 3,
+        "queueDays": 5.291666666666667,
+        "totalDays": 8.291666666666668,
+        "flowEfficiency": 0.3618090452261306
+      },
+      {
+        "issueKey": "DEMO-6",
+        "startedAt": "2025-09-17T09:00:00.000Z",
+        "resolvedAt": "2025-09-19T16:00:00.000Z",
+        "activeDays": 2.2916666666666665,
+        "queueDays": 0,
+        "totalDays": 2.2916666666666665,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-7",
+        "startedAt": "2025-09-16T09:00:00.000Z",
+        "resolvedAt": "2025-09-26T16:00:00.000Z",
+        "activeDays": 4,
+        "queueDays": 4.291666666666667,
+        "totalDays": 8.291666666666668,
+        "flowEfficiency": 0.48241206030150746
+      },
+      {
+        "issueKey": "DEMO-8",
+        "startedAt": "2025-09-17T09:00:00.000Z",
+        "resolvedAt": "2025-09-23T16:00:00.000Z",
+        "activeDays": 4.291666666666667,
+        "queueDays": 0,
+        "totalDays": 4.291666666666667,
+        "flowEfficiency": 1
+      },
+      {
+        "issueKey": "DEMO-9",
+        "startedAt": "2025-09-30T09:00:00.000Z",
+        "resolvedAt": "2025-10-08T16:00:00.000Z",
+        "activeDays": 4,
+        "queueDays": 2.2916666666666665,
+        "totalDays": 6.291666666666666,
+        "flowEfficiency": 0.6357615894039735
+      }
+    ],
+    "unit": "ratio (actif / total)"
+  },
+  "aging-wip": {
+    "asOf": "2026-01-15",
+    "count": 7,
+    "percentiles": {
+      "p50": 6.291666666666666,
+      "p85": 8.291666666666666,
+      "p95": 8.291666666666666
+    },
+    "riskCounts": {
+      "ok": 2,
+      "watch": 1,
+      "atRisk": 0,
+      "critical": 4
+    },
+    "issues": [
+      {
+        "issueKey": "DEMO-38",
+        "summary": "Fix login failure for SSO users on Safari",
+        "status": "In Progress",
+        "startedAt": "2025-12-01T09:00:00.000Z",
+        "ageDays": 32.625,
+        "riskLevel": "critical"
+      },
+      {
+        "issueKey": "DEMO-37",
+        "summary": "Implement GDPR data export feature",
+        "status": "Awaiting PO",
+        "startedAt": "2025-12-16T09:00:00.000Z",
+        "ageDays": 21.625,
+        "riskLevel": "critical"
+      },
+      {
+        "issueKey": "DEMO-43",
+        "summary": "Fix broken CSV export for non-ASCII characters",
+        "status": "In Review",
+        "startedAt": "2025-12-22T09:00:00.000Z",
+        "ageDays": 17.625,
+        "riskLevel": "critical"
+      },
+      {
+        "issueKey": "DEMO-36",
+        "summary": "Migrate legacy API endpoints to v2",
+        "status": "In QA",
+        "startedAt": "2025-12-31T09:00:00.000Z",
+        "ageDays": 10.625,
+        "riskLevel": "critical"
+      },
+      {
+        "issueKey": "DEMO-35",
+        "summary": "Add keyboard shortcuts to editor",
+        "status": "In Review",
+        "startedAt": "2026-01-06T09:00:00.000Z",
+        "ageDays": 6.625,
+        "riskLevel": "watch"
+      },
+      {
+        "issueKey": "DEMO-42",
+        "summary": "Add audit log dashboard for admin panel",
+        "status": "In Progress",
+        "startedAt": "2026-01-08T09:00:00.000Z",
+        "ageDays": 4.625,
+        "riskLevel": "ok"
+      },
+      {
+        "issueKey": "DEMO-34",
+        "summary": "Implement real-time notifications",
+        "status": "In Progress",
+        "startedAt": "2026-01-13T09:00:00.000Z",
+        "ageDays": 1.625,
+        "riskLevel": "ok"
+      }
+    ],
+    "unit": "j"
+  },
+  "forecast": {
+    "recentWeeks": [
+      1,
+      3,
+      1,
+      3,
+      1,
+      3,
+      5,
+      1,
+      4,
+      5,
+      2,
+      3
+    ],
+    "weeksUsed": 12,
+    "byHorizon": [
+      {
+        "weeks": 1,
+        "p15": 1,
+        "p50": 3,
+        "p85": 5,
+        "p95": 5
+      },
+      {
+        "weeks": 2,
+        "p15": 3,
+        "p50": 5,
+        "p85": 8,
+        "p95": 9
+      },
+      {
+        "weeks": 4,
+        "p15": 8,
+        "p50": 10,
+        "p85": 14,
+        "p95": 16
+      },
+      {
+        "weeks": 8,
+        "p15": 17,
+        "p50": 21,
+        "p85": 26,
+        "p95": 28
+      }
+    ],
+    "simulations": 10000,
+    "unit": "issues"
+  },
+  "dev-time-allocation": {
+    "byWeek": [
+      {
+        "week": "2025-W36",
+        "featureDays": 12.291666666666666,
+        "bugDays": 4.291666666666667,
+        "bugRatio": 0.25879396984924624
+      },
+      {
+        "week": "2025-W37",
+        "featureDays": 2.583333333333332,
+        "bugDays": 0,
+        "bugRatio": 0
+      },
+      {
+        "week": "2025-W38",
+        "featureDays": 12.291666666666666,
+        "bugDays": 4.291666666666667,
+        "bugRatio": 0.25879396984924624
+      },
+      {
+        "week": "2025-W39",
+        "featureDays": 6.583333333333332,
+        "bugDays": 0,
+        "bugRatio": 0
+      },
+      {
+        "week": "2025-W40",
+        "featureDays": 12.291666666666666,
+        "bugDays": 4.291666666666667,
+        "bugRatio": 0.25879396984924624
+      },
+      {
+        "week": "2025-W41",
+        "featureDays": 4.583333333333332,
+        "bugDays": 0,
+        "bugRatio": 0
+      },
+      {
+        "week": "2025-W42",
+        "featureDays": 12.291666666666666,
+        "bugDays": 4.291666666666667,
+        "bugRatio": 0.25879396984924624
+      },
+      {
+        "week": "2025-W43",
+        "featureDays": 4.583333333333332,
+        "bugDays": 0,
+        "bugRatio": 0
+      },
+      {
+        "week": "2025-W44",
+        "featureDays": 12.291666666666668,
+        "bugDays": 9.291666666666668,
+        "bugRatio": 0.43050193050193053
+      },
+      {
+        "week": "2025-W45",
+        "featureDays": 5.583333333333332,
+        "bugDays": 3.291666666666666,
+        "bugRatio": 0.37089201877934275
+      },
+      {
+        "week": "2025-W46",
+        "featureDays": 12.291666666666666,
+        "bugDays": 10,
+        "bugRatio": 0.44859813084112155
+      },
+      {
+        "week": "2025-W47",
+        "featureDays": 3.583333333333332,
+        "bugDays": 4.583333333333332,
+        "bugRatio": 0.5612244897959184
+      },
+      {
+        "week": "2025-W48",
+        "featureDays": 15,
+        "bugDays": 9.291666666666668,
+        "bugRatio": 0.38250428816466553
+      },
+      {
+        "week": "2025-W49",
+        "featureDays": 7.874999999999998,
+        "bugDays": 8.291666666666666,
+        "bugRatio": 0.5128865979381444
+      },
+      {
+        "week": "2025-W50",
+        "featureDays": 9.583333333333332,
+        "bugDays": 14.291666666666668,
+        "bugRatio": 0.5986038394415358
+      },
+      {
+        "week": "2025-W51",
+        "featureDays": 8.291666666666666,
+        "bugDays": 5.291666666666667,
+        "bugRatio": 0.38957055214723935
+      },
+      {
+        "week": "2025-W52",
+        "featureDays": 5,
+        "bugDays": 10,
+        "bugRatio": 0.6666666666666666
+      },
+      {
+        "week": "2026-W01",
+        "featureDays": 10,
+        "bugDays": 10,
+        "bugRatio": 0.5
+      },
+      {
+        "week": "2026-W02",
+        "featureDays": 19.625,
+        "bugDays": 10,
+        "bugRatio": 0.33755274261603374
+      },
+      {
+        "week": "2026-W03",
+        "featureDays": 5.5,
+        "bugDays": 5.25,
+        "bugRatio": 0.4883720930232558
+      }
+    ],
+    "avgBugRatio": 0.39063153492262653
+  },
+  "bug-backlog": {
+    "openCount": 2,
+    "netFlow": -2,
+    "created": 14,
+    "closed": 12
+  },
+  "stage-time-breakdown": {
+    "count": 36,
+    "excludedOutliers": 0,
+    "byRole": {
+      "dev": {
+        "count": 36,
+        "excludedOutliers": 0,
+        "avgDays": 4.802083333333332,
+        "medianDays": 4.291666666666667,
+        "p85Days": 7.291666666666666,
+        "p95Days": 8.291666666666668
+      },
+      "qa": {
+        "count": 36,
+        "excludedOutliers": 0,
+        "avgDays": 0.7870370370370371,
+        "medianDays": 0,
+        "p85Days": 3,
+        "p95Days": 4.291666666666667
+      },
+      "po": {
+        "count": 36,
+        "excludedOutliers": 0,
+        "avgDays": 0.06365740740740741,
+        "medianDays": 0,
+        "p85Days": 0,
+        "p95Days": 1
+      }
+    },
+    "avgShareByRole": {
+      "dev": 0.8925227683672223,
+      "qa": 0.09979995636756261,
+      "po": 0.007677275265214963
+    }
+  },
+  "stage-throughput-gap": {
+    "byWeek": [
+      {
+        "week": "2025-W36",
+        "devIn": 4,
+        "devOut": 1,
+        "devNet": 3,
+        "qaIn": 0,
+        "qaOut": 0,
+        "qaNet": 0,
+        "poIn": 0,
+        "poOut": 0,
+        "poNet": 0
+      },
+      {
+        "week": "2025-W37",
+        "devIn": 0,
+        "devOut": 3,
+        "devNet": -3,
+        "qaIn": 1,
+        "qaOut": 1,
+        "qaNet": 0,
+        "poIn": 0,
+        "poOut": 0,
+        "poNet": 0
+      },
+      {
+        "week": "2025-W38",
+        "devIn": 4,
+        "devOut": 1,
+        "devNet": 3,
+        "qaIn": 0,
+        "qaOut": 0,
+        "qaNet": 0,
+        "poIn": 0,
+        "poOut": 0,
+        "poNet": 0
+      },
+      {
+        "week": "2025-W39",
+        "devIn": 0,
+        "devOut": 3,
+        "devNet": -3,
+        "qaIn": 1,
+        "qaOut": 1,
+        "qaNet": 0,
+        "poIn": 1,
+        "poOut": 1,
+        "poNet": 0
+      },
+      {
+        "week": "2025-W40",
+        "devIn": 4,
+        "devOut": 1,
+        "devNet": 3,
+        "qaIn": 0,
+        "qaOut": 0,
+        "qaNet": 0,
+        "poIn": 0,
+        "poOut": 0,
+        "poNet": 0
+      },
+      {
+        "week": "2025-W41",
+        "devIn": 0,
+        "devOut": 3,
+        "devNet": -3,
+        "qaIn": 2,
+        "qaOut": 2,
+        "qaNet": 0,
+        "poIn": 0,
+        "poOut": 0,
+        "poNet": 0
+      },
+      {
+        "week": "2025-W42",
+        "devIn": 4,
+        "devOut": 1,
+        "devNet": 3,
+        "qaIn": 0,
+        "qaOut": 0,
+        "qaNet": 0,
+        "poIn": 0,
+        "poOut": 0,
+        "poNet": 0
+      },
+      {
+        "week": "2025-W43",
+        "devIn": 0,
+        "devOut": 3,
+        "devNet": -3,
+        "qaIn": 0,
+        "qaOut": 0,
+        "qaNet": 0,
+        "poIn": 0,
+        "poOut": 0,
+        "poNet": 0
+      },
+      {
+        "week": "2025-W44",
+        "devIn": 5,
+        "devOut": 0,
+        "devNet": 5,
+        "qaIn": 0,
+        "qaOut": 0,
+        "qaNet": 0,
+        "poIn": 0,
+        "poOut": 0,
+        "poNet": 0
+      },
+      {
+        "week": "2025-W45",
+        "devIn": 1,
+        "devOut": 6,
+        "devNet": -5,
+        "qaIn": 2,
+        "qaOut": 2,
+        "qaNet": 0,
+        "poIn": 0,
+        "poOut": 0,
+        "poNet": 0
+      },
+      {
+        "week": "2025-W46",
+        "devIn": 5,
+        "devOut": 1,
+        "devNet": 4,
+        "qaIn": 0,
+        "qaOut": 0,
+        "qaNet": 0,
+        "poIn": 0,
+        "poOut": 0,
+        "poNet": 0
+      },
+      {
+        "week": "2025-W47",
+        "devIn": 1,
+        "devOut": 5,
+        "devNet": -4,
+        "qaIn": 2,
+        "qaOut": 2,
+        "qaNet": 0,
+        "poIn": 0,
+        "poOut": 0,
+        "poNet": 0
+      },
+      {
+        "week": "2025-W48",
+        "devIn": 5,
+        "devOut": 1,
+        "devNet": 4,
+        "qaIn": 1,
+        "qaOut": 0,
+        "qaNet": 1,
+        "poIn": 0,
+        "poOut": 0,
+        "poNet": 0
+      },
+      {
+        "week": "2025-W49",
+        "devIn": 1,
+        "devOut": 4,
+        "devNet": -3,
+        "qaIn": 2,
+        "qaOut": 3,
+        "qaNet": -1,
+        "poIn": 1,
+        "poOut": 1,
+        "poNet": 0
+      },
+      {
+        "week": "2025-W50",
+        "devIn": 5,
+        "devOut": 2,
+        "devNet": 3,
+        "qaIn": 0,
+        "qaOut": 0,
+        "qaNet": 0,
+        "poIn": 0,
+        "poOut": 0,
+        "poNet": 0
+      },
+      {
+        "week": "2025-W51",
+        "devIn": 1,
+        "devOut": 4,
+        "devNet": -3,
+        "qaIn": 2,
+        "qaOut": 1,
+        "qaNet": 1,
+        "poIn": 0,
+        "poOut": 0,
+        "poNet": 0
+      },
+      {
+        "week": "2025-W52",
+        "devIn": 1,
+        "devOut": 0,
+        "devNet": 1,
+        "qaIn": 0,
+        "qaOut": 1,
+        "qaNet": -1,
+        "poIn": 1,
+        "poOut": 0,
+        "poNet": 1
+      },
+      {
+        "week": "2026-W01",
+        "devIn": 1,
+        "devOut": 1,
+        "devNet": 0,
+        "qaIn": 1,
+        "qaOut": 0,
+        "qaNet": 1,
+        "poIn": 0,
+        "poOut": 0,
+        "poNet": 0
+      },
+      {
+        "week": "2026-W02",
+        "devIn": 2,
+        "devOut": 0,
+        "devNet": 2,
+        "qaIn": 0,
+        "qaOut": 0,
+        "qaNet": 0,
+        "poIn": 0,
+        "poOut": 0,
+        "poNet": 0
+      },
+      {
+        "week": "2026-W03",
+        "devIn": 1,
+        "devOut": 0,
+        "devNet": 1,
+        "qaIn": 0,
+        "qaOut": 0,
+        "qaNet": 0,
+        "poIn": 0,
+        "poOut": 0,
+        "poNet": 0
+      }
+    ],
+    "avgNetByRole": {
+      "dev": 0.25,
+      "qa": 0.05,
+      "po": 0.05
+    }
+  },
+  "handoff-rework": {
+    "count": 36,
+    "reworkRatio": 0.08333333333333333,
+    "avgReworks": 0.08333333333333333,
+    "byReworkType": {
+      "qaToDev": 2,
+      "poToQa": 1,
+      "poDev": 0
+    },
+    "issues": [
+      {
+        "issueKey": "DEMO-21",
+        "reworkCount": 1,
+        "reworkTypes": [
+          "qaToDev"
+        ]
+      },
+      {
+        "issueKey": "DEMO-24",
+        "reworkCount": 1,
+        "reworkTypes": [
+          "qaToDev"
+        ]
+      },
+      {
+        "issueKey": "DEMO-27",
+        "reworkCount": 1,
+        "reworkTypes": [
+          "poToQa"
+        ]
+      }
+    ]
+  },
+  "first-time-right": {
+    "count": 36,
+    "ftrByRole": {
+      "dev": {
+        "eligible": 36,
+        "firstTimeRight": 34,
+        "ftrRate": 0.9444444444444444,
+        "avgPasses": 1.0555555555555556
+      },
+      "qa": {
+        "eligible": 10,
+        "firstTimeRight": 8,
+        "ftrRate": 0.8,
+        "avgPasses": 1.2
+      },
+      "po": {
+        "eligible": 2,
+        "firstTimeRight": 2,
+        "ftrRate": 1,
+        "avgPasses": 1
+      }
+    }
+  },
+  "rework-cost": {
+    "count": 36,
+    "reworkedCount": 3,
+    "reworkRatio": 0.08333333333333333,
+    "totalReworkDays": 7.874999999999999,
+    "avgReworkDaysPerReworkedTicket": 2.6249999999999996,
+    "reworkCostRatio": 0.3165829145728643,
+    "byWeek": [
+      {
+        "week": "2025-W45",
+        "reworkDays": 3.2916666666666665,
+        "reworkedIssues": 1
+      },
+      {
+        "week": "2025-W47",
+        "reworkDays": 3.2916666666666665,
+        "reworkedIssues": 1
+      },
+      {
+        "week": "2025-W49",
+        "reworkDays": 1.2916666666666667,
+        "reworkedIssues": 1
+      }
+    ],
+    "bySprint": [
+      {
+        "sprintId": 5,
+        "sprintName": "Sprint 5",
+        "reworkDays": 3.2916666666666665,
+        "reworkedIssues": 1
+      },
+      {
+        "sprintId": 6,
+        "sprintName": "Sprint 6",
+        "reworkDays": 3.2916666666666665,
+        "reworkedIssues": 1
+      },
+      {
+        "sprintId": 7,
+        "sprintName": "Sprint 7",
+        "reworkDays": 1.2916666666666667,
+        "reworkedIssues": 1
+      }
+    ]
+  },
+  "scope-change-rate": {
+    "totalIssues": 43,
+    "changedIssues": 0,
+    "changeRatio": 0,
+    "bySprint": {
+      "Sprint 1": {
+        "totalIssues": 4,
+        "changedIssues": 0,
+        "changeRatio": 0,
+        "byChangeType": {
+          "description": 0
+        },
+        "issueDetails": []
+      },
+      "Sprint 2": {
+        "totalIssues": 4,
+        "changedIssues": 0,
+        "changeRatio": 0,
+        "byChangeType": {
+          "description": 0
+        },
+        "issueDetails": []
+      },
+      "Sprint 3": {
+        "totalIssues": 4,
+        "changedIssues": 0,
+        "changeRatio": 0,
+        "byChangeType": {
+          "description": 0
+        },
+        "issueDetails": []
+      },
+      "Sprint 4": {
+        "totalIssues": 4,
+        "changedIssues": 0,
+        "changeRatio": 0,
+        "byChangeType": {
+          "description": 0
+        },
+        "issueDetails": []
+      },
+      "Sprint 5": {
+        "totalIssues": 5,
+        "changedIssues": 0,
+        "changeRatio": 0,
+        "byChangeType": {
+          "description": 0
+        },
+        "issueDetails": []
+      },
+      "Sprint 6": {
+        "totalIssues": 5,
+        "changedIssues": 0,
+        "changeRatio": 0,
+        "byChangeType": {
+          "description": 0
+        },
+        "issueDetails": []
+      },
+      "Sprint 7": {
+        "totalIssues": 5,
+        "changedIssues": 0,
+        "changeRatio": 0,
+        "byChangeType": {
+          "description": 0
+        },
+        "issueDetails": []
+      },
+      "Sprint 8": {
+        "totalIssues": 5,
+        "changedIssues": 0,
+        "changeRatio": 0,
+        "byChangeType": {
+          "description": 0
+        },
+        "issueDetails": []
+      },
+      "Sprint 9": {
+        "totalIssues": 7,
+        "changedIssues": 0,
+        "changeRatio": 0,
+        "byChangeType": {
+          "description": 0
+        },
+        "issueDetails": []
+      }
+    },
+    "changedIssueKeys": []
+  },
+  "bottleneck-analysis": {
+    "count": 36,
+    "primaryBottleneck": "dev",
+    "primaryColumn": "Development",
+    "recommendation": "Réduire les entrées en dev ou augmenter la capacité disponible à ce stage.",
+    "byRole": {
+      "dev": {
+        "score": 0.875,
+        "rank": 1,
+        "dominantSignal": "accumulation",
+        "dominantColumn": "Development",
+        "signals": {
+          "stageTimeMedianDays": 4.291666666666667,
+          "avgNetFlow": 0.25,
+          "reworkInboundRate": 0.05555555555555555,
+          "ftrPenalty": 0.05555555555555558
+        }
+      },
+      "qa": {
+        "score": 0.375,
+        "rank": 2,
+        "dominantSignal": "ftr",
+        "dominantColumn": "QA Testing",
+        "signals": {
+          "stageTimeMedianDays": 0,
+          "avgNetFlow": 0.05,
+          "reworkInboundRate": 0.027777777777777776,
+          "ftrPenalty": 0.19999999999999996
+        }
+      },
+      "po": {
+        "score": 0,
+        "rank": 3,
+        "dominantSignal": "accumulation",
+        "dominantColumn": "PO Validation",
+        "signals": {
+          "stageTimeMedianDays": 0,
+          "avgNetFlow": 0.05,
+          "reworkInboundRate": 0,
+          "ftrPenalty": 0
+        }
+      }
+    },
+    "byColumn": [
+      {
+        "column": "Development",
+        "role": "dev",
+        "medianDays": 4,
+        "count": 38
+      },
+      {
+        "column": "Code Review",
+        "role": "dev",
+        "medianDays": 3,
+        "count": 10
+      },
+      {
+        "column": "QA Testing",
+        "role": "qa",
+        "medianDays": 2.2916666666666665,
+        "count": 12
+      },
+      {
+        "column": "PO Validation",
+        "role": "po",
+        "medianDays": 1,
+        "count": 2
+      }
+    ]
+  }
+}
