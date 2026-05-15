@@ -1,6 +1,6 @@
-import type Database from "better-sqlite3";
-import { type Metric, type MetricConfig, type EstimationMethod } from "./types";
-import { buildBugExclusionFragment, buildDeliveredCte, buildExcludeIssueTypesFragment, buildWindowFragment, SECONDS_PER_DAY } from "./utils";
+import { type Metric, type EstimationMethod } from "./types";
+import { SECONDS_PER_DAY } from "./utils";
+import type { MetricsContext } from "./context";
 
 export interface ThroughputWeightedByWeek {
   week: string;
@@ -18,13 +18,13 @@ export interface ThroughputWeightedSummary {
 
 type WeightedConfig =
   | { disabled: true }
-  | { disabled: false; col: "original_estimate_seconds" | "story_points"; unit: "j-h" | "SP" | "pts" };
+  | { disabled: false; col: "originalEstimateSeconds" | "storyPoints"; unit: "j-h" | "SP" | "pts" };
 
 function resolveWeightedConfig(method: EstimationMethod): WeightedConfig {
   if (method === "t-shirt" || method === "none") { return { disabled: true }; }
-  if (method === "time")         { return { disabled: false, col: "original_estimate_seconds", unit: "j-h" }; }
-  if (method === "story-points") { return { disabled: false, col: "story_points", unit: "SP" }; }
-  return { disabled: false, col: "story_points", unit: "pts" };
+  if (method === "time")         { return { disabled: false, col: "originalEstimateSeconds", unit: "j-h" }; }
+  if (method === "story-points") { return { disabled: false, col: "storyPoints", unit: "SP" }; }
+  return { disabled: false, col: "storyPoints", unit: "pts" };
 }
 
 export const throughputWeightedMetric: Metric<ThroughputWeightedSummary> = {
@@ -32,52 +32,57 @@ export const throughputWeightedMetric: Metric<ThroughputWeightedSummary> = {
   description:
     "Débit pondéré par l'estimation : somme des unités estimées livrées par semaine (1ère transition team-done). Affiche aussi la part non estimée.",
 
-  compute(db: Database.Database, config: MetricConfig): ThroughputWeightedSummary {
-    const wcfg = resolveWeightedConfig(config.estimation.method);
+  compute(ctx: MetricsContext): ThroughputWeightedSummary {
+    const wcfg = resolveWeightedConfig(ctx.config.estimation.method);
 
     if (wcfg.disabled) {
       return { byWeek: [], avgPerWeek: 0, unit: "j-h", disabled: true };
     }
 
     const { col, unit } = wcfg;
-    const isNull = `(i.${col} IS NULL OR i.${col} <= 0)`;
-    const isPos  = `(i.${col} > 0)`;
+    const bugSet = new Set(ctx.config.bugIssueTypes);
+    const cutoff = ctx.config.cutoffDate;
+    const windowEnd = ctx.config.windowEndDate;
 
-    const delivered = buildDeliveredCte(config.doneStatuses);
-    const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
-    const { bugSql, bugArgs } = buildBugExclusionFragment(config.bugIssueTypes);
-    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes);
+    const aggregator = new Map<string, { totalValue: number; estimatedCount: number; unestimatedCount: number }>();
 
-    const rows = db.prepare(`
-      WITH ${delivered.cte}
-      SELECT
-        strftime('%Y-W%W', substr(d.done_at, 1, 10)) AS week,
-        SUM(CASE WHEN ${isPos} THEN i.${col} ELSE 0 END) AS total_value,
-        SUM(CASE WHEN ${isPos} THEN 1 ELSE 0 END)        AS estimated_count,
-        SUM(CASE WHEN ${isNull} THEN 1 ELSE 0 END)        AS unestimated_count
-      FROM delivered d
-      JOIN issues i ON i.key = d.issue_key
-      WHERE 1=1 ${excludeSql} ${bugSql} ${cutoffSql} ${endSql}
-      GROUP BY week
-      ORDER BY week ASC
-    `).all(...delivered.args, ...excludeArgs, ...bugArgs, ...cutoffArgs, ...endArgs) as {
-      week: string; total_value: number; estimated_count: number; unestimated_count: number;
-    }[];
+    for (const [key, doneAt] of ctx.deliveredAt.entries()) {
+      if (cutoff && doneAt < cutoff) { continue; }
+      if (windowEnd && doneAt > windowEnd) { continue; }
+      const issue = ctx.issueByKey.get(key);
+      if (!issue) { continue; }
+      if (bugSet.has(issue.issueType)) { continue; }
 
-    const divisor = col === "original_estimate_seconds" ? SECONDS_PER_DAY : 1;
-    const byWeek = rows.map((r) => ({
-      week: r.week,
-      estimatedDays: r.total_value / divisor,
-      estimatedCount: r.estimated_count,
-      unestimatedCount: r.unestimated_count,
-    }));
+      const rawValue = issue[col];
+      // pourquoi : isoWeek aligne sur snapshots/report (remplace strftime('%W') SQL)
+      const week = ctx.isoWeek(doneAt);
 
-    const total = byWeek.reduce((s, w) => s + w.estimatedDays, 0);
-    return {
-      byWeek,
-      avgPerWeek: byWeek.length > 0 ? total / byWeek.length : 0,
-      unit,
-      disabled: false,
-    };
+      let entry = aggregator.get(week);
+      if (!entry) {
+        entry = { totalValue: 0, estimatedCount: 0, unestimatedCount: 0 };
+        aggregator.set(week, entry);
+      }
+
+      if (rawValue !== null && rawValue > 0) {
+        entry.totalValue += rawValue;
+        entry.estimatedCount += 1;
+      } else {
+        entry.unestimatedCount += 1;
+      }
+    }
+
+    const divisor = col === "originalEstimateSeconds" ? SECONDS_PER_DAY : 1;
+    const byWeek: ThroughputWeightedByWeek[] = Array.from(aggregator.entries())
+      .map(([week, e]) => ({
+        week,
+        estimatedDays: e.totalValue / divisor,
+        estimatedCount: e.estimatedCount,
+        unestimatedCount: e.unestimatedCount,
+      }))
+      .sort((a, b) => a.week.localeCompare(b.week));
+
+    const avgPerWeek = byWeek.length > 0 ? byWeek.reduce((s, r) => s + r.estimatedDays, 0) / byWeek.length : 0;
+
+    return { byWeek, avgPerWeek, unit, disabled: false };
   },
 };
