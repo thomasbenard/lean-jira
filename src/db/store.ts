@@ -2,6 +2,7 @@ import type Database from "better-sqlite3";
 import { type FieldChange, type StoredIssue, type StoredSprint, type StoredStatus, type Transition } from "../jira/types";
 import { now } from "../clock";
 
+// pourquoi : re-export temporaire pendant la migration vers SqliteStore (tickets 050, Tasks 2.1-6.2)
 export { openDb } from "../store/sqlite/schema";
 
 export function upsertIssues(db: Database.Database, issues: StoredIssue[]): void {
