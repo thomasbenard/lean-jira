@@ -63,4 +63,4 @@ test JSON `npm run metrics --json` avant/après refactor.
 
 ## Statut
 
-**à faire**
+**livré**
