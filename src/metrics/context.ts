@@ -41,10 +41,16 @@ export function buildMetricsContext(store: ReadStore, config: MetricConfig): Met
   const transitionsByToStatus = new Map<string, TransitionRecord[]>();
   for (const t of transitions) {
     let perIssue = transitionsByIssue.get(t.issueKey);
-    if (!perIssue) { perIssue = []; transitionsByIssue.set(t.issueKey, perIssue); }
+    if (!perIssue) {
+      perIssue = [];
+      transitionsByIssue.set(t.issueKey, perIssue);
+    }
     perIssue.push(t);
     let perStatus = transitionsByToStatus.get(t.toStatus);
-    if (!perStatus) { perStatus = []; transitionsByToStatus.set(t.toStatus, perStatus); }
+    if (!perStatus) {
+      perStatus = [];
+      transitionsByToStatus.set(t.toStatus, perStatus);
+    }
     perStatus.push(t);
   }
   // pourquoi : garantir l'ordre chronologique par issue (suit l'ordre du SELECT mais on rebuild)
