@@ -1,14 +1,9 @@
-import type Database from "better-sqlite3";
-import { type Metric, type MetricConfig } from "./types";
+import { type Metric } from "./types";
+import type { MetricsContext } from "./context";
+import type { TransitionRecord } from "../store/types";
 import {
-  fetchDeliveredTransitions,
-  groupByIssue,
-  computeRoleDays,
   toRoleStatuses,
   statsFromDays,
-  workingDaysBetween,
-  isoWeek,
-  buildExcludeIssueTypesFragment,
   type RoleStatuses,
 } from "./utils";
 
@@ -107,34 +102,11 @@ function emptyResult(): BottleneckAnalysisResult {
 }
 
 function computeAvgNetFlow(
-  db: Database.Database,
-  config: MetricConfig,
+  ctx: MetricsContext,
   getRole: (s: string) => RoleKey | null,
 ): Record<RoleKey, number> {
-  const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes);
-  const cutoffSql = config.cutoffDate ? "AND t.transitioned_at >= ?" : "";
-  const cutoffArgs = config.cutoffDate ? [config.cutoffDate] : [];
-  const endSql = config.windowEndDate ? "AND t.transitioned_at <= ?" : "";
-  const endArgs = config.windowEndDate ? [config.windowEndDate] : [];
-
-  const rows = db.prepare(`
-    SELECT t.issue_key, t.to_status, t.transitioned_at
-    FROM transitions t
-    JOIN issues i ON i.key = t.issue_key
-    WHERE 1=1 ${excludeSql} ${cutoffSql} ${endSql}
-    ORDER BY t.issue_key ASC, t.transitioned_at ASC, t.id ASC
-  `).all(...excludeArgs, ...cutoffArgs, ...endArgs) as {
-    issue_key: string;
-    to_status: string;
-    transitioned_at: string;
-  }[];
-
-  const byIssue = new Map<string, { to_status: string; transitioned_at: string }[]>();
-  for (const r of rows) {
-    let list = byIssue.get(r.issue_key);
-    if (!list) {list = []; byIssue.set(r.issue_key, list);}
-    list.push({ to_status: r.to_status, transitioned_at: r.transitioned_at });
-  }
+  const cutoff = ctx.config.cutoffDate;
+  const windowEnd = ctx.config.windowEndDate;
 
   const weekMap = new Map<string, Record<`${RoleKey}In` | `${RoleKey}Out`, number>>();
   const getWeekEntry = (week: string): Record<`${RoleKey}In` | `${RoleKey}Out`, number> => {
@@ -143,12 +115,14 @@ function computeAvgNetFlow(
     return e;
   };
 
-  for (const transitions of byIssue.values()) {
+  for (const transitions of ctx.transitionsByIssue.values()) {
     let prevRole: RoleKey | null = null;
     for (const t of transitions) {
-      const cur = getRole(t.to_status);
+      if (cutoff && t.transitionedAt < cutoff) {continue;}
+      if (windowEnd && t.transitionedAt > windowEnd) {continue;}
+      const cur = getRole(t.toStatus);
       if (cur !== prevRole) {
-        const week = isoWeek(t.transitioned_at);
+        const week = ctx.isoWeek(t.transitionedAt);
         if (prevRole !== null) {getWeekEntry(week)[`${prevRole}Out`]++;}
         if (cur !== null) {getWeekEntry(week)[`${cur}In`]++;}
         prevRole = cur;
@@ -175,8 +149,8 @@ export const bottleneckAnalysisMetric: Metric<BottleneckAnalysisResult> = {
   description:
     "Score composite 0–1 de bottleneck par rôle (dev/qa/po). Identifie le stage prioritaire à améliorer selon Theory of Constraints.",
 
-  compute(db: Database.Database, config: MetricConfig): BottleneckAnalysisResult {
-    const roles: RoleStatuses = toRoleStatuses(config);
+  compute(ctx: MetricsContext): BottleneckAnalysisResult {
+    const roles: RoleStatuses = toRoleStatuses(ctx.config);
     const allEmpty =
       roles.devStatuses.length === 0 &&
       roles.qaStatuses.length === 0 &&
@@ -189,9 +163,7 @@ export const bottleneckAnalysisMetric: Metric<BottleneckAnalysisResult> = {
       return emptyResult();
     }
 
-    const rows = fetchDeliveredTransitions(db, config);
-    const byIssue = groupByIssue(rows);
-    const count = byIssue.size;
+    const count = ctx.cycleTimePopulation.length;
     if (count === 0) {return emptyResult();}
 
     const roleSets = {
@@ -216,28 +188,37 @@ export const bottleneckAnalysisMetric: Metric<BottleneckAnalysisResult> = {
     };
     const columnDays = new Map<string, number[]>();
 
-    for (const [, transitions] of byIssue) {
-      const done_at = transitions[0].done_at;
-      const { devDays, qaDays, poDays } = computeRoleDays(transitions, done_at, roles);
-      stageTimeDays.dev.push(devDays);
-      stageTimeDays.qa.push(qaDays);
-      stageTimeDays.po.push(poDays);
+    for (const sample of ctx.cycleTimePopulation) {
+      const allTrans = ctx.transitionsByIssue.get(sample.issueKey) ?? [];
+      // pourquoi : matche le scoping legacy fetchDeliveredTransitions (started_at .. done_at inclus)
+      const transitions: TransitionRecord[] = allTrans.filter(
+        (t) => t.transitionedAt >= sample.startedAt && t.transitionedAt <= sample.doneAt,
+      );
+      const done_at = sample.doneAt;
+
+      let devDays = 0;
+      let qaDays = 0;
+      let poDays = 0;
 
       const inboundThisIssue = new Set<RoleKey>();
       let prevRoleRework: RoleKey | null = null;
       const passes: Record<RoleKey, number> = { dev: 0, qa: 0, po: 0 };
       let prevRoleFtr: RoleKey | null = null;
 
-      for (const [i, t] of transitions.entries()) {
-        const cur = getRole(t.to_status);
+      for (let i = 0; i < transitions.length; i++) {
+        const t = transitions[i];
+        const cur = getRole(t.toStatus);
 
         if (cur !== null) {
-          const start = t.transitioned_at;
-          const end = i + 1 < transitions.length ? transitions[i + 1].transitioned_at : done_at;
+          const start = t.transitionedAt;
+          const end = i + 1 < transitions.length ? transitions[i + 1].transitionedAt : done_at;
           // end <= start possible si deux transitions ont le même timestamp → colonne absente de byColumn (0j non significatif)
           if (end > start) {
-            const days = workingDaysBetween(start, end);
-            const colName = config.statusToColumnName?.[t.to_status] ?? t.to_status;
+            const days = ctx.workingDaysBetween(start, end);
+            if (cur === "dev") {devDays += days;}
+            else if (cur === "qa") {qaDays += days;}
+            else {poDays += days;}
+            const colName = ctx.config.statusToColumnName?.[t.toStatus] ?? t.toStatus;
             let arr = columnDays.get(colName);
             if (!arr) {arr = []; columnDays.set(colName, arr);}
             arr.push(days);
@@ -258,6 +239,10 @@ export const bottleneckAnalysisMetric: Metric<BottleneckAnalysisResult> = {
           prevRoleFtr = null;
         }
       }
+
+      stageTimeDays.dev.push(devDays);
+      stageTimeDays.qa.push(qaDays);
+      stageTimeDays.po.push(poDays);
 
       for (const role of inboundThisIssue) {reworkInbound[role]++;}
       for (const role of ALL_ROLES) {
@@ -287,7 +272,7 @@ export const bottleneckAnalysisMetric: Metric<BottleneckAnalysisResult> = {
     };
 
     // avgNetFlow couvre toutes les transitions (WIP inclus) — population plus large que les livrées intentionnellement
-    const avgNetFlow = computeAvgNetFlow(db, config, getRole);
+    const avgNetFlow = computeAvgNetFlow(ctx, getRole);
 
     const rankStageTime = rankNormalize(ALL_ROLES.map((r) => stageTimeMedian[r]));
     const rankNetFlow   = rankNormalize(ALL_ROLES.map((r) => avgNetFlow[r]));
@@ -301,7 +286,7 @@ export const bottleneckAnalysisMetric: Metric<BottleneckAnalysisResult> = {
     ];
     const byColumn: ColumnStat[] = [];
     for (const { role, statuses } of roleStatuses) {
-      const colNames = [...new Set(statuses.map((s) => config.statusToColumnName?.[s] ?? s))];
+      const colNames = [...new Set(statuses.map((s) => ctx.config.statusToColumnName?.[s] ?? s))];
       const cols: ColumnStat[] = [];
       for (const colName of colNames) {
         const days = columnDays.get(colName);

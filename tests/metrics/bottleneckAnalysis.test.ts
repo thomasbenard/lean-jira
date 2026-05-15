@@ -6,6 +6,7 @@ import {
   rankNormalize,
   computeDominantSignal,
 } from "../../src/metrics/bottleneckAnalysis";
+import { createTestContext } from "../_helpers/createTestContext";
 import type Database from "better-sqlite3";
 import type { MetricConfig } from "../../src/metrics/types";
 
@@ -60,7 +61,7 @@ describe("computeDominantSignal", () => {
 
 describe("bottleneckAnalysisMetric.compute", () => {
   it("retourne count 0, primaryBottleneck null, scores 0 si aucune issue livrée", () => {
-    const result = bottleneckAnalysisMetric.compute(db, ROLE_CONFIG);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(0);
     expect(result.primaryBottleneck).toBeNull();
     expect(result.recommendation).toBe("");
@@ -77,7 +78,7 @@ describe("bottleneckAnalysisMetric.compute", () => {
       { to: "Done",        at: "2025-01-14T09:00:00Z" },
     ]);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const result = bottleneckAnalysisMetric.compute(db, noRoles);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, noRoles));
     expect(result.primaryBottleneck).toBeNull();
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("bottleneck-analysis"));
     warnSpy.mockRestore();
@@ -96,7 +97,7 @@ describe("bottleneckAnalysisMetric.compute", () => {
       { to: "In Review",   at: "2025-01-13T09:00:00Z" },
       { to: "Done",        at: "2025-01-14T09:00:00Z" },
     ]);
-    const result = bottleneckAnalysisMetric.compute(db, ROLE_CONFIG);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(2);
     expect(result.primaryBottleneck).not.toBeNull();
     expect(result.recommendation).not.toBe("");
@@ -115,7 +116,7 @@ describe("bottleneckAnalysisMetric.compute", () => {
       { to: "In Review",   at: "2025-01-10T09:00:00Z" },
       { to: "Done",        at: "2025-01-14T09:00:00Z" },
     ]);
-    const result = bottleneckAnalysisMetric.compute(db, ROLE_CONFIG);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, ROLE_CONFIG));
     const roles = ["dev", "qa", "po"] as const;
     if (result.primaryBottleneck) {
       expect(result.byRole[result.primaryBottleneck].rank).toBe(1);
@@ -132,7 +133,7 @@ describe("bottleneckAnalysisMetric.compute", () => {
       { to: "In Review",   at: "2025-01-10T09:00:00Z" },
       { to: "Done",        at: "2025-01-14T09:00:00Z" },
     ]);
-    const result = bottleneckAnalysisMetric.compute(db, noPo);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, noPo));
     expect(result.byRole.po.score).toBe(0);
     expect(result.byRole.po.rank).toBe(3);
   });
@@ -155,7 +156,7 @@ describe("bottleneckAnalysisMetric.compute — dominantColumn / primaryColumn", 
       { to: "Code Review", at: "2025-01-15T09:00:00Z" },
       { to: "Done",        at: "2025-01-16T09:00:00Z" },
     ]);
-    const result = bottleneckAnalysisMetric.compute(db, TWO_DEV_COL_CONFIG);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, TWO_DEV_COL_CONFIG));
     expect(result.byRole.dev.dominantColumn).toBe("In Progress");
   });
 
@@ -166,7 +167,7 @@ describe("bottleneckAnalysisMetric.compute — dominantColumn / primaryColumn", 
       { to: "In Review",   at: "2025-01-10T09:00:00Z" },
       { to: "Done",        at: "2025-01-14T09:00:00Z" },
     ]);
-    const result = bottleneckAnalysisMetric.compute(db, ROLE_CONFIG);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.byRole.po.dominantColumn).toBeNull();
   });
 
@@ -177,7 +178,7 @@ describe("bottleneckAnalysisMetric.compute — dominantColumn / primaryColumn", 
       { to: "Code Review", at: "2025-01-15T09:00:00Z" },
       { to: "Done",        at: "2025-01-16T09:00:00Z" },
     ]);
-    const result = bottleneckAnalysisMetric.compute(db, TWO_DEV_COL_CONFIG);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, TWO_DEV_COL_CONFIG));
     expect(result.primaryBottleneck).not.toBeNull();
     expect(result.primaryColumn).toBe(result.byRole[result.primaryBottleneck!].dominantColumn);
   });
@@ -190,7 +191,7 @@ describe("bottleneckAnalysisMetric.compute — dominantColumn / primaryColumn", 
       { to: "Code Review", at: "2025-01-10T09:00:00Z" },
       { to: "Done",        at: "2025-01-14T09:00:00Z" },
     ]);
-    const result = bottleneckAnalysisMetric.compute(db, TWO_DEV_COL_CONFIG);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, TWO_DEV_COL_CONFIG));
     // "Code Review" < "In Progress" alphabétiquement → gagne le tiebreak
     expect(result.byRole.dev.dominantColumn).toBe("Code Review");
   });
@@ -205,7 +206,7 @@ describe("bottleneckAnalysisMetric.compute — byColumn", () => {
       { to: "Code Review", at: "2025-01-15T09:00:00Z" },
       { to: "Done",        at: "2025-01-16T09:00:00Z" },
     ]);
-    const result = bottleneckAnalysisMetric.compute(db, TWO_DEV_COL_CONFIG);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, TWO_DEV_COL_CONFIG));
     const devCols = result.byColumn.filter((c) => c.role === "dev");
     expect(devCols.length).toBe(2);
     expect(devCols[0].column).toBe("In Progress");
@@ -224,7 +225,7 @@ describe("bottleneckAnalysisMetric.compute — byColumn", () => {
       { to: "In Progress", at: "2025-01-08T09:00:00Z" },
       { to: "Done",        at: "2025-01-15T09:00:00Z" },
     ]);
-    const result = bottleneckAnalysisMetric.compute(db, TWO_DEV_COL_CONFIG);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, TWO_DEV_COL_CONFIG));
     const inProgress = result.byColumn.find((c) => c.column === "In Progress");
     expect(inProgress?.count).toBe(2);
   });
@@ -236,13 +237,13 @@ describe("bottleneckAnalysisMetric.compute — byColumn", () => {
       { to: "In Progress", at: "2025-01-08T09:00:00Z" },
       { to: "Done",        at: "2025-01-15T09:00:00Z" },
     ]);
-    const result = bottleneckAnalysisMetric.compute(db, TWO_DEV_COL_CONFIG);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, TWO_DEV_COL_CONFIG));
     const codeReview = result.byColumn.find((c) => c.column === "Code Review");
     expect(codeReview).toBeUndefined();
   });
 
   it("byColumn vide si aucune issue livrée", () => {
-    const result = bottleneckAnalysisMetric.compute(db, TWO_DEV_COL_CONFIG);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, TWO_DEV_COL_CONFIG));
     expect(result.byColumn).toEqual([]);
   });
 
@@ -254,7 +255,7 @@ describe("bottleneckAnalysisMetric.compute — byColumn", () => {
       { to: "Code Review", at: "2025-01-10T09:00:00Z" },
       { to: "Done",        at: "2025-01-14T09:00:00Z" },
     ]);
-    const result = bottleneckAnalysisMetric.compute(db, TWO_DEV_COL_CONFIG);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, TWO_DEV_COL_CONFIG));
     const devCols = result.byColumn.filter((c) => c.role === "dev");
     // "Code Review" < "In Progress" alphabétiquement → premier en cas d'égalité
     expect(devCols[0].column).toBe("Code Review");
@@ -268,7 +269,7 @@ describe("bottleneckAnalysisMetric.compute — byColumn", () => {
       { to: "Code Review", at: "2025-01-15T09:00:00Z" },
       { to: "Done",        at: "2025-01-15T09:00:00Z" }, // même instant que Code Review → 0j
     ]);
-    const result = bottleneckAnalysisMetric.compute(db, TWO_DEV_COL_CONFIG);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, TWO_DEV_COL_CONFIG));
     const codeReview = result.byColumn.find((c) => c.column === "Code Review");
     expect(codeReview).toBeUndefined();
   });
@@ -286,7 +287,7 @@ describe("bottleneckAnalysisMetric.compute — byColumn", () => {
       { to: "In Review",   at: "2025-01-15T09:00:00Z" },
       { to: "Done",        at: "2025-01-16T09:00:00Z" },
     ]);
-    const result = bottleneckAnalysisMetric.compute(db, config);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, config));
     expect(result.byColumn.length).toBe(2);
     expect(result.byColumn[0].role).toBe("dev");
     expect(result.byColumn[1].role).toBe("qa");
@@ -316,7 +317,7 @@ describe("bottleneckAnalysisMetric.compute — groupement par colonne board (sta
       poStatuses: [],
       statusToColumnName: { "In Progress": "Dev", "Code Review": "Dev" },
     };
-    const result = bottleneckAnalysisMetric.compute(db, config);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, config));
     const devCols = result.byColumn.filter((c) => c.role === "dev");
     expect(devCols.length).toBe(1);
     expect(devCols[0].column).toBe("Dev");
@@ -337,7 +338,7 @@ describe("bottleneckAnalysisMetric.compute — groupement par colonne board (sta
       poStatuses: [],
       statusToColumnName: { "In Progress": "Développement", "Code Review": "Revue" },
     };
-    const result = bottleneckAnalysisMetric.compute(db, config);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, config));
     const devCols = result.byColumn.filter((c) => c.role === "dev");
     expect(devCols.length).toBe(2);
     expect(devCols.map((c) => c.column)).toContain("Développement");
@@ -357,7 +358,7 @@ describe("bottleneckAnalysisMetric.compute — groupement par colonne board (sta
       poStatuses: [],
       statusToColumnName: {}, // mapping vide → fallback sur statut brut
     };
-    const result = bottleneckAnalysisMetric.compute(db, config);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, config));
     const devCols = result.byColumn.filter((c) => c.role === "dev");
     expect(devCols.length).toBe(1);
     expect(devCols[0].column).toBe("In Progress");
@@ -378,7 +379,7 @@ describe("bottleneckAnalysisMetric.compute — groupement par colonne board (sta
       poStatuses: [],
       statusToColumnName: { "In Progress": "Dev", "Code Review": "Dev" },
     };
-    const result = bottleneckAnalysisMetric.compute(db, config);
+    const result = bottleneckAnalysisMetric.compute(createTestContext(db, config));
     // Les deux statuts sont dans "Dev" → une seule colonne → dominantColumn = "Dev"
     expect(result.byRole.dev.dominantColumn).toBe("Dev");
   });
