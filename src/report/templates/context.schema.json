@@ -94,6 +94,14 @@
       "type": "string",
       "description": "JSON.stringify de toutes les séries Chart.js. Injecter dans un <script> via {{{chartDataJson}}}. Contient toutes les séries temporelles pour initialiser les charts."
     },
+    "chartDefsJson": {
+      "type": "string",
+      "description": "JSON.stringify de CHART_DEFS résolus (titleKey → title). Injecter via {{{chartDefsJson}}}. Alimente var CHART_DEFS dans le template pour le dispatcher de charts."
+    },
+    "estimationFlagsJson": {
+      "type": "string",
+      "description": "JSON.stringify des flags d'estimation (showWeighted, showBySize, unit…). Injecter via {{{estimationFlagsJson}}}. Alimente var _estimationFlags dans le template."
+    },
     "agingWip": {
       "type": "object",
       "description": "Données Aging WIP structurées. Propriétés: asOf (string), count (number), percentiles ({p50,p85,p95}), riskCounts ({ok,watch,atRisk,critical}), issues (array)."
@@ -107,7 +115,7 @@
       "description": "Statistiques cycle time globales. Propriétés: median (number), p85 (number), p95 (number), avg (number), count (number)."
     }
   },
-  "required": ["projectKey", "title", "generatedAt", "lastSnapshotDate", "isSyncStale", "lastSyncAt", "htmlLang", "headerSyncLabelSuffix", "staleBannerHtml", "top3Html", "estimationContextHtml", "sectionToProcessLabel", "sectionKpisLabel", "kpiGridHtml", "headerLogoHtml", "fontLinkHtml", "customStyleHtml", "tabs", "kpis", "chartDataJson", "agingWip", "forecast", "cycleStats"],
+  "required": ["projectKey", "title", "generatedAt", "lastSnapshotDate", "isSyncStale", "lastSyncAt", "htmlLang", "headerSyncLabelSuffix", "staleBannerHtml", "top3Html", "estimationContextHtml", "sectionToProcessLabel", "sectionKpisLabel", "kpiGridHtml", "headerLogoHtml", "fontLinkHtml", "customStyleHtml", "tabs", "kpis", "chartDataJson", "chartDefsJson", "estimationFlagsJson", "agingWip", "forecast", "cycleStats"],
   "additionalProperties": false,
   "_helpers": {
     "description": "Helpers Handlebars enregistrés disponibles dans le template",

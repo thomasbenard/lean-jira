@@ -386,6 +386,11 @@ const SPRINT_CHARTS = {{{sprintChartsJson}}};
 const SPRINT_CHART_TITLES = {{{sprintChartTitlesJson}}};
 const ROLES_SPRINT_CHARTS = {{{rolesSprintChartsJson}}};
 
+var CHART_DEFS = {{{chartDefsJson}}};
+var _estimationFlags = {{{estimationFlagsJson}}};
+var _sprintActive = false;
+var hasSprintCharts = SPRINT_CHARTS !== null;
+
 const COLOR_MEDIAN = "#00e0d4";
 const COLOR_P85 = "#ff8a3d";
 const COLOR_P95 = "#ff4d6a";
@@ -444,6 +449,36 @@ function lineChart(canvasId, series, datasets, withTrend) {
   return new Chart(ctx, {
     type: "line",
     data: { labels: series.dates, datasets: builtDatasets },
+    options: baseOpts,
+  });
+}
+
+function renderStandardChart(def, data) {
+  if (!data || data.dates.length === 0) return null;
+  var el = document.getElementById(def.id);
+  if (!el) return null;
+  var existing = Chart.getChart(def.id);
+  if (existing) existing.destroy();
+  var datasets = (def.series || []).map(function(s) {
+    var values = data.series[s.key] || [];
+    return def.chart.type === "bar"
+      ? { label: s.label, data: values, backgroundColor: s.color + "88", borderColor: s.color, borderWidth: 1 }
+      : { label: s.label, data: values, borderColor: s.color, backgroundColor: s.color + "22", tension: 0.2, pointRadius: 2 };
+  });
+  if (def.chart.trendLine && datasets.length > 0) {
+    var multiRole = datasets.length > 1;
+    (def.series || []).forEach(function(s) {
+      var trend = buildTrendDataset(
+        computeMovingAvg(data.series[s.key] || []),
+        s.color,
+        multiRole ? s.label + " (tend.)" : "Tendance",
+      );
+      if (trend) datasets.push(trend);
+    });
+  }
+  return new Chart(el, {
+    type: def.chart.type === "bar" ? "bar" : "line",
+    data: { labels: data.dates, datasets: datasets },
     options: baseOpts,
   });
 }
