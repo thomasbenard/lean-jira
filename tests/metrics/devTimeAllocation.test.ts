@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "../helpers/db";
 import { makeIssue, seedIssueWithTransitions, TEST_CONFIG, resetSeq } from "../helpers/seeders";
+import { createTestContext } from "../_helpers/createTestContext";
 import { devTimeAllocationMetric } from "../../src/metrics/devTimeAllocation";
 import type Database from "better-sqlite3";
 
@@ -29,14 +30,14 @@ function seedBug(key: string, doneAt = "2025-01-10T09:00:00Z") {
 
 describe("devTimeAllocationMetric.compute", () => {
   it("retourne vide quand aucune issue livrée", () => {
-    const result = devTimeAllocationMetric.compute(db, TEST_CONFIG);
+    const result = devTimeAllocationMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.byWeek).toHaveLength(0);
     expect(result.avgBugRatio).toBe(0);
   });
 
   it("feature contribue aux featureDays, bugDays = 0", () => {
     seedFeature("PROJ-1"); // cycle 2j, done vendredi 2025-01-10
-    const result = devTimeAllocationMetric.compute(db, TEST_CONFIG);
+    const result = devTimeAllocationMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.byWeek).toHaveLength(1);
     expect(result.byWeek[0].featureDays).toBe(2);
     expect(result.byWeek[0].bugDays).toBe(0);
@@ -45,7 +46,7 @@ describe("devTimeAllocationMetric.compute", () => {
 
   it("bug contribue aux bugDays, featureDays = 0", () => {
     seedBug("PROJ-1"); // cycle 2j
-    const result = devTimeAllocationMetric.compute(db, TEST_CONFIG);
+    const result = devTimeAllocationMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.byWeek).toHaveLength(1);
     expect(result.byWeek[0].bugDays).toBe(2);
     expect(result.byWeek[0].featureDays).toBe(0);
@@ -56,7 +57,7 @@ describe("devTimeAllocationMetric.compute", () => {
     seedFeature("PROJ-1");
     seedBug("PROJ-2");
     const cfg = { ...TEST_CONFIG, bugIssueTypes: [] };
-    const result = devTimeAllocationMetric.compute(db, cfg);
+    const result = devTimeAllocationMetric.compute(createTestContext(db, cfg));
     expect(result.byWeek).toHaveLength(1);
     expect(result.byWeek[0].bugDays).toBe(0);
     expect(result.byWeek[0].bugRatio).toBe(0);
@@ -68,7 +69,7 @@ describe("devTimeAllocationMetric.compute", () => {
       { to: "To Do", at: "2025-01-06T09:00:00Z" },
       { to: "Done",  at: "2025-01-10T09:00:00Z" },
     ]);
-    const result = devTimeAllocationMetric.compute(db, TEST_CONFIG);
+    const result = devTimeAllocationMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.byWeek).toHaveLength(0);
   });
 
@@ -77,7 +78,7 @@ describe("devTimeAllocationMetric.compute", () => {
       { to: "In Progress", at: "2025-01-08T09:00:00Z" },
       { to: "Done",        at: "2025-01-10T09:00:00Z" },
     ]);
-    const result = devTimeAllocationMetric.compute(db, TEST_CONFIG);
+    const result = devTimeAllocationMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.byWeek).toHaveLength(1);
   });
 
@@ -88,7 +89,7 @@ describe("devTimeAllocationMetric.compute", () => {
       { to: "In Progress", at: "2025-01-06T09:00:00Z" },
       { to: "Done",        at: "2025-01-23T09:00:00Z" },
     ]);
-    const result = devTimeAllocationMetric.compute(db, TEST_CONFIG);
+    const result = devTimeAllocationMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.byWeek).toHaveLength(3);
     const w02 = result.byWeek.find((w) => w.week === "2025-W02");
     const w03 = result.byWeek.find((w) => w.week === "2025-W03");
@@ -112,7 +113,7 @@ describe("devTimeAllocationMetric.compute", () => {
       { to: "Done",        at: "2025-04-11T09:00:00Z" }, // 2j ouvrés (Wed→Fri)
     ]);
     const cfg = { ...TEST_CONFIG, cutoffDate: "2025-04-01" };
-    const result = devTimeAllocationMetric.compute(db, cfg);
+    const result = devTimeAllocationMetric.compute(createTestContext(db, cfg));
     expect(result.byWeek).toHaveLength(1);
     const w = result.byWeek[0];
     expect(w.featureDays).toBe(3);
@@ -128,7 +129,7 @@ describe("devTimeAllocationMetric.compute", () => {
       { to: "Done",        at: "2025-01-07T09:00:00Z" },
       { to: "In Progress", at: "2025-01-10T09:00:00Z" }, // devStart après done
     ]);
-    const result = devTimeAllocationMetric.compute(db, TEST_CONFIG);
+    const result = devTimeAllocationMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.byWeek).toHaveLength(0);
   });
 });
@@ -142,7 +143,7 @@ describe("WIP et ratio pondéré", () => {
       { to: "In Progress", at: "2025-01-06T00:00:00Z" },
     ]);
     const cfg = { ...TEST_CONFIG, windowEndDate: "2025-01-17" };
-    const result = devTimeAllocationMetric.compute(db, cfg);
+    const result = devTimeAllocationMetric.compute(createTestContext(db, cfg));
     const w02 = result.byWeek.find((w) => w.week === "2025-W02");
     const w03 = result.byWeek.find((w) => w.week === "2025-W03");
     expect(w02?.bugDays).toBe(5);
@@ -158,7 +159,7 @@ describe("WIP et ratio pondéré", () => {
       { to: "In Progress", at: "2025-01-13T00:00:00Z" },
     ]);
     const cfg = { ...TEST_CONFIG, windowEndDate: "2025-01-17" };
-    const result = devTimeAllocationMetric.compute(db, cfg);
+    const result = devTimeAllocationMetric.compute(createTestContext(db, cfg));
     const w03 = result.byWeek.find((w) => w.week === "2025-W03");
     expect(w03?.featureDays).toBe(4);
     expect(w03?.bugDays).toBe(0);
@@ -172,7 +173,7 @@ describe("WIP et ratio pondéré", () => {
       { to: "In Progress", at: "2025-01-13T00:00:00Z" },
     ]);
     const cfg = { ...TEST_CONFIG, windowEndDate: "2025-01-17" };
-    const result = devTimeAllocationMetric.compute(db, cfg);
+    const result = devTimeAllocationMetric.compute(createTestContext(db, cfg));
     const w02 = result.byWeek.find((w) => w.week === "2025-W02");
     const w03 = result.byWeek.find((w) => w.week === "2025-W03");
     expect(w02?.bugDays).toBe(2);
@@ -190,7 +191,7 @@ describe("WIP et ratio pondéré", () => {
       { to: "Done",        at: "2025-01-09T09:00:00Z" },
     ]);
     const cfg = { ...TEST_CONFIG, windowEndDate: "2025-01-13" };
-    const result = devTimeAllocationMetric.compute(db, cfg);
+    const result = devTimeAllocationMetric.compute(createTestContext(db, cfg));
     const totalFeature = result.byWeek.reduce((s, w) => s + w.featureDays, 0);
     expect(totalFeature).toBe(1);
   });
@@ -204,7 +205,7 @@ describe("WIP et ratio pondéré", () => {
       { to: "Done",        at: "2025-01-17T09:00:00Z" },
     ]);
     const cfg = { ...TEST_CONFIG, windowEndDate: "2025-01-13" };
-    const result = devTimeAllocationMetric.compute(db, cfg);
+    const result = devTimeAllocationMetric.compute(createTestContext(db, cfg));
     const w02 = result.byWeek.find((w) => w.week === "2025-W02");
     expect(w02?.bugDays).toBeGreaterThan(0);
     expect(w02?.featureDays ?? 0).toBe(0);
@@ -223,7 +224,7 @@ describe("WIP et ratio pondéré", () => {
       { to: "In Progress", at: "2025-01-13T00:00:00Z" },
     ]);
     const cfg = { ...TEST_CONFIG, excludeIssueTypes: ["Epic"], windowEndDate: "2025-01-17" };
-    const result = devTimeAllocationMetric.compute(db, cfg);
+    const result = devTimeAllocationMetric.compute(createTestContext(db, cfg));
     const totalFeature = result.byWeek.reduce((s, w) => s + w.featureDays, 0);
     expect(totalFeature).toBe(0); // Epic exclue
     expect(result.byWeek.some((w) => w.bugDays > 0)).toBe(true);
@@ -247,7 +248,7 @@ describe("WIP et ratio pondéré", () => {
       { to: "In Progress", at: "2025-04-07T09:00:00Z" },
       { to: "Done",        at: "2025-04-09T09:00:00Z" },
     ]);
-    const result = devTimeAllocationMetric.compute(db, TEST_CONFIG);
+    const result = devTimeAllocationMetric.compute(createTestContext(db, TEST_CONFIG));
     expect(result.avgBugRatio).toBeCloseTo(3 / 6, 5);
     expect(result.avgBugRatio).not.toBeCloseTo(0.7, 1);
   });

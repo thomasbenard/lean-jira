@@ -1,6 +1,6 @@
-import type Database from "better-sqlite3";
-import { type Metric, type MetricConfig } from "./types";
-import { buildDeliveredCte, buildExcludeIssueTypesFragment, buildWindowFragment, isoWeek, placeholders, workingDaysBetween } from "./utils";
+import type { Metric } from "./types";
+import type { MetricsContext } from "./context";
+import { isoWeek, workingDaysBetween } from "./utils";
 import { now } from "../clock";
 
 export interface DevTimeAllocationByWeek {
@@ -59,66 +59,33 @@ export const devTimeAllocationMetric: Metric<DevTimeAllocationSummary> = {
   description:
     "Somme des cycle times livrés + WIP en cours par semaine, split features vs bugs. bugRatio = bugDays / totalDays. Hausse = dérive vers mode pompier.",
 
-  compute(db: Database.Database, config: MetricConfig): DevTimeAllocationSummary {
-    const devStartPh = placeholders(config.devStartStatuses);
-    const donePh = placeholders(config.doneStatuses);
-    const delivered = buildDeliveredCte(config.doneStatuses);
-    const { cutoffSql, cutoffArgs, endSql, endArgs } = buildWindowFragment(config.cutoffDate, config.windowEndDate);
-    const { excludeSql, excludeArgs } = buildExcludeIssueTypesFragment(config.excludeIssueTypes);
+  compute(ctx: MetricsContext): DevTimeAllocationSummary {
+    const config = ctx.config;
+    const bugTypes = new Set(config.bugIssueTypes);
+    const devStartSet = new Set(config.devStartStatuses);
+    const byWeekMap = new Map<string, { featureDays: number; bugDays: number }>();
 
     // windowEndDate absent en mode live → date du jour réelle ; snapshot toujours fourni par compute.ts
     const today = config.windowEndDate ?? now().toISOString().slice(0, 10);
 
-    const rows = db.prepare(`
-      WITH ${delivered.cte}
-      SELECT t.issue_key,
-             MIN(t.transitioned_at) AS started_at,
-             d.done_at,
-             i.issue_type
-      FROM transitions t
-      JOIN issues i ON i.key = t.issue_key
-      JOIN delivered d ON d.issue_key = t.issue_key
-      WHERE t.to_status IN (${devStartPh})
-        ${excludeSql} ${cutoffSql} ${endSql}
-      GROUP BY t.issue_key, d.done_at, i.issue_type
-    `).all(
-      ...delivered.args,
-      ...config.devStartStatuses,
-      ...excludeArgs,
-      ...cutoffArgs,
-      ...endArgs,
-    ) as { issue_key: string; started_at: string; done_at: string; issue_type: string }[];
-
-    const wipRows = db.prepare(`
-      SELECT t.issue_key,
-             MIN(t.transitioned_at) AS started_at,
-             i.issue_type
-      FROM transitions t
-      JOIN issues i ON i.key = t.issue_key
-      WHERE t.to_status IN (${devStartPh})
-        ${excludeSql}
-        AND substr(t.transitioned_at, 1, 10) <= ?
-        AND NOT EXISTS (SELECT 1 FROM transitions td
-                        WHERE td.issue_key = t.issue_key
-                          AND td.to_status IN (${donePh})
-                          AND substr(td.transitioned_at, 1, 10) <= ?)
-      GROUP BY t.issue_key, i.issue_type
-    `).all(
-      ...config.devStartStatuses,
-      ...excludeArgs,
-      today,
-      ...config.doneStatuses,
-      today,
-    ) as { issue_key: string; started_at: string; issue_type: string }[];
-
-    const bugTypes = new Set(config.bugIssueTypes);
-    const byWeekMap = new Map<string, { featureDays: number; bugDays: number }>();
-
-    for (const r of rows) {
-      accumulateWeeks(r.started_at, r.done_at, bugTypes.has(r.issue_type), byWeekMap);
+    // Issues livrées : population cycle-time (déjà filtrée cutoff/window/devStart/excludeIssueTypes)
+    for (const sample of ctx.cycleTimePopulation) {
+      const issue = ctx.issueByKey.get(sample.issueKey);
+      if (!issue) { continue; }
+      accumulateWeeks(sample.startedAt, sample.doneAt, bugTypes.has(issue.issueType), byWeekMap);
     }
-    for (const r of wipRows) {
-      accumulateWeeks(r.started_at, today, bugTypes.has(r.issue_type), byWeekMap);
+
+    // WIP : items entrés en dev avant `today` et non livrés à `today`
+    // pourquoi : transitionsByIssue exclut déjà les issueTypes filtrés via excludeIssueTypes
+    for (const [key, list] of ctx.transitionsByIssue) {
+      const devStart = list.find((t) => devStartSet.has(t.toStatus));
+      if (!devStart) { continue; }
+      if (devStart.transitionedAt.slice(0, 10) > today) { continue; }
+      const doneAt = ctx.deliveredAt.get(key);
+      if (doneAt && doneAt.slice(0, 10) <= today) { continue; }
+      const issue = ctx.issueByKey.get(key);
+      if (!issue) { continue; }
+      accumulateWeeks(devStart.transitionedAt, today, bugTypes.has(issue.issueType), byWeekMap);
     }
 
     const byWeek: DevTimeAllocationByWeek[] = Array.from(byWeekMap.entries())
