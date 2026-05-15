@@ -28,9 +28,9 @@ beforeAll(async () => {
   initRandom(FROZEN_NOW);
 
   const rawConfig = yaml.parse(fs.readFileSync(JIRA_CONFIG, "utf-8"));
-  await sync({ ...rawConfig, db: { path: tmpDbPath } });
-
   db = openDb(tmpDbPath);
+  const syncStore = new SqliteStore(db);
+  await sync(syncStore, { ...rawConfig, db: { path: tmpDbPath } });
 }, 30_000);
 
 afterAll(() => {

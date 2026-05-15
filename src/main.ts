@@ -549,7 +549,9 @@ program
     initLocale(opts.lang);
     const config = loadJiraConfig(path.resolve(opts.config));
     bootstrapFakeMode(config.jira);
-    await sync(config);
+    const db = openDb(config.db.path);
+    const store = new SqliteStore(db);
+    await sync(store, config);
   });
 
 program
@@ -638,11 +640,11 @@ program
     initLocale(opts.lang);
     const jiraConfig = loadJiraConfig(path.resolve(opts.config));
     bootstrapFakeMode(jiraConfig.jira);
-    await sync(jiraConfig);
-    const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
-    const db = openDb(config.db.path);
-    const metricConfig = buildMetricConfig(db, config);
+    const db = openDb(jiraConfig.db.path);
     const store = new SqliteStore(db);
+    await sync(store, jiraConfig);
+    const config = loadConfigs(path.resolve(opts.config), path.resolve(opts.boardConfig));
+    const metricConfig = buildMetricConfig(db, config);
     const count = backfillSnapshots(store, metricConfig);
     console.log(t("snapshots.done", { count }));
     generateReport(store, config.jira.projectKey, config.jira.frontendUrl ?? config.jira.baseUrl, path.resolve(opts.output), metricConfig, config.metrics?.healthThresholds, config.jira.name, config.report, path.dirname(path.resolve(opts.boardConfig)));

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Store } from "../../src/store/types";
 
 const mockFetchAllStatuses = vi.fn().mockResolvedValue([]);
 const mockFetchAllSprints = vi.fn().mockResolvedValue([]);
@@ -12,26 +13,33 @@ vi.mock("../../src/jira/client", () => ({
   }),
 }));
 
-vi.mock("../../src/db/store", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../src/db/store")>();
-  return {
-    ...actual,
-    openDb: vi.fn(),
-    upsertIssues: vi.fn(),
-    upsertSprints: vi.fn(),
-    upsertStatuses: vi.fn(),
-    replaceAllTransitions: vi.fn(),
-    replaceAllFieldChanges: vi.fn(),
-    replaceAllIssueSprints: vi.fn(),
-    logSync: vi.fn(),
-    getLastSyncDate: vi.fn(),
-    getStoredEstimationMethod: vi.fn().mockReturnValue("time"),
-    persistEstimationMethod: vi.fn(),
-  };
-});
-
-import * as store from "../../src/db/store";
 import { sync } from "../../src/sync";
+
+interface FakeStoreOverrides {
+  appConfigGet?: (key: string) => string | null;
+  syncLogLast?: () => { syncedAt: string; issuesCount: number; projectKey: string } | null;
+}
+
+function makeFakeStore(overrides: FakeStoreOverrides = {}): Store {
+  return {
+    statuses: { all: vi.fn(), upsertMany: vi.fn() },
+    sprints: { all: vi.fn(), byId: vi.fn(), upsertMany: vi.fn() },
+    issues: { all: vi.fn(), byKey: vi.fn(), byKeys: vi.fn(), upsertMany: vi.fn() },
+    transitions: { all: vi.fn(), byIssue: vi.fn(), replaceForIssue: vi.fn(), replaceForIssues: vi.fn() },
+    issueFieldChanges: { byIssueAndField: vi.fn(), replaceForIssues: vi.fn() },
+    issueSprints: { bySprint: vi.fn(), byIssue: vi.fn(), replaceForIssues: vi.fn() },
+    snapshots: { all: vi.fn(), byDate: vi.fn(), replaceAll: vi.fn() },
+    syncLog: {
+      lastByProject: vi.fn(overrides.syncLogLast ?? (() => null)),
+      append: vi.fn(),
+    },
+    appConfig: {
+      get: vi.fn(overrides.appConfigGet ?? (() => "time")),
+      set: vi.fn(),
+    },
+    transaction: <T>(fn: () => T) => fn(),
+  } as unknown as Store;
+}
 
 const baseIssue = {
   key: "PROJ-1",
@@ -66,17 +74,14 @@ beforeEach(() => {
   mockFetchAllStatuses.mockResolvedValue([]);
   mockFetchAllSprints.mockResolvedValue([]);
   mockFetchAllIssues.mockResolvedValue([]);
-  vi.mocked(store.openDb).mockReturnValue({} as ReturnType<typeof store.openDb>);
-  vi.mocked(store.getLastSyncDate).mockReturnValue(null);
-  vi.mocked(store.getStoredEstimationMethod).mockReturnValue("time");
 });
 
 describe("extractEstimation — méthode time", () => {
   it("stocke story_points et size_label à null pour méthode time", async () => {
     mockFetchAllIssues.mockResolvedValue([{ ...baseIssue }]);
-    await sync(baseConfig);
-    expect(store.upsertIssues).toHaveBeenCalledWith(
-      expect.anything(),
+    const store = makeFakeStore();
+    await sync(store, baseConfig);
+    expect(store.issues.upsertMany).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ storyPoints: null, sizeLabel: null })]),
     );
   });
@@ -90,9 +95,9 @@ describe("extractEstimation — méthode story-points", () => {
       ...baseIssue,
       fields: { ...baseIssue.fields, customfield_10016: 8 },
     }]);
-    await sync(config);
-    expect(store.upsertIssues).toHaveBeenCalledWith(
-      expect.anything(),
+    const store = makeFakeStore();
+    await sync(store, config);
+    expect(store.issues.upsertMany).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ storyPoints: 8 })]),
     );
   });
@@ -102,9 +107,9 @@ describe("extractEstimation — méthode story-points", () => {
       ...baseIssue,
       fields: { ...baseIssue.fields, customfield_10016: 0 },
     }]);
-    await sync(config);
-    expect(store.upsertIssues).toHaveBeenCalledWith(
-      expect.anything(),
+    const store = makeFakeStore();
+    await sync(store, config);
+    expect(store.issues.upsertMany).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ storyPoints: null })]),
     );
   });
@@ -114,9 +119,9 @@ describe("extractEstimation — méthode story-points", () => {
       ...baseIssue,
       fields: { ...baseIssue.fields, customfield_10016: -1 },
     }]);
-    await sync(config);
-    expect(store.upsertIssues).toHaveBeenCalledWith(
-      expect.anything(),
+    const store = makeFakeStore();
+    await sync(store, config);
+    expect(store.issues.upsertMany).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ storyPoints: null })]),
     );
   });
@@ -126,9 +131,9 @@ describe("extractEstimation — méthode story-points", () => {
       ...baseIssue,
       fields: { ...baseIssue.fields, customfield_10016: null },
     }]);
-    await sync(config);
-    expect(store.upsertIssues).toHaveBeenCalledWith(
-      expect.anything(),
+    const store = makeFakeStore();
+    await sync(store, config);
+    expect(store.issues.upsertMany).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ storyPoints: null })]),
     );
   });
@@ -138,9 +143,9 @@ describe("extractEstimation — méthode story-points", () => {
       ...baseIssue,
       fields: { ...baseIssue.fields, customfield_10016: 5 },
     }]);
-    await sync(config);
-    expect(store.upsertIssues).toHaveBeenCalledWith(
-      expect.anything(),
+    const store = makeFakeStore();
+    await sync(store, config);
+    expect(store.issues.upsertMany).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ sizeLabel: null })]),
     );
   });
@@ -157,9 +162,9 @@ describe("extractEstimation — méthode numeric", () => {
       ...baseIssue,
       fields: { ...baseIssue.fields, customfield_10099: 13 },
     }]);
-    await sync(config);
-    expect(store.upsertIssues).toHaveBeenCalledWith(
-      expect.anything(),
+    const store = makeFakeStore();
+    await sync(store, config);
+    expect(store.issues.upsertMany).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ storyPoints: 13 })]),
     );
   });
@@ -176,9 +181,9 @@ describe("extractEstimation — méthode t-shirt", () => {
       ...baseIssue,
       fields: { ...baseIssue.fields, customfield_10200: "M" },
     }]);
-    await sync(config);
-    expect(store.upsertIssues).toHaveBeenCalledWith(
-      expect.anything(),
+    const store = makeFakeStore();
+    await sync(store, config);
+    expect(store.issues.upsertMany).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ sizeLabel: "M" })]),
     );
   });
@@ -188,9 +193,9 @@ describe("extractEstimation — méthode t-shirt", () => {
       ...baseIssue,
       fields: { ...baseIssue.fields, customfield_10200: { value: "M" } },
     }]);
-    await sync(config);
-    expect(store.upsertIssues).toHaveBeenCalledWith(
-      expect.anything(),
+    const store = makeFakeStore();
+    await sync(store, config);
+    expect(store.issues.upsertMany).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ sizeLabel: "M" })]),
     );
   });
@@ -200,9 +205,9 @@ describe("extractEstimation — méthode t-shirt", () => {
       ...baseIssue,
       fields: { ...baseIssue.fields, customfield_10200: "xl" },
     }]);
-    await sync(config);
-    expect(store.upsertIssues).toHaveBeenCalledWith(
-      expect.anything(),
+    const store = makeFakeStore();
+    await sync(store, config);
+    expect(store.issues.upsertMany).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ sizeLabel: "XL" })]),
     );
   });
@@ -213,9 +218,9 @@ describe("extractEstimation — méthode t-shirt", () => {
       ...baseIssue,
       fields: { ...baseIssue.fields, customfield_10200: "Extra Small" },
     }]);
-    await sync(config);
-    expect(store.upsertIssues).toHaveBeenCalledWith(
-      expect.anything(),
+    const store = makeFakeStore();
+    await sync(store, config);
+    expect(store.issues.upsertMany).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ sizeLabel: null })]),
     );
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("size_label not recognized"));
@@ -226,9 +231,9 @@ describe("extractEstimation — méthode t-shirt", () => {
       ...baseIssue,
       fields: { ...baseIssue.fields, customfield_10200: "S" },
     }]);
-    await sync(config);
-    expect(store.upsertIssues).toHaveBeenCalledWith(
-      expect.anything(),
+    const store = makeFakeStore();
+    await sync(store, config);
+    expect(store.issues.upsertMany).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ storyPoints: null })]),
     );
   });
@@ -240,9 +245,9 @@ describe("extractEstimation — méthode none", () => {
       ...baseIssue,
       fields: { ...baseIssue.fields, customfield_10016: 8 },
     }]);
-    await sync({ ...baseConfig, estimation: { method: "none" as const } });
-    expect(store.upsertIssues).toHaveBeenCalledWith(
-      expect.anything(),
+    const store = makeFakeStore();
+    await sync(store, { ...baseConfig, estimation: { method: "none" as const } });
+    expect(store.issues.upsertMany).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ storyPoints: null, sizeLabel: null })]),
     );
   });
@@ -250,28 +255,34 @@ describe("extractEstimation — méthode none", () => {
 
 describe("détection changement de méthode", () => {
   it("force full resync si méthode change (storedMethod ≠ currentMethod)", async () => {
-    vi.mocked(store.getLastSyncDate).mockReturnValue("2026-04-01T07:00:00.000Z");
-    vi.mocked(store.getStoredEstimationMethod).mockReturnValue("time");
+    const store = makeFakeStore({
+      syncLogLast: () => ({ syncedAt: "2026-04-01T07:00:00.000Z", issuesCount: 0, projectKey: "KECK" }),
+      appConfigGet: () => "time",
+    });
     const warnSpy = vi.spyOn(console, "warn");
-    await sync({ ...baseConfig, estimation: { method: "story-points" as const } });
+    await sync(store, { ...baseConfig, estimation: { method: "story-points" as const } });
     expect(mockFetchAllIssues).toHaveBeenCalledWith(expect.any(Function), undefined);
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Estimation method changed"));
   });
 
   it("sync incrémental normal si méthode inchangée", async () => {
-    vi.mocked(store.getLastSyncDate).mockReturnValue("2026-04-01T07:00:00.000Z");
-    vi.mocked(store.getStoredEstimationMethod).mockReturnValue("story-points");
-    await sync({ ...baseConfig, estimation: { method: "story-points" as const } });
+    const store = makeFakeStore({
+      syncLogLast: () => ({ syncedAt: "2026-04-01T07:00:00.000Z", issuesCount: 0, projectKey: "KECK" }),
+      appConfigGet: () => "story-points",
+    });
+    await sync(store, { ...baseConfig, estimation: { method: "story-points" as const } });
     expect(mockFetchAllIssues).toHaveBeenCalledWith(expect.any(Function), "2026-04-01T07:00:00.000Z");
   });
 
   it("persiste la méthode courante après sync", async () => {
-    await sync({ ...baseConfig, estimation: { method: "story-points" as const } });
-    expect(store.persistEstimationMethod).toHaveBeenCalledWith(expect.anything(), "story-points");
+    const store = makeFakeStore();
+    await sync(store, { ...baseConfig, estimation: { method: "story-points" as const } });
+    expect(store.appConfig.set).toHaveBeenCalledWith("estimation_method", "story-points");
   });
 
   it("persiste time si estimation absente du config", async () => {
-    await sync(baseConfig);
-    expect(store.persistEstimationMethod).toHaveBeenCalledWith(expect.anything(), "time");
+    const store = makeFakeStore();
+    await sync(store, baseConfig);
+    expect(store.appConfig.set).toHaveBeenCalledWith("estimation_method", "time");
   });
 });

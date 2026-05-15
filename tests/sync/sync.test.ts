@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Store } from "../../src/store/types";
 
 // Mock JiraClient
 const mockFetchAllStatuses = vi.fn().mockResolvedValue([]);
@@ -13,28 +14,33 @@ vi.mock("../../src/jira/client", () => ({
   }),
 }));
 
-// Mock store functions
-vi.mock("../../src/db/store", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../src/db/store")>();
-  return {
-    ...actual,
-    openDb: vi.fn(),
-    upsertIssues: vi.fn(),
-    upsertSprints: vi.fn(),
-    upsertStatuses: vi.fn(),
-    replaceAllTransitions: vi.fn(),
-    replaceAllFieldChanges: vi.fn(),
-    replaceAllIssueSprints: vi.fn(),
-    logSync: vi.fn(),
-    getLastSyncDate: vi.fn(),
-    getStoredEstimationMethod: vi.fn().mockReturnValue("time"),
-    persistEstimationMethod: vi.fn(),
-  };
-});
-
-import { JiraClient } from "../../src/jira/client";
-import * as store from "../../src/db/store";
 import { sync } from "../../src/sync";
+
+interface FakeStoreOverrides {
+  appConfigGet?: (key: string) => string | null;
+  syncLogLast?: () => { syncedAt: string; issuesCount: number; projectKey: string } | null;
+}
+
+function makeFakeStore(overrides: FakeStoreOverrides = {}): Store {
+  return {
+    statuses: { all: vi.fn(), upsertMany: vi.fn() },
+    sprints: { all: vi.fn(), byId: vi.fn(), upsertMany: vi.fn() },
+    issues: { all: vi.fn(), byKey: vi.fn(), byKeys: vi.fn(), upsertMany: vi.fn() },
+    transitions: { all: vi.fn(), byIssue: vi.fn(), replaceForIssue: vi.fn(), replaceForIssues: vi.fn() },
+    issueFieldChanges: { byIssueAndField: vi.fn(), replaceForIssues: vi.fn() },
+    issueSprints: { bySprint: vi.fn(), byIssue: vi.fn(), replaceForIssues: vi.fn() },
+    snapshots: { all: vi.fn(), byDate: vi.fn(), replaceAll: vi.fn() },
+    syncLog: {
+      lastByProject: vi.fn(overrides.syncLogLast ?? (() => null)),
+      append: vi.fn(),
+    },
+    appConfig: {
+      get: vi.fn(overrides.appConfigGet ?? (() => "time")),
+      set: vi.fn(),
+    },
+    transaction: <T>(fn: () => T) => fn(),
+  } as unknown as Store;
+}
 
 const baseConfig = {
   jira: {
@@ -52,66 +58,80 @@ beforeEach(() => {
   mockFetchAllStatuses.mockResolvedValue([]);
   mockFetchAllSprints.mockResolvedValue([]);
   mockFetchAllIssues.mockResolvedValue([]);
-  vi.mocked(store.openDb).mockReturnValue({} as ReturnType<typeof store.openDb>);
-  vi.mocked(store.getLastSyncDate).mockReturnValue(null);
 });
 
 describe("sync — détection premier sync vs incrémental", () => {
   it("appelle fetchAllIssues sans updatedSince si sync_log est vide", async () => {
-    vi.mocked(store.getLastSyncDate).mockReturnValue(null);
-    await sync(baseConfig);
+    const store = makeFakeStore({ syncLogLast: () => null });
+    await sync(store, baseConfig);
     expect(mockFetchAllIssues).toHaveBeenCalledWith(expect.any(Function), undefined);
   });
 
   it("appelle fetchAllIssues avec updatedSince si sync_log a une entrée", async () => {
-    vi.mocked(store.getLastSyncDate).mockReturnValue("2026-04-01T07:00:00.000Z");
-    await sync(baseConfig);
+    const store = makeFakeStore({
+      syncLogLast: () => ({ syncedAt: "2026-04-01T07:00:00.000Z", issuesCount: 0, projectKey: "KECK" }),
+    });
+    await sync(store, baseConfig);
     expect(mockFetchAllIssues).toHaveBeenCalledWith(expect.any(Function), "2026-04-01T07:00:00.000Z");
   });
 
   it("affiche 'Premier sync — récupération complète' si pas de sync précédent", async () => {
-    vi.mocked(store.getLastSyncDate).mockReturnValue(null);
+    const store = makeFakeStore({ syncLogLast: () => null });
     const consoleSpy = vi.spyOn(console, "log");
-    await sync(baseConfig);
+    await sync(store, baseConfig);
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("First sync — full fetch"));
   });
 
   it("affiche 'Sync incrémental depuis <date>' si sync précédent existe", async () => {
-    vi.mocked(store.getLastSyncDate).mockReturnValue("2026-04-01T07:00:00.000Z");
+    const store = makeFakeStore({
+      syncLogLast: () => ({ syncedAt: "2026-04-01T07:00:00.000Z", issuesCount: 0, projectKey: "KECK" }),
+    });
     const consoleSpy = vi.spyOn(console, "log");
-    await sync(baseConfig);
+    await sync(store, baseConfig);
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Incremental sync from 2026-04-01T07:00:00.000Z"));
   });
 });
 
 describe("sync — liste vide si aucune issue modifiée", () => {
   it("se termine sans erreur si aucune issue retournée", async () => {
-    vi.mocked(store.getLastSyncDate).mockReturnValue("2026-04-20T10:00:00.000Z");
-    await expect(sync(baseConfig)).resolves.toBeUndefined();
+    const store = makeFakeStore({
+      syncLogLast: () => ({ syncedAt: "2026-04-20T10:00:00.000Z", issuesCount: 0, projectKey: "KECK" }),
+    });
+    await expect(sync(store, baseConfig)).resolves.toBeUndefined();
   });
 
-  it("appelle upsertIssues avec liste vide", async () => {
-    vi.mocked(store.getLastSyncDate).mockReturnValue("2026-04-20T10:00:00.000Z");
-    await sync(baseConfig);
-    expect(store.upsertIssues).toHaveBeenCalledWith(expect.anything(), []);
+  it("appelle issues.upsertMany avec liste vide", async () => {
+    const store = makeFakeStore({
+      syncLogLast: () => ({ syncedAt: "2026-04-20T10:00:00.000Z", issuesCount: 0, projectKey: "KECK" }),
+    });
+    await sync(store, baseConfig);
+    expect(store.issues.upsertMany).toHaveBeenCalledWith([]);
   });
 
-  it("appelle replaceAllTransitions avec liste vide", async () => {
-    vi.mocked(store.getLastSyncDate).mockReturnValue("2026-04-20T10:00:00.000Z");
-    await sync(baseConfig);
-    expect(store.replaceAllTransitions).toHaveBeenCalledWith(expect.anything(), []);
+  it("appelle transitions.replaceForIssues avec liste vide", async () => {
+    const store = makeFakeStore({
+      syncLogLast: () => ({ syncedAt: "2026-04-20T10:00:00.000Z", issuesCount: 0, projectKey: "KECK" }),
+    });
+    await sync(store, baseConfig);
+    expect(store.transitions.replaceForIssues).toHaveBeenCalledWith([]);
   });
 
-  it("enregistre logSync avec 0 issues", async () => {
-    vi.mocked(store.getLastSyncDate).mockReturnValue("2026-04-20T10:00:00.000Z");
-    await sync(baseConfig);
-    expect(store.logSync).toHaveBeenCalledWith(expect.anything(), "KECK", 0);
+  it("enregistre syncLog.append avec 0 issues", async () => {
+    const store = makeFakeStore({
+      syncLogLast: () => ({ syncedAt: "2026-04-20T10:00:00.000Z", issuesCount: 0, projectKey: "KECK" }),
+    });
+    await sync(store, baseConfig);
+    expect(store.syncLog.append).toHaveBeenCalledWith(
+      expect.objectContaining({ projectKey: "KECK", issuesCount: 0, syncedAt: expect.any(String) }),
+    );
   });
 
-  it("appelle replaceAllIssueSprints avec liste vide si aucune issue", async () => {
-    vi.mocked(store.getLastSyncDate).mockReturnValue("2026-04-20T10:00:00.000Z");
-    await sync(baseConfig);
-    expect(store.replaceAllIssueSprints).toHaveBeenCalledWith(expect.anything(), []);
+  it("appelle issueSprints.replaceForIssues avec liste vide si aucune issue", async () => {
+    const store = makeFakeStore({
+      syncLogLast: () => ({ syncedAt: "2026-04-20T10:00:00.000Z", issuesCount: 0, projectKey: "KECK" }),
+    });
+    await sync(store, baseConfig);
+    expect(store.issueSprints.replaceForIssues).toHaveBeenCalledWith([]);
   });
 });
 
@@ -137,9 +157,9 @@ describe("sync — extraction issue_sprints depuis customfield_10020", () => {
         changelog: { histories: [] },
       },
     ]);
-    await sync(baseConfig);
-    expect(store.replaceAllIssueSprints).toHaveBeenCalledWith(
-      expect.anything(),
+    const store = makeFakeStore();
+    await sync(store, baseConfig);
+    expect(store.issueSprints.replaceForIssues).toHaveBeenCalledWith(
       [{ key: "PROJ-1", sprintIds: [10, 11] }],
     );
   });
@@ -162,9 +182,9 @@ describe("sync — extraction issue_sprints depuis customfield_10020", () => {
         changelog: { histories: [] },
       },
     ]);
-    await sync(baseConfig);
-    expect(store.replaceAllIssueSprints).toHaveBeenCalledWith(
-      expect.anything(),
+    const store = makeFakeStore();
+    await sync(store, baseConfig);
+    expect(store.issueSprints.replaceForIssues).toHaveBeenCalledWith(
       [{ key: "PROJ-1", sprintIds: [] }],
     );
   });

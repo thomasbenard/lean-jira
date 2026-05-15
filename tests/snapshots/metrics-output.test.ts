@@ -14,6 +14,8 @@ import os from "os";
 import path from "path";
 import yaml from "yaml";
 import { sync } from "../../src/sync";
+import { openDb } from "../../src/db/store";
+import { SqliteStore } from "../../src/store/sqlite/index";
 import { initClock } from "../../src/clock";
 import { initRandom } from "../../src/random";
 
@@ -34,7 +36,10 @@ beforeAll(async () => {
 
   const rawConfig = yaml.parse(readFileSync(JIRA_CONFIG, "utf-8"));
   const tmpConfig = { ...rawConfig, db: { path: tmpDbPath } };
-  await sync(tmpConfig);
+  const db = openDb(tmpDbPath);
+  const store = new SqliteStore(db);
+  await sync(store, tmpConfig);
+  db.close();
 
   writeFileSync(tmpConfigPath, yaml.stringify(tmpConfig), "utf-8");
 }, 30_000);

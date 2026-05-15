@@ -1,8 +1,9 @@
 import { createJiraClient } from "./jira/clientFactory";
 import { type FieldChange, type JiraIssue, type StoredIssue, type StoredSprint, type StoredStatus, type Transition } from "./jira/types";
-import { openDb, upsertIssues, upsertSprints, upsertStatuses, replaceAllTransitions, replaceAllFieldChanges, replaceAllIssueSprints, logSync, getLastSyncDate, getStoredEstimationMethod, persistEstimationMethod } from "./db/store";
 import { type EstimationConfig, resolveEstimationField } from "./metrics/types";
 import { t } from "./i18n/index";
+import { now } from "./clock";
+import type { Store } from "./store/types";
 
 interface SyncConfig {
   jira: {
@@ -20,8 +21,7 @@ interface SyncConfig {
   estimation?: EstimationConfig;
 }
 
-export async function sync(config: SyncConfig): Promise<void> {
-  const db = openDb(config.db.path);
+export async function sync(store: Store, config: SyncConfig): Promise<void> {
   const client = createJiraClient(config.jira);
 
   console.log(t("sync.start", { projectKey: config.jira.projectKey }));
@@ -32,7 +32,7 @@ export async function sync(config: SyncConfig): Promise<void> {
     categoryKey: s.statusCategory.key,
     categoryName: s.statusCategory.name,
   }));
-  upsertStatuses(db, statuses);
+  store.statuses.upsertMany(statuses);
   const doneCount = statuses.filter((s) => s.categoryKey === "done").length;
   console.log(t("sync.statusesFetched", { count: statuses.length, doneCount }));
 
@@ -45,14 +45,14 @@ export async function sync(config: SyncConfig): Promise<void> {
     endDate: s.endDate ?? null,
     boardId: s.originBoardId ?? config.jira.boardId,
   }));
-  upsertSprints(db, sprints);
+  store.sprints.upsertMany(sprints);
   const activeSprintIds = new Set(rawSprints.filter((s) => s.state === "active").map((s) => s.id));
   console.log(t("sync.sprintsFetched", { count: sprints.length, activeCount: activeSprintIds.size }));
 
   const currentMethod = config.estimation?.method ?? "time";
-  const storedMethod = getStoredEstimationMethod(db);
+  const storedMethod = store.appConfig.get("estimation_method") ?? "time";
 
-  let lastSyncDate = getLastSyncDate(db, config.jira.projectKey);
+  let lastSyncDate = store.syncLog.lastByProject(config.jira.projectKey)?.syncedAt ?? null;
   if (storedMethod !== currentMethod && lastSyncDate !== null) {
     console.warn(t("sync.estimationMethodChanged", { from: storedMethod, to: currentMethod }));
     lastSyncDate = null;
@@ -70,23 +70,23 @@ export async function sync(config: SyncConfig): Promise<void> {
   console.log(t("sync.issuesFetched", { count: rawIssues.length }));
 
   const issues: StoredIssue[] = [];
-  const allTransitions: { key: string; transitions: Transition[] }[] = [];
-  const allFieldChanges: { key: string; changes: FieldChange[] }[] = [];
+  const allTransitions: { key: string; rows: Transition[] }[] = [];
+  const allFieldChanges: { key: string; rows: FieldChange[] }[] = [];
   const allIssueSprints: { key: string; sprintIds: number[] }[] = [];
   for (const issue of rawIssues) {
     issues.push(mapIssue(issue, activeSprintIds, config.estimation));
-    allTransitions.push({ key: issue.key, transitions: extractTransitions(issue) });
-    allFieldChanges.push({ key: issue.key, changes: extractFieldChanges(issue) });
+    allTransitions.push({ key: issue.key, rows: extractTransitions(issue) });
+    allFieldChanges.push({ key: issue.key, rows: extractFieldChanges(issue) });
     allIssueSprints.push({ key: issue.key, sprintIds: (issue.fields.customfield_10020 ?? []).map((s) => s.id) });
   }
 
-  upsertIssues(db, issues);
-  replaceAllTransitions(db, allTransitions);
-  replaceAllFieldChanges(db, allFieldChanges);
-  replaceAllIssueSprints(db, allIssueSprints);
+  store.issues.upsertMany(issues);
+  store.transitions.replaceForIssues(allTransitions);
+  store.issueFieldChanges.replaceForIssues(allFieldChanges);
+  store.issueSprints.replaceForIssues(allIssueSprints);
 
-  logSync(db, config.jira.projectKey, rawIssues.length);
-  persistEstimationMethod(db, currentMethod);
+  store.syncLog.append({ syncedAt: now().toISOString(), projectKey: config.jira.projectKey, issuesCount: rawIssues.length });
+  store.appConfig.set("estimation_method", currentMethod);
   console.log(t("sync.done", { count: rawIssues.length }));
 }
 
