@@ -86,6 +86,7 @@ export const stageTimeBreakdownMetric: Metric<StageTimeSummary> = {
         if (devSet.has(status)) { devDays += days; }
         else if (qaSet.has(status)) { qaDays += days; }
         else if (poSet.has(status)) { poDays += days; }
+        // sinon : statut hors scope rôles -> ignoré.
       }
 
       const cycleDays = ctx.workingDaysBetween(sample.startedAt, sample.doneAt);
