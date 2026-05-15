@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { createTestDb } from "../helpers/db";
 import { makeIssue, seedIssueWithTransitions, TEST_CONFIG, resetSeq } from "../helpers/seeders";
 import { handoffReworkMetric } from "../../src/metrics/handoffRework";
+import { createTestContext } from "../_helpers/createTestContext";
 import type Database from "better-sqlite3";
 import type { MetricConfig } from "../../src/metrics/types";
 
@@ -30,7 +31,7 @@ function seedNoRework(key = "PROJ-1") {
 
 describe("handoffReworkMetric.compute", () => {
   it("retourne count 0 si aucune issue livrée", () => {
-    const result = handoffReworkMetric.compute(db, ROLE_CONFIG);
+    const result = handoffReworkMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(0);
     expect(result.reworkRatio).toBe(0);
     expect(result.avgReworks).toBe(0);
@@ -40,7 +41,7 @@ describe("handoffReworkMetric.compute", () => {
 
   it("retourne 0 rework pour ticket nominal dev → qa → done", () => {
     seedNoRework();
-    const result = handoffReworkMetric.compute(db, ROLE_CONFIG);
+    const result = handoffReworkMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(1);
     expect(result.reworkRatio).toBe(0);
     expect(result.avgReworks).toBe(0);
@@ -56,7 +57,7 @@ describe("handoffReworkMetric.compute", () => {
       { to: "In Progress",  at: "2025-01-13T09:00:00Z" }, // rework qa→dev
       { to: "Done",         at: "2025-01-14T09:00:00Z" },
     ]);
-    const result = handoffReworkMetric.compute(db, ROLE_CONFIG);
+    const result = handoffReworkMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(1);
     expect(result.reworkRatio).toBe(1);
     expect(result.avgReworks).toBe(1);
@@ -78,7 +79,7 @@ describe("handoffReworkMetric.compute", () => {
       { to: "In Review",      at: "2025-01-14T09:00:00Z" }, // rework po→qa
       { to: "Done",           at: "2025-01-16T09:00:00Z" },
     ]);
-    const result = handoffReworkMetric.compute(db, ROLE_CONFIG);
+    const result = handoffReworkMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(1);
     expect(result.reworkRatio).toBe(1);
     expect(result.byReworkType.poToQa).toBe(1);
@@ -94,7 +95,7 @@ describe("handoffReworkMetric.compute", () => {
       { to: "In Progress",    at: "2025-01-13T09:00:00Z" }, // rework po→dev
       { to: "Done",           at: "2025-01-14T09:00:00Z" },
     ]);
-    const result = handoffReworkMetric.compute(db, ROLE_CONFIG);
+    const result = handoffReworkMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(1);
     expect(result.reworkRatio).toBe(1);
     expect(result.byReworkType.poDev).toBe(1);
@@ -113,7 +114,7 @@ describe("handoffReworkMetric.compute", () => {
       { to: "In Progress",  at: "2025-01-15T09:00:00Z" }, // rework 2 qa→dev
       { to: "Done",         at: "2025-01-16T09:00:00Z" },
     ]);
-    const result = handoffReworkMetric.compute(db, ROLE_CONFIG);
+    const result = handoffReworkMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(1);
     expect(result.byReworkType.qaToDev).toBe(2);
     expect(result.avgReworks).toBe(2);
@@ -130,7 +131,7 @@ describe("handoffReworkMetric.compute", () => {
       { to: "In Progress",  at: "2025-01-13T09:00:00Z" }, // retour dev, pas rework
       { to: "Done",         at: "2025-01-14T09:00:00Z" },
     ]);
-    const result = handoffReworkMetric.compute(db, ROLE_CONFIG);
+    const result = handoffReworkMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(1);
     expect(result.reworkRatio).toBe(0);
     expect(result.byReworkType.qaToDev).toBe(0);
@@ -147,7 +148,7 @@ describe("handoffReworkMetric.compute", () => {
       { to: "In Progress",  at: "2025-01-14T09:00:00Z" }, // dev → rework
       { to: "Done",         at: "2025-01-15T09:00:00Z" },
     ]);
-    const result = handoffReworkMetric.compute(db, ROLE_CONFIG);
+    const result = handoffReworkMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(1);
     expect(result.reworkRatio).toBe(1);
     expect(result.byReworkType.qaToDev).toBe(1);
@@ -165,7 +166,7 @@ describe("handoffReworkMetric.compute", () => {
       { to: "In Progress",  at: "2025-01-13T09:00:00Z" },
       { to: "Done",         at: "2025-01-14T09:00:00Z" },
     ]);
-    const result = handoffReworkMetric.compute(db, noQaConfig);
+    const result = handoffReworkMetric.compute(createTestContext(db, noQaConfig));
     expect(result.count).toBe(1);
     expect(result.reworkRatio).toBe(0);
     expect(result.byReworkType.qaToDev).toBe(0);
@@ -182,7 +183,7 @@ describe("handoffReworkMetric.compute", () => {
       { to: "In Progress",  at: "2025-01-13T09:00:00Z" },
       { to: "Done",         at: "2025-01-14T09:00:00Z" },
     ]);
-    const result = handoffReworkMetric.compute(db, ROLE_CONFIG);
+    const result = handoffReworkMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.count).toBe(2);
     expect(result.reworkRatio).toBeCloseTo(0.5);
     expect(result.avgReworks).toBeCloseTo(0.5);
@@ -210,7 +211,7 @@ describe("handoffReworkMetric.compute", () => {
       { to: "In Progress",  at: "2025-01-15T09:00:00Z" },
       { to: "Done",         at: "2025-01-16T09:00:00Z" },
     ]);
-    const result = handoffReworkMetric.compute(db, ROLE_CONFIG);
+    const result = handoffReworkMetric.compute(createTestContext(db, ROLE_CONFIG));
     expect(result.issues[0].issueKey).toBe("PROJ-2");
     expect(result.issues[1].issueKey).toBe("PROJ-1");
   });

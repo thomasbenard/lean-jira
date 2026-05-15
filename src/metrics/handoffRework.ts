@@ -1,6 +1,5 @@
-import type Database from "better-sqlite3";
-import { type Metric, type MetricConfig } from "./types";
-import { fetchDeliveredTransitions, groupByIssue } from "./utils";
+import { type Metric } from "./types";
+import type { MetricsContext } from "./context";
 
 export type ReworkType = "qaToDev" | "poToQa" | "poDev";
 
@@ -33,7 +32,8 @@ export const handoffReworkMetric: Metric<HandoffReworkResult> = {
   description:
     "Taux de rework entre rôles (qa→dev, po→qa, po→dev) sur tickets livrés. Qualité d'entrée par étape.",
 
-  compute(db: Database.Database, config: MetricConfig): HandoffReworkResult {
+  compute(ctx: MetricsContext): HandoffReworkResult {
+    const config = ctx.config;
     const roles = {
       dev: new Set(config.devStatuses ?? []),
       qa: new Set(config.qaStatuses ?? []),
@@ -47,19 +47,22 @@ export const handoffReworkMetric: Metric<HandoffReworkResult> = {
       return null;
     };
 
-    const rows = fetchDeliveredTransitions(db, config);
-    const byIssue = groupByIssue(rows);
-
     const issuesWithRework: ReworkIssue[] = [];
     const byReworkType: Record<ReworkType, number> = { qaToDev: 0, poToQa: 0, poDev: 0 };
     let totalReworks = 0;
 
-    for (const [key, transitions] of byIssue) {
+    for (const sample of ctx.cycleTimePopulation) {
+      const allTrans = ctx.transitionsByIssue.get(sample.issueKey) ?? [];
+      // pourquoi : SQL legacy filtrait tr.transitioned_at >= started_at AND <= done_at
+      const transitions = allTrans.filter(
+        (t) => t.transitionedAt >= sample.startedAt && t.transitionedAt <= sample.doneAt,
+      );
+
       const reworks: ReworkType[] = [];
       let prevRole: string | null = null;
 
       for (const t of transitions) {
-        const curRole = getRole(t.to_status);
+        const curRole = getRole(t.toStatus);
         if (curRole !== null && curRole !== prevRole) {
           if (prevRole !== null) {
             const prevIdx = ROLE_ORDER[prevRole];
@@ -79,11 +82,11 @@ export const handoffReworkMetric: Metric<HandoffReworkResult> = {
 
       totalReworks += reworks.length;
       if (reworks.length > 0) {
-        issuesWithRework.push({ issueKey: key, reworkCount: reworks.length, reworkTypes: reworks });
+        issuesWithRework.push({ issueKey: sample.issueKey, reworkCount: reworks.length, reworkTypes: reworks });
       }
     }
 
-    const count = byIssue.size;
+    const count = ctx.cycleTimePopulation.length;
     return {
       count,
       reworkRatio: count > 0 ? issuesWithRework.length / count : 0,
