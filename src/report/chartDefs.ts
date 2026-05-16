@@ -230,6 +230,7 @@ export const CHART_DEFS: ChartDef[] = [
     titleKey: "report.chart.devTimeAllocation", helpKey: "devTimeAllocation",
     data: { mode: "stats", metricName: "dev-time-allocation", bucket: "", stats: ["featureDays", "bugDays", "bugRatio"] },
     chart: { type: "custom", rendererId: "devTimeAllocation" },
+    sprintKey: "devTimeAllocation",
   },
   {
     id: "bugBacklogChart", key: "bugBacklog", tab: "advanced",

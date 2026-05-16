@@ -530,13 +530,15 @@ var _bugCycleTimeChart = lineChart("bugCycleTimeChart", CHARTS.bugCycleTime, [
   var _wgtOrig = _throughputWeightedChart ? _throughputWeightedChart.data.datasets.map(function(d) { return d.data; }) : null;
   var _bugOrig = _bugThroughputChart ? _bugThroughputChart.data.datasets.map(function(d) { return d.data; }) : null;
   var _bugCycleOrig = _bugCycleTimeChart ? _bugCycleTimeChart.data.datasets.map(function(d) { return d.data; }) : null;
-  // Roles charts définis plus bas dans le script → capture paresseuse au 1er passage sprint.
+  // Roles + advanced charts définis plus bas dans le script → capture paresseuse au 1er passage sprint.
   var _ftrOrig = null, _reworkRatioOrig = null, _reworkByTypeOrig = null, _reworkCostOrig = null;
+  var _devAllocOrig = null;
   function saveRolesOriginals() {
     if (!_ftrOrig && _ftrChart) { _ftrOrig = _ftrChart.data.datasets.map(function(d) { return d.data; }); }
     if (!_reworkRatioOrig && _reworkRatioChart) { _reworkRatioOrig = _reworkRatioChart.data.datasets.map(function(d) { return d.data; }); }
     if (!_reworkByTypeOrig && _reworkByTypeChart) { _reworkByTypeOrig = _reworkByTypeChart.data.datasets.map(function(d) { return d.data; }); }
     if (!_reworkCostOrig && _reworkCostChart) { _reworkCostOrig = _reworkCostChart.data.datasets.map(function(d) { return d.data; }); }
+    if (!_devAllocOrig && _devTimeAllocationChart) { _devAllocOrig = _devTimeAllocationChart.data.datasets.map(function(d) { return d.data; }); }
   }
   toggle.addEventListener("click", function(e) {
     var btn = e.target.closest(".toggle-btn");
@@ -600,7 +602,8 @@ var _bugCycleTimeChart = lineChart("bugCycleTimeChart", CHARTS.bugCycleTime, [
   function switchDebitView(view) {
     var allCharts = [_leadTimeChart, _cycleTimeChart, _bugCycleTimeChart,
                      _throughputChart, _throughputWeightedChart, _bugThroughputChart,
-                     _ftrChart, _reworkRatioChart, _reworkByTypeChart, _reworkCostChart];
+                     _ftrChart, _reworkRatioChart, _reworkByTypeChart, _reworkCostChart,
+                     _devTimeAllocationChart];
     if (view === "sprint") {
       saveRolesOriginals();
       if (SPRINT_CHARTS) {
@@ -610,6 +613,14 @@ var _bugCycleTimeChart = lineChart("bugCycleTimeChart", CHARTS.bugCycleTime, [
         updateChartWithTrend(_throughputWeightedChart, SPRINT_CHARTS.throughputWeighted.labels, SPRINT_CHARTS.throughputWeighted.series);
         updateChartWithTrend(_bugThroughputChart, SPRINT_CHARTS.bugThroughput.labels, SPRINT_CHARTS.bugThroughput.series);
         updateChartWithTrend(_bugCycleTimeChart, SPRINT_CHARTS.bugCycleTime.labels, SPRINT_CHARTS.bugCycleTime.series);
+        // pourquoi : dataset[2] affiche bugRatio×100 (axe %), update manuel pour appliquer la conversion.
+        if (_devTimeAllocationChart && SPRINT_CHARTS.devTimeAllocation) {
+          _devTimeAllocationChart.data.labels = SPRINT_CHARTS.devTimeAllocation.labels;
+          _devTimeAllocationChart.data.datasets[0].data = SPRINT_CHARTS.devTimeAllocation.series.featureDays;
+          _devTimeAllocationChart.data.datasets[1].data = SPRINT_CHARTS.devTimeAllocation.series.bugDays;
+          _devTimeAllocationChart.data.datasets[2].data = SPRINT_CHARTS.devTimeAllocation.series.bugRatio.map(function(r) { return r * 100; });
+          _devTimeAllocationChart.update("none");
+        }
       }
       if (ROLES_SPRINT_CHARTS) {
         updateChartWithTrend(_ftrChart, ROLES_SPRINT_CHARTS.ftrByRole.labels, ROLES_SPRINT_CHARTS.ftrByRole.series);
@@ -630,6 +641,7 @@ var _bugCycleTimeChart = lineChart("bugCycleTimeChart", CHARTS.bugCycleTime, [
       restoreChart(_reworkRatioChart, CHARTS.handoffReworkRatio.dates, _reworkRatioOrig);
       restoreChart(_reworkByTypeChart, CHARTS.handoffReworkByType.dates, _reworkByTypeOrig);
       restoreChart(_reworkCostChart, CHARTS.reworkCost.dates, _reworkCostOrig);
+      restoreChart(_devTimeAllocationChart, CHARTS.devTimeAllocation.dates, _devAllocOrig);
       applySprintXAxis(allCharts, false);
       updateDebitTitles(false);
     }
@@ -649,11 +661,11 @@ lineChart("flowEfficiencyChart", CHARTS.flowEfficiency, [
   { key: "median", label: "Médiane (par issue)", color: COLOR_P85 },
 ], true);
 
-(function renderDevTimeAllocation() {
+var _devTimeAllocationChart = (function renderDevTimeAllocation() {
   const series = CHARTS.devTimeAllocation;
   const ctx = document.getElementById("devTimeAllocationChart");
-  if (!ctx || !series || series.dates.length === 0) return;
-  new Chart(ctx, {
+  if (!ctx || !series || series.dates.length === 0) return null;
+  return new Chart(ctx, {
     type: "bar",
     data: {
       labels: series.dates,

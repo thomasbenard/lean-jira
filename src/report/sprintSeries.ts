@@ -8,6 +8,7 @@ import { throughputWeightedMetric } from "../metrics/throughputWeighted";
 import { handoffReworkMetric } from "../metrics/handoffRework";
 import { firstTimeRightMetric } from "../metrics/firstTimeRight";
 import { reworkCostMetric } from "../metrics/reworkCost";
+import { devTimeAllocationMetric } from "../metrics/devTimeAllocation";
 import { now } from "../clock";
 import type { ReadStore } from "../store/types";
 import { buildBaseMetricsContext, deriveMetricsContext } from "../metrics/context";
@@ -36,6 +37,7 @@ export function buildSprintSeries(
   leadTime: SprintChartSeries;
   cycleTime: SprintChartSeries;
   bugCycleTime: SprintChartSeries;
+  devTimeAllocation: SprintChartSeries;
 } {
   const labels: string[] = [];
   const thrCounts: number[] = [];
@@ -47,6 +49,9 @@ export function buildSprintSeries(
   const cycleP85s: number[] = [];
   const bugCycleMedians: number[] = [];
   const bugCycleP85s: number[] = [];
+  const featureDaysArr: number[] = [];
+  const bugDaysArr: number[] = [];
+  const bugRatioArr: number[] = [];
 
   const hasActive = sprints.length > 0 && sprints[sprints.length - 1].state === "active";
 
@@ -87,6 +92,14 @@ export function buildSprintSeries(
     const bugCycleResult = bugCycleTimeMetric.compute(ctx);
     bugCycleMedians.push(bugCycleResult.count > 0 ? bugCycleResult.medianDays : 0);
     bugCycleP85s.push(bugCycleResult.count > 0 ? bugCycleResult.p85Days : 0);
+
+    const devAllocResult = devTimeAllocationMetric.compute(ctx);
+    const featureSum = devAllocResult.byWeek.reduce((s, w) => s + w.featureDays, 0);
+    const bugSum = devAllocResult.byWeek.reduce((s, w) => s + w.bugDays, 0);
+    const total = featureSum + bugSum;
+    featureDaysArr.push(featureSum);
+    bugDaysArr.push(bugSum);
+    bugRatioArr.push(total > 0 ? bugSum / total : 0);
   }
 
   return {
@@ -96,6 +109,7 @@ export function buildSprintSeries(
     leadTime: { labels, series: { median: leadMedians, p85: leadP85s }, hasActiveSprint: hasActive },
     cycleTime: { labels, series: { median: cycleMedians, p85: cycleP85s }, hasActiveSprint: hasActive },
     bugCycleTime: { labels, series: { median: bugCycleMedians, p85: bugCycleP85s }, hasActiveSprint: hasActive },
+    devTimeAllocation: { labels, series: { featureDays: featureDaysArr, bugDays: bugDaysArr, bugRatio: bugRatioArr }, hasActiveSprint: hasActive },
   };
 }
 

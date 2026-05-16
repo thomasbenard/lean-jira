@@ -122,4 +122,27 @@ describe("buildSprintSeries", () => {
     expect(result.bugCycleTime.series.p85).toHaveLength(1);
     expect(result.bugCycleTime.series.median[0]).toBeGreaterThan(0);
   });
+
+  it("expose devTimeAllocation (featureDays + bugDays + bugRatio) par sprint", () => {
+    const db = createTestDb();
+    seedIssueWithTransitions(db, makeIssue({ key: "F-1", issueType: "Story" }), [
+      { to: "In Progress", at: "2025-01-07T10:00:00.000Z" },
+      { to: "Done", at: "2025-01-10T10:00:00.000Z" },
+    ]);
+    seedIssueWithTransitions(db, makeIssue({ key: "B-1", issueType: "Bug" }), [
+      { to: "In Progress", at: "2025-01-08T10:00:00.000Z" },
+      { to: "Done", at: "2025-01-09T10:00:00.000Z" },
+    ]);
+
+    const sprints = [
+      { name: "Sprint 1", state: "closed", start_date: "2025-01-06", end_date: "2025-01-20" },
+    ];
+    const result = buildSprintSeries(new SqliteStore(db), TEST_CONFIG, sprints);
+
+    expect(result.devTimeAllocation.labels).toEqual(["Sprint 1"]);
+    expect(result.devTimeAllocation.series.featureDays[0]).toBeGreaterThan(0);
+    expect(result.devTimeAllocation.series.bugDays[0]).toBeGreaterThan(0);
+    expect(result.devTimeAllocation.series.bugRatio[0]).toBeGreaterThan(0);
+    expect(result.devTimeAllocation.series.bugRatio[0]).toBeLessThanOrEqual(1);
+  });
 });

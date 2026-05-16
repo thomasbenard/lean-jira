@@ -291,11 +291,13 @@ describe("renderDefault — toggle sprint/semaines", () => {
       leadTime: { labels: ["Sprint 1"], series: { median: [3], p85: [5] }, hasActiveSprint: false },
       cycleTime: { labels: ["Sprint 1"], series: { median: [2], p85: [4] }, hasActiveSprint: false },
       bugCycleTime: { labels: ["Sprint 1"], series: { median: [2], p85: [4] }, hasActiveSprint: false },
+      devTimeAllocation: { labels: ["Sprint 1"], series: { featureDays: [3], bugDays: [1], bugRatio: [0.25] }, hasActiveSprint: false },
     };
     const html = renderDefault(makeRenderInput({ sprintCharts }));
     expect(html).toContain('id="debit-toggle"');
     expect(html).toContain("SPRINT_CHARTS");
     expect(html).toContain("SPRINT_CHARTS.bugCycleTime");
+    expect(html).toContain("SPRINT_CHARTS.devTimeAllocation");
   });
 
   it("SPRINT_CHARTS est null dans le JS si sprintCharts est null", () => {
