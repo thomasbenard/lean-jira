@@ -40,6 +40,7 @@ export interface RenderInput {
     throughputWeighted: SprintChartSeries;
     leadTime: SprintChartSeries;
     cycleTime: SprintChartSeries;
+    bugCycleTime: SprintChartSeries;
   } | null;
   rolesSprintCharts: {
     ftrByRole: SprintChartSeries;

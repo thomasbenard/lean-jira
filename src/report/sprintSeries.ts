@@ -1,5 +1,6 @@
 import { type MetricConfig } from "../metrics/types";
 import { cycleTimeMetric } from "../metrics/cycleTime";
+import { bugCycleTimeMetric } from "../metrics/bugCycleTime";
 import { leadTimeMetric } from "../metrics/leadTime";
 import { throughputMetric } from "../metrics/throughput";
 import { bugThroughputMetric } from "../metrics/bugThroughput";
@@ -34,6 +35,7 @@ export function buildSprintSeries(
   throughputWeighted: SprintChartSeries;
   leadTime: SprintChartSeries;
   cycleTime: SprintChartSeries;
+  bugCycleTime: SprintChartSeries;
 } {
   const labels: string[] = [];
   const thrCounts: number[] = [];
@@ -43,6 +45,8 @@ export function buildSprintSeries(
   const leadP85s: number[] = [];
   const cycleMedians: number[] = [];
   const cycleP85s: number[] = [];
+  const bugCycleMedians: number[] = [];
+  const bugCycleP85s: number[] = [];
 
   const hasActive = sprints.length > 0 && sprints[sprints.length - 1].state === "active";
 
@@ -53,7 +57,12 @@ export function buildSprintSeries(
   for (const sprint of sprints) {
     const isActive = sprint.state === "active";
     const windowEnd = sprint.end_date ?? now().toISOString().slice(0, 10);
-    const cfg: MetricConfig = { ...config, cutoffDate: sprint.start_date, windowEndDate: windowEnd };
+    // pourquoi : sprint 0 dont start_date < config.cutoffDate inclurait sinon
+    // des tickets livrés hors fenêtre d'analyse (ex : bulk-close 2025-10-25 KECK).
+    const effectiveCutoff = config.cutoffDate && config.cutoffDate > sprint.start_date
+      ? config.cutoffDate
+      : sprint.start_date;
+    const cfg: MetricConfig = { ...config, cutoffDate: effectiveCutoff, windowEndDate: windowEnd };
     const ctx = deriveMetricsContext(baseCtx, cfg);
 
     labels.push(isActive ? `${sprint.name} (en cours)` : sprint.name);
@@ -74,6 +83,10 @@ export function buildSprintSeries(
     const cycleResult = cycleTimeMetric.compute(ctx);
     cycleMedians.push(cycleResult.count > 0 ? cycleResult.medianDays : 0);
     cycleP85s.push(cycleResult.count > 0 ? cycleResult.p85Days : 0);
+
+    const bugCycleResult = bugCycleTimeMetric.compute(ctx);
+    bugCycleMedians.push(bugCycleResult.count > 0 ? bugCycleResult.medianDays : 0);
+    bugCycleP85s.push(bugCycleResult.count > 0 ? bugCycleResult.p85Days : 0);
   }
 
   return {
@@ -82,6 +95,7 @@ export function buildSprintSeries(
     throughputWeighted: { labels, series: { estimatedDays: wgtDays }, hasActiveSprint: hasActive },
     leadTime: { labels, series: { median: leadMedians, p85: leadP85s }, hasActiveSprint: hasActive },
     cycleTime: { labels, series: { median: cycleMedians, p85: cycleP85s }, hasActiveSprint: hasActive },
+    bugCycleTime: { labels, series: { median: bugCycleMedians, p85: bugCycleP85s }, hasActiveSprint: hasActive },
   };
 }
 
@@ -113,7 +127,12 @@ export function buildRolesSprintSeries(
   for (const sprint of sprints) {
     const isActive = sprint.state === "active";
     const windowEnd = sprint.end_date ?? now().toISOString().slice(0, 10);
-    const cfg: MetricConfig = { ...config, cutoffDate: sprint.start_date, windowEndDate: windowEnd };
+    // pourquoi : cf. buildSprintSeries — respecter config.cutoffDate quand
+    // sprint.start_date est antérieur.
+    const effectiveCutoff = config.cutoffDate && config.cutoffDate > sprint.start_date
+      ? config.cutoffDate
+      : sprint.start_date;
+    const cfg: MetricConfig = { ...config, cutoffDate: effectiveCutoff, windowEndDate: windowEnd };
     const ctx = deriveMetricsContext(baseCtx, cfg);
 
     labels.push(isActive ? `${sprint.name} (en cours)` : sprint.name);

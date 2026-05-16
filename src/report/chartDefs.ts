@@ -96,6 +96,7 @@ export const CHART_DEFS: ChartDef[] = [
       { key: "median", label: "Médiane", color: "var(--c-median, #00e0d4)" },
       { key: "p85",    label: "P85",     color: "var(--c-p85, #ff8a3d)"   },
     ],
+    sprintKey: "bugCycleTime",
   },
   {
     id: "cycleNormalizedChart", key: "cycleTimeNormalized", tab: "quality",

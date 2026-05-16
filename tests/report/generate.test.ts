@@ -922,6 +922,54 @@ describe("buildSprintSeries", () => {
     expect(result.throughput.labels).toEqual(["Sprint Vide"]);
     expect(result.throughput.series.count).toEqual([0]);
   });
+
+  it("respecte config.cutoffDate quand sprint.start_date est antérieur (bug sprint 0)", () => {
+    // pourquoi : sprint 0 dont start_date < cutoffDate ne doit pas inclure les
+    // tickets livrés avant cutoffDate (ex : bulk-close 2025-10-25 sur KECK).
+    // Sans le fix, sprintSeries override cutoffDate par sprint.start_date et
+    // pollue la population avec des cycle-times aberrants.
+    const db = createTestDb();
+    seedIssueWithTransitions(db, makeIssue({ key: "OLD-1" }), [
+      { to: "In Progress", at: "2025-01-15T10:00:00.000Z" },
+      { to: "Done",        at: "2025-01-18T10:00:00.000Z" },
+    ]);
+    seedIssueWithTransitions(db, makeIssue({ key: "NEW-1" }), [
+      { to: "In Progress", at: "2025-02-03T10:00:00.000Z" },
+      { to: "Done",        at: "2025-02-05T10:00:00.000Z" },
+    ]);
+
+    const cfg = { ...TEST_CONFIG, cutoffDate: "2025-02-01" };
+    const sprints = [
+      { name: "Sprint 0", state: "closed", start_date: "2025-01-10", end_date: "2025-02-10" },
+    ];
+    const result = buildSprintSeries(new SqliteStore(db), cfg, sprints);
+
+    expect(result.throughput.series.count).toEqual([1]);
+    expect(result.cycleTime.series.median[0]).toBeGreaterThan(0);
+    expect(result.cycleTime.series.p85[0]).toBeLessThan(5);
+  });
+
+  it("expose bugCycleTime (median + p85) par sprint sur la population bug", () => {
+    const db = createTestDb();
+    seedIssueWithTransitions(db, makeIssue({ key: "P-1", issueType: "Bug" }), [
+      { to: "In Progress", at: "2025-01-07T10:00:00.000Z" },
+      { to: "Done", at: "2025-01-10T10:00:00.000Z" },
+    ]);
+    seedIssueWithTransitions(db, makeIssue({ key: "P-2", issueType: "Story" }), [
+      { to: "In Progress", at: "2025-01-08T10:00:00.000Z" },
+      { to: "Done", at: "2025-01-15T10:00:00.000Z" },
+    ]);
+
+    const sprints = [
+      { name: "Sprint 1", state: "closed", start_date: "2025-01-06", end_date: "2025-01-20" },
+    ];
+    const result = buildSprintSeries(new SqliteStore(db), TEST_CONFIG, sprints);
+
+    expect(result.bugCycleTime.labels).toEqual(["Sprint 1"]);
+    expect(result.bugCycleTime.series.median).toHaveLength(1);
+    expect(result.bugCycleTime.series.p85).toHaveLength(1);
+    expect(result.bugCycleTime.series.median[0]).toBeGreaterThan(0);
+  });
 });
 
 describe("renderDefault — toggle sprint/semaines", () => {
@@ -937,10 +985,12 @@ describe("renderDefault — toggle sprint/semaines", () => {
       throughputWeighted: { labels: ["Sprint 1"], series: { estimatedDays: [3.5] }, hasActiveSprint: false },
       leadTime: { labels: ["Sprint 1"], series: { median: [3], p85: [5] }, hasActiveSprint: false },
       cycleTime: { labels: ["Sprint 1"], series: { median: [2], p85: [4] }, hasActiveSprint: false },
+      bugCycleTime: { labels: ["Sprint 1"], series: { median: [2], p85: [4] }, hasActiveSprint: false },
     };
     const html = renderDefault({ ...makeRenderInput(), sprintCharts });
     expect(html).toContain('id="debit-toggle"');
     expect(html).toContain("SPRINT_CHARTS");
+    expect(html).toContain("SPRINT_CHARTS.bugCycleTime");
   });
 
   it("SPRINT_CHARTS est null dans le JS si sprintCharts est null", () => {

@@ -515,6 +515,10 @@ lineChart("wipChart", CHARTS.wip, [
 var _bugThroughputChart = lineChart("bugThroughputChart", CHARTS.bugThroughput, [
   { key: "count", label: "Bugs", color: "#ef4444" },
 ], true);
+var _bugCycleTimeChart = lineChart("bugCycleTimeChart", CHARTS.bugCycleTime, [
+  { key: "median", label: "Médiane", color: COLOR_MEDIAN },
+  { key: "p85", label: "P85", color: COLOR_P85 },
+], true);
 
 (function initDebitToggle() {
   var toggle = document.getElementById("debit-toggle");
@@ -525,6 +529,7 @@ var _bugThroughputChart = lineChart("bugThroughputChart", CHARTS.bugThroughput, 
   var _thrOrig = _throughputChart ? _throughputChart.data.datasets.map(function(d) { return d.data; }) : null;
   var _wgtOrig = _throughputWeightedChart ? _throughputWeightedChart.data.datasets.map(function(d) { return d.data; }) : null;
   var _bugOrig = _bugThroughputChart ? _bugThroughputChart.data.datasets.map(function(d) { return d.data; }) : null;
+  var _bugCycleOrig = _bugCycleTimeChart ? _bugCycleTimeChart.data.datasets.map(function(d) { return d.data; }) : null;
   // Roles charts définis plus bas dans le script → capture paresseuse au 1er passage sprint.
   var _ftrOrig = null, _reworkRatioOrig = null, _reworkByTypeOrig = null, _reworkCostOrig = null;
   function saveRolesOriginals() {
@@ -593,7 +598,7 @@ var _bugThroughputChart = lineChart("bugThroughputChart", CHARTS.bugThroughput, 
     if (el) el.dataset.weekTitle = el.textContent;
   });
   function switchDebitView(view) {
-    var allCharts = [_leadTimeChart, _cycleTimeChart,
+    var allCharts = [_leadTimeChart, _cycleTimeChart, _bugCycleTimeChart,
                      _throughputChart, _throughputWeightedChart, _bugThroughputChart,
                      _ftrChart, _reworkRatioChart, _reworkByTypeChart, _reworkCostChart];
     if (view === "sprint") {
@@ -604,6 +609,7 @@ var _bugThroughputChart = lineChart("bugThroughputChart", CHARTS.bugThroughput, 
         updateChartWithTrend(_throughputChart, SPRINT_CHARTS.throughput.labels, SPRINT_CHARTS.throughput.series);
         updateChartWithTrend(_throughputWeightedChart, SPRINT_CHARTS.throughputWeighted.labels, SPRINT_CHARTS.throughputWeighted.series);
         updateChartWithTrend(_bugThroughputChart, SPRINT_CHARTS.bugThroughput.labels, SPRINT_CHARTS.bugThroughput.series);
+        updateChartWithTrend(_bugCycleTimeChart, SPRINT_CHARTS.bugCycleTime.labels, SPRINT_CHARTS.bugCycleTime.series);
       }
       if (ROLES_SPRINT_CHARTS) {
         updateChartWithTrend(_ftrChart, ROLES_SPRINT_CHARTS.ftrByRole.labels, ROLES_SPRINT_CHARTS.ftrByRole.series);
@@ -619,6 +625,7 @@ var _bugThroughputChart = lineChart("bugThroughputChart", CHARTS.bugThroughput, 
       restoreChart(_throughputChart, CHARTS.throughput.dates, _thrOrig);
       restoreChart(_throughputWeightedChart, CHARTS.throughputWeighted.dates, _wgtOrig);
       restoreChart(_bugThroughputChart, CHARTS.bugThroughput.dates, _bugOrig);
+      restoreChart(_bugCycleTimeChart, CHARTS.bugCycleTime.dates, _bugCycleOrig);
       restoreChart(_ftrChart, CHARTS.ftrByRole.dates, _ftrOrig);
       restoreChart(_reworkRatioChart, CHARTS.handoffReworkRatio.dates, _reworkRatioOrig);
       restoreChart(_reworkByTypeChart, CHARTS.handoffReworkByType.dates, _reworkByTypeOrig);
@@ -629,10 +636,6 @@ var _bugThroughputChart = lineChart("bugThroughputChart", CHARTS.bugThroughput, 
   }
 })();
 
-lineChart("bugCycleTimeChart", CHARTS.bugCycleTime, [
-  { key: "median", label: "Médiane", color: COLOR_MEDIAN },
-  { key: "p85", label: "P85", color: COLOR_P85 },
-], true);
 lineChart("cycleNormalizedChart", CHARTS.cycleTimeNormalized, [
   { key: "median", label: "Médiane (ratio)", color: COLOR_MEDIAN },
   { key: "p85", label: "P85 (ratio)", color: COLOR_P85 },
