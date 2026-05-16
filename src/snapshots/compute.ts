@@ -13,7 +13,7 @@ import { type FirstTimeRightResult } from "../metrics/firstTimeRight";
 import { type ReworkCostResult } from "../metrics/reworkCost";
 import { type BottleneckAnalysisResult } from "../metrics/bottleneckAnalysis";
 import { now } from "../clock";
-import { buildMetricsContext } from "../metrics/context";
+import { buildBaseMetricsContext, deriveMetricsContext, type BaseMetricsContext } from "../metrics/context";
 
 export const DEFAULT_ROLLING_WINDOW_DAYS = 30;
 const WEEK_DAYS = 7;
@@ -48,9 +48,17 @@ export function backfillSnapshots(store: Store, baseConfig: MetricConfig): numbe
   const cutoff = baseConfig.cutoffDate ?? "2024-01-01";
   const dates = generateWeekEndings(cutoff);
 
+  // pourquoi : indexes lourds (issues, transitions, transitionsByIssue, deliveredAt…)
+  // sont stables sur tout le run de backfill — `cutoffDate` / `windowEndDate` varient
+  // par snapshot mais ne touchent que `cycleTimePopulation`. Un seul build évite
+  // ~1600 rebuilds redondants (N dates × M métriques) sur le dataset KECK.
+  const baseCtx = buildBaseMetricsContext(store, baseConfig);
+  const allTransitions = baseCtx.transitions;
+  const allIssues = baseCtx.issues;
+
   const allRows: SnapshotRecord[] = [];
   for (const date of dates) {
-    for (const row of computeSnapshot(store, date, baseConfig)) {
+    for (const row of computeSnapshot(baseCtx, allTransitions, allIssues, date, baseConfig)) {
       allRows.push(toSnapshotRecord(row));
     }
   }
@@ -85,13 +93,15 @@ function subDaysISO(dateISO: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function computeSnapshot(store: Store, date: string, baseConfig: MetricConfig): SnapshotRow[] {
+function computeSnapshot(
+  baseCtx: BaseMetricsContext,
+  allTransitions: TransitionRecord[],
+  allIssues: IssueRecord[],
+  date: string,
+  baseConfig: MetricConfig,
+): SnapshotRow[] {
   const rows: SnapshotRow[] = [];
   const rollingWindow = baseConfig.snapshotWindowDays ?? DEFAULT_ROLLING_WINDOW_DAYS;
-
-  // Charger transitions et issues une seule fois pour les helpers WIP (JS pur, pas de SQL)
-  const allTransitions = store.transitions.all();
-  const allIssues = store.issues.all();
 
   // WIP historique (pas de contexte de métriques — logique point-in-time sur transitions brutes)
   const wipValue = computeHistoricWip(allTransitions, allIssues, date, baseConfig);
@@ -102,8 +112,8 @@ function computeSnapshot(store: Store, date: string, baseConfig: MetricConfig): 
     rows.push({ snapshot_date: date, metric_name: "wip-per-role", bucket: role, stat: "count", value: wipPerRole[role] });
   }
 
-  // Pour chaque métrique non exclue, on construit un contexte avec la fenêtre adaptée
-  // et on exécute uniquement cette métrique (via runAllMetrics sur un store, résultat filtré)
+  // Pour chaque métrique non exclue, dériver un contexte (filtre cycleTimePopulation
+  // par fenêtre) à partir du baseCtx partagé — pas de relecture DB.
   for (const metric of ALL_METRICS) {
     if (SKIP_METRICS.has(metric.name)) { continue; }
 
@@ -116,7 +126,7 @@ function computeSnapshot(store: Store, date: string, baseConfig: MetricConfig): 
       windowEndDate: date,
     };
 
-    const ctx = buildMetricsContext(store, cfg);
+    const ctx = deriveMetricsContext(baseCtx, cfg);
     const result = metric.compute(ctx) as unknown as Record<string, unknown>;
     rows.push(...extractStats(date, metric.name, result));
   }
