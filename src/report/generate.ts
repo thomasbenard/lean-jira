@@ -555,14 +555,17 @@ export function buildAllChartData(
   metricRows: (name: string) => SnapshotRow[],
   defs: ChartDef[],
 ): Record<string, ChartSeries> {
+  // pourquoi : le template `report.hbs` lit `CHARTS.<key>` (e.g. `CHARTS.leadTime`),
+  // pas `CHARTS.<id>` (qui est l'ID du canvas DOM). Garder le keying par `def.key`
+  // pour rester compatible tant que la migration vers le dispatcher CHART_DEFS n'est pas terminée.
   const result: Record<string, ChartSeries> = {};
   for (const def of defs) {
     if (def.data === null) { continue; }
     const rows = metricRows(def.data.metricName);
     if (def.data.mode === "stats") {
-      result[def.id] = buildSeries(rows, def.data.bucket, def.data.stats);
+      result[def.key] = buildSeries(rows, def.data.bucket, def.data.stats);
     } else {
-      result[def.id] = buildRoleSeries(rows, def.data.roles, def.data.stat);
+      result[def.key] = buildRoleSeries(rows, def.data.roles, def.data.stat);
     }
   }
   return result;

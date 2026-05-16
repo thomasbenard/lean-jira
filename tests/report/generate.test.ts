@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import path from "path";
-import { issueLink, agingRowsHtml, buildBucketSeries, buildRoleSeries, syncMetaLabel, staleBannerHtml, computeMovingAvg, renderWithHandlebars, buildScopeAlertBanner, buildScopeChangeChart, buildScopeSection, estimationFlags, buildSprintSeries, buildTemplateContext } from "../../src/report/generate";
+import { issueLink, agingRowsHtml, buildAllChartData, buildBucketSeries, buildRoleSeries, syncMetaLabel, staleBannerHtml, computeMovingAvg, renderWithHandlebars, buildScopeAlertBanner, buildScopeChangeChart, buildScopeSection, estimationFlags, buildSprintSeries, buildTemplateContext } from "../../src/report/generate";
+import { CHART_DEFS } from "../../src/report/chartDefs";
 import { initLocale } from "../../src/i18n/index";
 import type { AgingWipSummary } from "../../src/metrics/agingWip";
 import type { SnapshotRow } from "../../src/snapshots/compute";
@@ -429,6 +430,51 @@ describe("buildRoleSeries", () => {
     ];
     const result = buildRoleSeries(rowsWithP85, ["dev"], "median");
     expect(result.series["dev"]).toEqual([2, 3]);
+  });
+});
+
+describe("buildAllChartData", () => {
+  // pourquoi : régression — `report.hbs` lit `CHARTS.<def.key>` (e.g. `CHARTS.leadTime`)
+  // pas `CHARTS.<def.id>` (id = ID du canvas DOM, e.g. `leadTimeChart`).
+  // Keyer par `def.id` rendait tous les charts vides.
+  it("résultat keyé par def.key (pas def.id)", () => {
+    const result = buildAllChartData(() => [], CHART_DEFS);
+    const leadTimeDef = CHART_DEFS.find((d) => d.key === "leadTime");
+    expect(leadTimeDef).toBeDefined();
+    expect(leadTimeDef!.id).toBe("leadTimeChart");
+    expect(result).toHaveProperty("leadTime");
+    expect(result).not.toHaveProperty("leadTimeChart");
+  });
+
+  it("def avec data: null ignoré", () => {
+    const customDefs: typeof CHART_DEFS = [
+      { id: "foo", key: "foo", tab: "delivery", titleKey: "t", data: null, chart: { type: "line" } },
+    ];
+    const result = buildAllChartData(() => [], customDefs);
+    expect(result).not.toHaveProperty("foo");
+  });
+
+  it("data.mode=stats appelle buildSeries via def.key", () => {
+    const rows: SnapshotRow[] = [
+      { snapshot_date: "2025-01-05", metric_name: "lead-time", bucket: "", stat: "median", value: 4 },
+      { snapshot_date: "2025-01-05", metric_name: "lead-time", bucket: "", stat: "p85",    value: 10 },
+    ];
+    const result = buildAllChartData((name) => name === "lead-time" ? rows : [], CHART_DEFS);
+    expect(result["leadTime"].dates).toEqual(["2025-01-05"]);
+    expect(result["leadTime"].series["median"]).toEqual([4]);
+    expect(result["leadTime"].series["p85"]).toEqual([10]);
+  });
+
+  it("data.mode=roleSeries appelle buildRoleSeries via def.key", () => {
+    const stageDef = CHART_DEFS.find((d) => d.key === "stageTimeByRole");
+    expect(stageDef).toBeDefined();
+    const rows: SnapshotRow[] = [
+      { snapshot_date: "2025-01-05", metric_name: "stage-time-breakdown", bucket: "dev", stat: "median", value: 2 },
+      { snapshot_date: "2025-01-05", metric_name: "stage-time-breakdown", bucket: "qa",  stat: "median", value: 1 },
+    ];
+    const result = buildAllChartData((name) => name === "stage-time-breakdown" ? rows : [], [stageDef!]);
+    expect(result["stageTimeByRole"].dates).toEqual(["2025-01-05"]);
+    expect(result["stageTimeByRole"].series["dev"]).toEqual([2]);
   });
 });
 
