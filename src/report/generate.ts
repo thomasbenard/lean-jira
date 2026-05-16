@@ -21,7 +21,7 @@ import { CHART_DEFS, serializeChartDefs, type ChartDef } from "./chartDefs";
 import { en } from "../i18n/en";
 import { fr } from "../i18n/fr";
 import type { ReadStore, SprintRecord } from "../store/types";
-import { buildMetricsContext } from "../metrics/context";
+import { buildMetricsContext, buildBaseMetricsContext, deriveMetricsContext } from "../metrics/context";
 
 export function buildReportLabels(lang: LocaleCode): LocaleShape {
   return lang === "fr" ? fr : en;
@@ -265,11 +265,15 @@ export function buildSprintSeries(
 
   const hasActive = sprints.length > 0 && sprints[sprints.length - 1].state === "active";
 
+  // pourquoi : indexes stables sur tous les sprints — seuls cutoffDate/windowEndDate
+  // varient par itération. Un seul build évite N rebuilds redondants (cf. ticket perf snapshots).
+  const baseCtx = buildBaseMetricsContext(store, config);
+
   for (const sprint of sprints) {
     const isActive = sprint.state === "active";
     const windowEnd = sprint.end_date ?? now().toISOString().slice(0, 10);
     const cfg: MetricConfig = { ...config, cutoffDate: sprint.start_date, windowEndDate: windowEnd };
-    const ctx = buildMetricsContext(store, cfg);
+    const ctx = deriveMetricsContext(baseCtx, cfg);
 
     labels.push(isActive ? `${sprint.name} (en cours)` : sprint.name);
 
@@ -322,11 +326,14 @@ export function buildRolesSprintSeries(
 
   const hasActive = sprints.length > 0 && sprints[sprints.length - 1].state === "active";
 
+  // pourquoi : indexes stables sur tous les sprints — seuls cutoffDate/windowEndDate varient.
+  const baseCtx = buildBaseMetricsContext(store, config);
+
   for (const sprint of sprints) {
     const isActive = sprint.state === "active";
     const windowEnd = sprint.end_date ?? now().toISOString().slice(0, 10);
     const cfg: MetricConfig = { ...config, cutoffDate: sprint.start_date, windowEndDate: windowEnd };
-    const ctx = buildMetricsContext(store, cfg);
+    const ctx = deriveMetricsContext(baseCtx, cfg);
 
     labels.push(isActive ? `${sprint.name} (en cours)` : sprint.name);
 
