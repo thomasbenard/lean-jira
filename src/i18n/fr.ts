@@ -132,6 +132,8 @@ export const fr: LocaleShape = {
   "report.chart.leadBySizeAdv":       "Lead time par taille (jours)",
   "report.chart.cycleBySizeAdv":      "Cycle time par taille (jours)",
   "report.chart.columnDrilldown":     "Drill-down par colonne",
+  "report.chart.cycleDistribution":   "Distribution cycle time (PDF + CDF)",
+  "report.chart.leadDistribution":    "Distribution lead time (PDF + CDF)",
 
   "report.meta.cycleStats":      "{{count}} issues · médiane {{median}}j · P85 {{p85}}j · P95 {{p95}}j · moyenne {{avg}}j",
   "report.meta.forecastPool":    "Pool : {{weeks}} semaines · {{sims}} simulations",
@@ -221,4 +223,8 @@ export const fr: LocaleShape = {
   "report.help.bottleneckAnalysis.body":   "Score composite 0–1 par rôle (dev/qa/po) synthétisant 4 signaux TOC : temps de passage médian, flux net moyen, taux de rework entrant, pénalité first-time-right. Score 1 = bottleneck le plus sévère. Le rôle primaire est celui avec le score le plus élevé.",
   "report.help.scopeChange.title":         "Dérive de périmètre par sprint",
   "report.help.scopeChange.body":          "Issues dont la description ou le résumé a changé significativement après le début du sprint. Seuil de détection : similarité texte < 85% (Levenshtein normalisé). Une dérive élevée corrèle avec des sprints ratés et un cycle time long.",
+  "report.help.cycleDistribution.title":   "Distribution cycle time (PDF + CDF)",
+  "report.help.cycleDistribution.body":    "Distribution complète du cycle time. PDF (Probability Density Function) = densité de probabilité, tracée en courbe lissée KDE (Kernel Density Estimation : un noyau gaussien posé sur chaque observation puis sommé, bandwidth via règle de Silverman h=1.06·σ·n^(-1/5)). La PDF révèle la forme — asymétrie, multi-modalité, queue lourde — pas seulement les percentiles. CDF (Cumulative Distribution Function, axe droit %) = P(durée ≤ x), monotone croissante de 0 à 1 ; lecture directe « proba qu'un ticket soit livré sous N jours » à l'abscisse x=N. Histogramme brut affiché en fallback uniquement quand la KDE est indisponible (n < 4 ou écart-type nul). Sélecteur de bucket pour drilldown XS/S/M/L/XL.",
+  "report.help.leadDistribution.title":    "Distribution lead time (PDF + CDF)",
+  "report.help.leadDistribution.body":     "Distribution complète du lead time : mêmes objets que cycleDistribution (PDF en courbe KDE gaussienne Silverman, CDF empirique sur l'axe droit, histogramme en fallback si KDE indisponible) mais depuis l'entrée TODO. Révèle l'attente backlog (queue gauche allongée vs cycle) et la dispersion totale de l'expérience demandeur.",
 };

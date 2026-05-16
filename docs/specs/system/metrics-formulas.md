@@ -911,6 +911,62 @@ Pour chaque horizon H ∈ {1, 2, 4, 8} :
 
 ---
 
+### `duration-distribution`
+
+**Définition** : distribution complète (PDF histogramme + KDE gaussien lissé + CDF empirique) de `cycle-time` et `lead-time`, global et par bucket `XS / S / M / L / XL`. Révèle la forme de la distribution (asymétrie, multi-modale, queue lourde) — pas seulement les percentiles.
+
+**Périmètre** :
+- `cycle` : `ctx.cycleTimePopulation` (filtrée par `excludeIssueTypes` + `cutoffDate` + transition `devStartStatuses`).
+- `lead` : sous-ensemble de `cycle` dont la 1ʳᵉ transition vers `todoStatuses` existe et précède `done_at`.
+- `byBucket` : `BUG` et `UNESTIMATED` exclus du breakdown (présents dans `global` uniquement).
+
+**Bins histogramme** (`buildUnitBins`, local à `src/metrics/durationDistribution.ts`) :
+```
+binWidth = 1 (jour-ouvré, fixe)
+binCount = max(1, ⌈max + 0.0001⌉)
+```
+Granularité 1 jour-ouvré quel que soit `max` : l'axe x reste aligné sur l'unité de mesure des durées, la courbe KDE porte le lissage visuel. Une issue est rangée dans `bins[min(binCount-1, ⌊v⌋)]`. Le helper générique `buildHistogramBins` de `utils.ts` (formule `0.5 | 1 | ⌈max/20⌉`) reste utilisé par `cycleHistogram` (legacy advanced tab).
+
+**KDE gaussien** (`buildKdeAndCdf`) :
+```
+σ = écart-type empirique non biaisé (Bessel n-1)
+h = 1.06 · σ · n^(-1/5)        ← bandwidth Silverman
+φ(u) = exp(-u²/2) / √(2π)
+density(x) = (1 / (n · h)) · Σⱼ φ((x - vⱼ) / h)
+```
+Évalué sur **50 points** uniformément distribués sur `[0, max]`.
+
+**CDF empirique** : pour chaque point KDE `x`, `cdf(x) = #{vⱼ ≤ x} / n` (calculé par balayage du vecteur trié).
+
+**hasKde** :
+```
+hasKde = (n ≥ 4) ∧ (σ > 0) ∧ (max > 0)
+```
+Si `false` : `density = 0` partout (les 50 points sont conservés pour `CDF`).
+
+**Cas limites** :
+- `n = 0` → `bins = []`, `kde = []`, `hasKde = false`, `max = 0`.
+- `n = 1` → 1 bin contenant la valeur, `kde.length = 50` avec `density = 0`, `hasKde = false`.
+- `σ = 0` (valeurs identiques avec `n ≥ 4`) → `hasKde = false`, KDE plat à 0.
+- `max = 0` (toutes valeurs nulles) → 1 bin `[0, 0]` avec `count = n`, `kde` de 50 points `{x:0, density:0, cdf:1}`, `hasKde = false`.
+
+**Sortie** :
+```
+{
+  cycle: { global: DistributionSeries, byBucket: Partial<Record<XS|S|M|L|XL, DistributionSeries>> },
+  lead:  { global: DistributionSeries, byBucket: Partial<Record<XS|S|M|L|XL, DistributionSeries>> }
+}
+DistributionSeries = {
+  count, max, hasKde,
+  bins: [{ start, end, count }, …],
+  kde:  [{ x, density, cdf }, …]   // 50 points (ou [] si count=0)
+}
+```
+
+**Non snapshottable** : output non-scalable (50 points × 6 séries × 2 axes), recalculé à chaque rapport. Listée dans `SKIP_METRICS` de `src/snapshots/compute.ts`.
+
+---
+
 ## Snapshots — fenêtres de calcul
 
 `backfillSnapshots` (`src/snapshots/compute.ts`) calcule toutes les métriques pour chaque **dimanche** depuis `cutoffDate` jusqu'à aujourd'hui (`now()`), inséré dans `metric_snapshots` après `DELETE FROM metric_snapshots` (replace-all par snapshot run, dans une seule transaction).

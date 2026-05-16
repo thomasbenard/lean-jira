@@ -121,6 +121,8 @@ export interface LocaleShape {
   "report.chart.leadBySizeAdv": string;
   "report.chart.cycleBySizeAdv": string;
   "report.chart.columnDrilldown": string;
+  "report.chart.cycleDistribution": string;
+  "report.chart.leadDistribution": string;
   "report.meta.cycleStats": string;
   "report.meta.forecastPool": string;
   "report.meta.agingStats": string;
@@ -204,6 +206,10 @@ export interface LocaleShape {
   "report.help.bottleneckAnalysis.body": string;
   "report.help.scopeChange.title": string;
   "report.help.scopeChange.body": string;
+  "report.help.cycleDistribution.title": string;
+  "report.help.cycleDistribution.body": string;
+  "report.help.leadDistribution.title": string;
+  "report.help.leadDistribution.body": string;
 }
 
 import { en } from "./en";

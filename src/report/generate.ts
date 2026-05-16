@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import Handlebars from "handlebars";
-import { BUCKET_LABELS, BUCKET_ORDER, percentile } from "../metrics/utils";
+import { BUCKET_LABELS, BUCKET_ORDER, buildHistogramBins, percentile, type HistogramBin } from "../metrics/utils";
 import { type MetricConfig, type EstimationConfig } from "../metrics/types";
 import { agingWipMetric, type AgingWipSummary, type AgingWipIssue, type AgingRisk } from "../metrics/agingWip";
 import { forecastMetric, type ForecastSummary } from "../metrics/forecast";
@@ -9,6 +9,7 @@ import { cycleTimeMetric } from "../metrics/cycleTime";
 import { leadTimeMetric } from "../metrics/leadTime";
 import { scopeChangeMetric, type ScopeChangeResult } from "../metrics/scopeChange";
 import { bottleneckAnalysisMetric, type BottleneckAnalysisResult, type RoleKey } from "../metrics/bottleneckAnalysis";
+import { durationDistributionMetric, type DurationDistributionResult } from "../metrics/durationDistribution";
 import { throughputMetric } from "../metrics/throughput";
 import { bugThroughputMetric } from "../metrics/bugThroughput";
 import { throughputWeightedMetric } from "../metrics/throughputWeighted";
@@ -479,8 +480,10 @@ export function generateReport(
   const agingWip = agingWipMetric.compute(liveCtx);
   const forecast = forecastMetric.compute(liveCtx);
   const bottleneck = bottleneckAnalysisMetric.compute(liveCtx);
+  const distribution = durationDistributionMetric.compute(liveCtx);
   const cycleTime = cycleTimeMetric.compute(liveCtx);
-  const histogram = buildHistogram(cycleTime.issues.map((i) => i.cycleTimeDays));
+  const cycleValues = cycleTime.issues.map((i) => i.cycleTimeDays);
+  const histogram = buildHistogramBins(cycleValues, cycleValues.length > 0 ? Math.max(...cycleValues) : 0);
 
   // pourquoi : ticket 050 — table issue_field_changes toujours créée par schema.sql ;
   // l'ancien feature gate isScopeChangeAvailable() est devenu inutile.
@@ -520,6 +523,7 @@ export function generateReport(
     personalization: resolvedPersonalization,
     estimation: config.estimation,
     bottleneck,
+    distribution,
     sprintCharts,
     rolesSprintCharts,
   };
@@ -616,12 +620,6 @@ function latestBySize(rows: SnapshotRow[]): Partial<Record<string, BucketStats>>
   return out;
 }
 
-interface HistogramBin {
-  start: number;
-  end: number;
-  count: number;
-}
-
 interface RenderInput {
   projectKey: string;
   squadName?: string;
@@ -646,6 +644,7 @@ interface RenderInput {
   personalization?: ResolvedPersonalization;
   estimation?: EstimationConfig;
   bottleneck: BottleneckAnalysisResult;
+  distribution: DurationDistributionResult;
   sprintCharts: {
     throughput: SprintChartSeries;
     bugThroughput: SprintChartSeries;
@@ -659,25 +658,6 @@ interface RenderInput {
     handoffReworkByType: SprintChartSeries;
     reworkCost: SprintChartSeries;
   } | null;
-}
-
-function buildHistogram(values: number[]): HistogramBin[] {
-  if (values.length === 0) {return [];}
-  const sorted = [...values].sort((a, b) => a - b);
-  const max = sorted[sorted.length - 1];
-  // Largeur de bin entière au-dessus de 1, sinon 0.5. Pour distributions courtes
-  // on préfère une granularité fine.
-  const binWidth = max <= 5 ? 0.5 : max <= 20 ? 1 : Math.ceil(max / 20);
-  const binCount = Math.ceil((max + 0.0001) / binWidth);
-  const bins: HistogramBin[] = [];
-  for (let i = 0; i < binCount; i++) {
-    bins.push({ start: i * binWidth, end: (i + 1) * binWidth, count: 0 });
-  }
-  for (const v of sorted) {
-    const idx = Math.min(bins.length - 1, Math.floor(v / binWidth));
-    bins[idx].count++;
-  }
-  return bins;
 }
 
 // ─── Helpers HTML utilisés par buildRenderedTabs() ───────────────────────────
@@ -931,6 +911,18 @@ export function buildRenderedTabs(input: RenderInput): { id: string; label: stri
       <div class="bucket-selector" id="cycleBySizeBuckets"></div>
       <div class="chart-wrap"><canvas id="cycleBySizeChart"></canvas></div>
     </div>
+  </div>
+  <div class="panel-grid" style="margin-top: 1rem">
+    <div class="chart-card">
+      <h3>${escapeHtml(t("report.chart.cycleDistribution"))}${helpBtn("cycleDistribution")}</h3>
+      <div class="bucket-selector" id="cycleDistributionBuckets"></div>
+      <div class="chart-wrap"><canvas id="cycleDistributionChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>${escapeHtml(t("report.chart.leadDistribution"))}${helpBtn("leadDistribution")}</h3>
+      <div class="bucket-selector" id="leadDistributionBuckets"></div>
+      <div class="chart-wrap"><canvas id="leadDistributionChart"></canvas></div>
+    </div>
   </div>`,
   });
 
@@ -945,6 +937,7 @@ export function buildChartDataJson(input: RenderInput): string {
     aging: { issues: input.agingWip.issues, percentiles: input.agingWip.percentiles },
     leadBySize: input.leadTimeBySizeCharts,
     cycleBySize: input.cycleTimeBySizeCharts,
+    distribution: input.distribution,
   });
 }
 

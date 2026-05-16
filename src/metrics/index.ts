@@ -23,6 +23,7 @@ import { firstTimeRightMetric } from "./firstTimeRight";
 import { reworkCostMetric } from "./reworkCost";
 import { scopeChangeMetric } from "./scopeChange";
 import { bottleneckAnalysisMetric } from "./bottleneckAnalysis";
+import { durationDistributionMetric } from "./durationDistribution";
 
 // Registre central. Ajouter une métrique = importer + pousser ici.
 const ALL_METRICS = [
@@ -50,6 +51,7 @@ const ALL_METRICS = [
   reworkCostMetric,
   scopeChangeMetric,
   bottleneckAnalysisMetric,
+  durationDistributionMetric,
 ];
 
 export function runAllMetrics(ctx: MetricsContext): Record<string, unknown> {

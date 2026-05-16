@@ -63,6 +63,10 @@ function makeRenderInput(overrides: Partial<RenderInput> = {}): RenderInput {
       },
       byColumn: [],
     },
+    distribution: {
+      cycle: { global: { count: 0, max: 0, hasKde: false, bins: [], kde: [] }, byBucket: {} },
+      lead:  { global: { count: 0, max: 0, hasKde: false, bins: [], kde: [] }, byBucket: {} },
+    },
     sprintCharts: null,
     rolesSprintCharts: null,
     ...overrides,

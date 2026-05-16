@@ -313,7 +313,7 @@ Vérifier les clés equivalentes côté `en.ts`.
 
 ## 8. Refactor `buildHistogramBins` partagé
 
-Extraire la fonction `buildHistogram(values: number[])` de `report/generate.ts:664-681` vers `src/metrics/utils.ts` sous le nom `buildHistogramBins(values, max)` (signature avec `max` pré-calculé pour éviter le double scan). Réutiliser dans `durationDistribution.ts` et dans `generate.ts:483` (`buildHistogram(cycleTime.issues.map(...))` devient `buildHistogramBins(values, Math.max(...values))`).
+Extraire la fonction `buildHistogram(values: number[])` de `report/generate.ts:664-681` vers `src/metrics/utils.ts` sous le nom `buildHistogramBins(values, max)` (signature avec `max` pré-calculé pour éviter le double scan). Réutilisée dans `cycleHistogram` legacy (formule mixte `0.5 / 1 / ⌈max/20⌉`).
 
 ```ts
 // utils.ts
@@ -334,6 +334,8 @@ export function buildHistogramBins(values: number[], max: number): HistogramBin[
   return bins;
 }
 ```
+
+`durationDistribution.ts` n'utilise PAS ce helper. Bins fixes 1 jour-ouvré (`buildUnitBins` local) pour aligner l'axe x sur l'unité de mesure des durées ; la courbe KDE porte le lissage visuel, des bins agrégés masqueraient les pics journaliers du PDF.
 
 ---
 

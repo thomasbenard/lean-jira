@@ -193,6 +193,24 @@ export function toRoleStatuses(config: MetricConfig): RoleStatuses {
   };
 }
 
+export interface HistogramBin { start: number; end: number; count: number; }
+
+// Largeur de bin entière au-dessus de 1, sinon 0.5. Granularité fine pour distributions courtes.
+export function buildHistogramBins(values: number[], max: number): HistogramBin[] {
+  if (values.length === 0 || max <= 0) {return [];}
+  const binWidth = max <= 5 ? 0.5 : max <= 20 ? 1 : Math.ceil(max / 20);
+  const binCount = Math.ceil((max + 0.0001) / binWidth);
+  const bins: HistogramBin[] = [];
+  for (let i = 0; i < binCount; i++) {
+    bins.push({ start: i * binWidth, end: (i + 1) * binWidth, count: 0 });
+  }
+  for (const v of values) {
+    const idx = Math.min(bins.length - 1, Math.floor(v / binWidth));
+    bins[idx].count++;
+  }
+  return bins;
+}
+
 // Retourne la semaine ISO (ex: "2025-W10") d'un timestamp ISO.
 // Le jeudi détermine l'année ISO (règle ISO 8601).
 export function isoWeek(dateISO: string): string {

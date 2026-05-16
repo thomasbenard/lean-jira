@@ -181,6 +181,7 @@ Basés sur l'estimation initiale (`originalEstimate`) de l'issue (1 jour = 8 h) 
 | `first-time-right` | % de tickets traversant chaque rôle en un seul passage continu (`ftrRate`). Complément de `handoff-rework` : KPI lisible par rôle. | Population cycle-time, rolling 30j |
 | `rework-cost` | Coût en jours-ouvrés des passes rework (2e passe ou + dans un même rôle). `totalReworkDays`, `reworkCostRatio`, `avgReworkDaysPerReworkedTicket`. Vue hebdo proportionnelle et vue sprint. | Population cycle-time, rolling 30j |
 | `scope-change-rate` | % d'issues dont la description, l'estimation ou l'affectation de sprint a changé après entrée en sprint. Détecte la dérive de périmètre US post-engagement. | Toutes issues avec historique Sprint dans `issue_field_changes` |
+| `duration-distribution` | Distribution complète (histogramme PDF + KDE gaussien Silverman + CDF empirique) du `cycle-time` et `lead-time`, global et par bucket XS/S/M/L/XL. Révèle la forme (asymétrie, multi-modale, queue lourde) — pas seulement les percentiles. Non snapshotté. | Population cycle-time (cycle) ; idem + transition TODO (lead) ; BUG/UNESTIMATED hors `byBucket` |
 
 **Invariant lead/cycle** : les métriques `lead-time` et `cycle-time` (et leurs variantes) filtrent sur les issues ayant **à la fois** une transition `todoStatuses` et une transition `devStartStatuses`, ce qui garantit `lead_time ≥ cycle_time` par issue et rend les percentiles comparables.
 

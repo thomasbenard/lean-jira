@@ -24,7 +24,7 @@ const WEEKLY_METRICS = new Set(["throughput", "throughput-weighted", "bug-throug
 const CUMULATIVE_METRICS = new Set(["lead-time-by-size", "cycle-time-by-size", "aging-wip", "rework-cost"]);
 
 // Métriques gérées manuellement ou à sauter dans la boucle runAllMetrics.
-const SKIP_METRICS = new Set(["wip", "wip-per-role", "forecast", "scope-change-rate"]);
+const SKIP_METRICS = new Set(["wip", "wip-per-role", "forecast", "scope-change-rate", "duration-distribution"]);
 
 export interface SnapshotRow {
   snapshot_date: string;

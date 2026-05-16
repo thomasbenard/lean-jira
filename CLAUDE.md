@@ -180,6 +180,7 @@ Board is defined as an ordered list of columns under `board.columns`. Each colum
 | `rework-cost` | count + reworkedCount + reworkRatio + totalReworkDays + avgReworkDaysPerReworkedTicket + reworkCostRatio + byWeek[] + bySprint[] | coût jours-ouvrés des passes rework (2e passe ou + même rôle); statuts hors rôle réinitialisent le contexte; population cycle-time; rolling 30j |
 | `scope-change-rate` | totalIssues + changedIssues + changeRatio + bySprint (incl. issueDetails[]) + changedIssueKeys | issues dont la description ou le résumé a changé significativement après entrée en sprint; seuil similarité 0.85; non snapshotté |
 | `bottleneck-analysis` | count + primaryBottleneck + primaryColumn + recommendation + byRole {dev,qa,po}: {score,rank,dominantSignal,dominantColumn,signals} + byColumn[]: {column,role,medianDays,count} | score composite 0–1 par rôle synthétisant 4 signaux (stageTime, avgNetFlow, reworkInbound, ftrPenalty); identifie le stage prioritaire selon Theory of Constraints; dominantColumn = nom de colonne board.yaml avec médiane la plus haute dans le rôle (tiebreak alphabétique); plusieurs statuts d'une même colonne sont poolés avant calcul de la médiane; byColumn trié dev→qa→po puis médiane décroissante + tiebreak alphabétique |
+| `duration-distribution` | cycle / lead × global / byBucket → DistributionSeries (count, max, hasKde, bins[], kde[{x,density,cdf}]) | histogramme PDF + KDE gaussien (Silverman) + CDF empirique (50 points) sur cycle-time et lead-time ; non snapshotté |
 
 ## Adding a metric
 

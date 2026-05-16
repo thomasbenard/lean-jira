@@ -132,6 +132,8 @@ export const en: LocaleShape = {
   "report.chart.leadBySizeAdv":       "Lead time by size (days)",
   "report.chart.cycleBySizeAdv":      "Cycle time by size (days)",
   "report.chart.columnDrilldown":     "Drill-down by column",
+  "report.chart.cycleDistribution":   "Cycle time distribution (PDF + CDF)",
+  "report.chart.leadDistribution":    "Lead time distribution (PDF + CDF)",
 
   "report.meta.cycleStats":      "{{count}} issues · median {{median}}d · P85 {{p85}}d · P95 {{p95}}d · avg {{avg}}d",
   "report.meta.forecastPool":    "Pool: {{weeks}} weeks · {{sims}} simulations",
@@ -221,4 +223,8 @@ export const en: LocaleShape = {
   "report.help.bottleneckAnalysis.body":   "Composite 0–1 score per role (dev/qa/po) synthesizing 4 TOC signals: median stage time, average net flow, inbound rework rate, first-time-right penalty. Score 1 = most severe bottleneck. The primary role is the one with the highest score.",
   "report.help.scopeChange.title":         "Scope drift by sprint",
   "report.help.scopeChange.body":          "Issues whose description or summary changed significantly after sprint start. Detection threshold: text similarity < 85% (normalized Levenshtein). High drift correlates with failed sprints and longer cycle times.",
+  "report.help.cycleDistribution.title":   "Cycle time distribution (PDF + CDF)",
+  "report.help.cycleDistribution.body":    "Full cycle time distribution. PDF (Probability Density Function) = probability density, shown as a smoothed KDE curve (Kernel Density Estimation: a gaussian kernel placed on each observation then summed, bandwidth via Silverman's rule h=1.06·σ·n^(-1/5)). PDF reveals shape — skew, multi-modality, heavy tail — not just percentiles. CDF (Cumulative Distribution Function, right axis %) = P(duration ≤ x), monotonic from 0 to 1; reads directly as 'probability that a ticket is delivered within N days' at x=N. Raw histogram shown as fallback only when KDE is unavailable (n < 4 or zero stddev). Bucket selector for drilldown XS/S/M/L/XL.",
+  "report.help.leadDistribution.title":    "Lead time distribution (PDF + CDF)",
+  "report.help.leadDistribution.body":     "Full lead time distribution: same objects as cycleDistribution (PDF as gaussian KDE Silverman curve, empirical CDF on right axis, histogram fallback when KDE is unavailable) but from TODO entry. Reveals backlog wait (longer left tail vs cycle) and the total dispersion of requester experience.",
 };

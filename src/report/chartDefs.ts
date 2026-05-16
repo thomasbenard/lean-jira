@@ -254,6 +254,18 @@ export const CHART_DEFS: ChartDef[] = [
       { key: "critical", label: "Critical", color: "#ef4444" },
     ],
   },
+  {
+    id: "cycleDistributionChart", key: "cycleDistribution", tab: "advanced",
+    titleKey: "report.chart.cycleDistribution", helpKey: "cycleDistribution",
+    data: null,
+    chart: { type: "custom", rendererId: "durationDistribution" },
+  },
+  {
+    id: "leadDistributionChart", key: "leadDistribution", tab: "advanced",
+    titleKey: "report.chart.leadDistribution", helpKey: "leadDistribution",
+    data: null,
+    chart: { type: "custom", rendererId: "durationDistribution" },
+  },
   // stageTimeByRoleP85 : données P85 pour renderStageTimeByRole — pas de canvas propre, renderer absent = skip dispatcher
   {
     id: "stageTimeByRoleP85Chart", key: "stageTimeByRoleP85", tab: "roles",
