@@ -184,7 +184,7 @@ export const en: LocaleShape = {
   "report.help.throughputWeighted.title":  "Weighted throughput",
   "report.help.throughputWeighted.body":   "Sum of estimated person-days of issues delivered in the window. Bugs excluded (not estimated by nature). Compensates for the 'many small tickets inflate raw throughput' bias.",
   "report.help.wip.title":                 "WIP (Work In Progress)",
-  "report.help.wip.body":                  "Number of issues simultaneously in progress at the end of each week. Little's law: cycle_time = WIP / throughput. Limiting WIP reduces cycle time. Historically reconstructed from transitions, without sprint scoping.",
+  "report.help.wip.body":                  "Number of issues simultaneously in progress at the end of each week (point-in-time value, not a rolling average). Little's law: cycle_time = WIP / throughput. Limiting WIP reduces cycle time. Historically reconstructed from transitions, without sprint scoping — the Weeks/Sprints toggle does not apply to this chart.",
   "report.help.bugThroughput.title":       "Bug throughput",
   "report.help.bugThroughput.body":        "Bugs delivered per 7-day window. Incident load indicator, compare with feature throughput. A spike signals either a quality debt coming back, or a firefighting team.",
   "report.help.bugCycleTime.title":        "Bug cycle time",

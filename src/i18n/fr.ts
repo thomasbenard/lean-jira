@@ -184,7 +184,7 @@ export const fr: LocaleShape = {
   "report.help.throughputWeighted.title":  "Throughput pondéré",
   "report.help.throughputWeighted.body":   "Somme des jours-personnes estimés des issues livrées dans la fenêtre. Bugs exclus (non estimés par nature). Compense le biais 'beaucoup de petits tickets gonflent le throughput brut'.",
   "report.help.wip.title":                 "WIP (Work In Progress)",
-  "report.help.wip.body":                  "Nombre d'issues simultanément en cours à la fin de chaque semaine. Loi de Little: cycle_time = WIP / throughput. Limiter le WIP réduit le cycle time. Reconstitué historiquement à partir des transitions, sans scoping sprint.",
+  "report.help.wip.body":                  "Nombre d'issues simultanément en cours à la fin de chaque semaine (valeur point-in-time, pas une moyenne glissante). Loi de Little: cycle_time = WIP / throughput. Limiter le WIP réduit le cycle time. Reconstitué historiquement à partir des transitions, sans scoping sprint — le toggle Semaines/Sprints ne s'applique pas à ce graphique.",
   "report.help.bugThroughput.title":       "Bug throughput",
   "report.help.bugThroughput.body":        "Bugs livrés par fenêtre de 7j. Indicateur de charge incidents, à comparer avec le throughput de features. Une hausse signale soit une dette qualité qui remonte, soit une équipe en mode pompier.",
   "report.help.bugCycleTime.title":        "Bug cycle time",
