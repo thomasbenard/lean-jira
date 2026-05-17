@@ -116,6 +116,32 @@ describe("computeDynamicThresholds", () => {
     expect(result.cycleTimeMedianDays!.crit).toBeLessThan(50);
   });
 
+  it("WIP daily : calcule P50/P85 sur snapshots quotidiens dans la fenêtre", () => {
+    // pourquoi : WIP est snapshotté quotidiennement. computeDynamicThresholds doit
+    // filtrer par date calendaire (et non par compte de slots) pour rester correct
+    // peu importe la cadence (daily WIP, weekly autres KPIs).
+    const windowDays = 12 * 7;
+    const rows: SnapshotRow[] = [];
+    for (let i = 0; i < windowDays - 1; i++) {
+      const value = i + 1;
+      rows.push({
+        snapshot_date: dateAgo(windowDays - 1 - i),
+        metric_name: "wip",
+        bucket: "",
+        stat: "count",
+        value,
+      });
+    }
+    // valeurs trop anciennes ne doivent pas être prises en compte
+    rows.push({ snapshot_date: dateAgo(200), metric_name: "wip", bucket: "", stat: "count", value: 9999 });
+    const result = computeDynamicThresholds(rows, 12);
+    expect(result.wipCount).toBeDefined();
+    // P50 d'une suite 1..83 ≈ 42 ; aucune influence de la valeur 9999 hors fenêtre
+    expect(result.wipCount!.warn).toBeGreaterThan(30);
+    expect(result.wipCount!.warn).toBeLessThan(60);
+    expect(result.wipCount!.crit).toBeLessThan(100);
+  });
+
   it("couvre tous les KPIs supportés (bug-cycle, wip, bugRatio)", () => {
     const rows = [
       ...makeRows("bug-cycle-time", "", "median", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),

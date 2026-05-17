@@ -12,12 +12,46 @@ beforeEach(() => { initLocale("en"); });
 
 const emptySeries = { dates: [], series: {} as Record<string, number[]> };
 
+function weeklyDates(n: number, startISO = "2026-01-04"): string[] {
+  const out: string[] = [];
+  const start = new Date(startISO + "T00:00:00Z");
+  for (let i = 0; i < n; i++) {
+    const d = new Date(start);
+    d.setUTCDate(start.getUTCDate() + i * 7);
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
+function dailyDates(n: number, startISO = "2026-01-01"): string[] {
+  const out: string[] = [];
+  const start = new Date(startISO + "T00:00:00Z");
+  for (let i = 0; i < n; i++) {
+    const d = new Date(start);
+    d.setUTCDate(start.getUTCDate() + i);
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
 function makeChartsWithLeadHistory(history: number[]): Record<string, { dates: string[]; series: Record<string, number[]> }> {
   return {
-    leadTime: { dates: history.map((_, i) => `2026-01-${String(i + 1).padStart(2, "0")}`), series: { median: history } },
+    leadTime: { dates: weeklyDates(history.length), series: { median: history } },
     cycleTime: emptySeries,
     throughput: emptySeries,
     wip: emptySeries,
+    bugCycleTime: emptySeries,
+    devTimeAllocation: emptySeries,
+    ftrByRole: emptySeries,
+  };
+}
+
+function makeChartsWithWipDaily(history: number[]): Record<string, { dates: string[]; series: Record<string, number[]> }> {
+  return {
+    leadTime: emptySeries,
+    cycleTime: emptySeries,
+    throughput: emptySeries,
+    wip: { dates: dailyDates(history.length), series: { count: history } },
     bugCycleTime: emptySeries,
     devTimeAllocation: emptySeries,
     ftrByRole: emptySeries,
@@ -78,6 +112,47 @@ describe("buildKpiCells — delta 4 sem", () => {
     const cells = buildKpiCells(charts, makeAgingWip(), { ...NEUTRAL_SIGNALS, leadTime: "red" });
     const lead = cells.find((c) => c.key === "lead");
     expect(lead!.signal).toBe("red");
+  });
+
+  it("WIP daily : delta = pct(curr, value 28 jours avant) — pas moyenne des 4 derniers jours", () => {
+    // pourquoi : WIP est snapshotté quotidiennement (point-in-time). Le delta 4w
+    // doit comparer la valeur actuelle à la valeur d'il y a ~28 jours, pas à la
+    // moyenne des 4 derniers points (= 4 derniers jours = bruit).
+    // Construction : day0=5 (ref attendue), days 1..24 = 5, days 25..28 = 20
+    // (les 4 valeurs avant la dernière), day29 = 10.
+    // Date-based : ref = day1 = 5 → delta = (10-5)/5*100 = +100 (cadence 1j → target = day29-28 = day1)
+    // Slot-based legacy : ref = avg([20,20,20,20]) = 20 → delta = -50
+    const history = [
+      ...Array(25).fill(5),     // day0..day24
+      20, 20, 20, 20,            // day25..day28
+      10,                        // day29 (last)
+    ];
+    const charts = makeChartsWithWipDaily(history);
+    const cells = buildKpiCells(charts, makeAgingWip(), NEUTRAL_SIGNALS);
+    const wip = cells.find((c) => c.key === "wip");
+    expect(wip!.value).toBe(10);
+    expect(wip!.delta4w).toBeCloseTo(100, 5);
+  });
+
+  it("WIP daily : historique insuffisant (< 29 jours) → delta=null", () => {
+    // 20 jours d'historique : pas de date ≤ last-28d
+    const history = Array.from({ length: 20 }, () => 5);
+    history[history.length - 1] = 10;
+    const charts = makeChartsWithWipDaily(history);
+    const cells = buildKpiCells(charts, makeAgingWip(), NEUTRAL_SIGNALS);
+    const wip = cells.find((c) => c.key === "wip");
+    expect(wip!.delta4w).toBeNull();
+  });
+
+  it("WIP daily : valeur de référence (J-28) = 0 → delta=null", () => {
+    // dates[0]=2026-01-01 ... dates[29]=2026-01-30, last - 28d = 2026-01-02 = dates[1].
+    // Donc on met 0 à dates[1] (la ref) ; le reste à 10.
+    const history = Array(30).fill(10);
+    history[1] = 0;
+    const charts = makeChartsWithWipDaily(history);
+    const cells = buildKpiCells(charts, makeAgingWip(), NEUTRAL_SIGNALS);
+    const wip = cells.find((c) => c.key === "wip");
+    expect(wip!.delta4w).toBeNull();
   });
 });
 

@@ -22,6 +22,7 @@ import {
   buildAllChartData,
   pickValue,
   latestBySize,
+  latestRowsOfMetric,
 } from "./snapshotSeries";
 import { resolveThresholds, type HealthThresholds } from "./healthThresholds";
 import { resolvePersonalization, type ReportPersonalization } from "./personalization";
@@ -128,34 +129,40 @@ export function generateReport(
   const charts = buildAllChartData(metricRows, CHART_DEFS);
 
   const lastDate = snapshots[snapshots.length - 1].snapshot_date;
-  const latestRows = snapshots.filter((s) => s.snapshot_date === lastDate);
 
-  const kpis = {
-    leadTimeMedian: pickValue(latestRows, "lead-time", "", "median"),
-    cycleTimeMedian: pickValue(latestRows, "cycle-time", "", "median"),
-    throughputCount: pickValue(latestRows, "throughput", "", "count"),
-    wipCount: pickValue(latestRows, "wip", "", "count"),
-    bugThroughputCount: pickValue(latestRows, "bug-throughput", "", "count"),
-    bugCycleTimeMedian: pickValue(latestRows, "bug-cycle-time", "", "median"),
-    flowEfficiencyAggregate: pickValue(latestRows, "flow-efficiency", "", "aggregate"),
-    devTimeAvgBugRatio: pickValue(latestRows, "dev-time-allocation", "", "bugRatio"),
-    stageTimeDevMedian: pickValue(latestRows, "stage-time-breakdown", "dev", "median"),
-    stageTimeQaMedian:  pickValue(latestRows, "stage-time-breakdown", "qa",  "median"),
-    stageTimePoMedian:  pickValue(latestRows, "stage-time-breakdown", "po",  "median"),
-    wipDev: pickValue(latestRows, "wip-per-role", "dev", "count"),
-    wipQa:  pickValue(latestRows, "wip-per-role", "qa",  "count"),
-    wipPo:  pickValue(latestRows, "wip-per-role", "po",  "count"),
-    reworkRatio: pickValue(latestRows, "handoff-rework", "", "reworkRatio"),
-    avgReworks:  pickValue(latestRows, "handoff-rework", "", "avgReworks"),
-    ftrDev: pickValue(latestRows, "first-time-right", "dev", "ftrRate"),
-    ftrQa:  pickValue(latestRows, "first-time-right", "qa",  "ftrRate"),
-    ftrPo:  pickValue(latestRows, "first-time-right", "po",  "ftrRate"),
-    reworkTotalDays:  pickValue(latestRows, "rework-cost", "", "totalReworkDays"),
-    reworkCostRatio:  pickValue(latestRows, "rework-cost", "", "reworkCostRatio"),
+  // pourquoi : WIP est snapshotté quotidiennement, les autres métriques hebdomadairement.
+  // Sélectionner via une date globale écarterait toutes les métriques weekly dès qu'un
+  // snapshot daily WIP plus récent existe. Résoudre la date max par métrique.
+  const pickLatest = (metric: string, bucket: string, stat: string): number | null => {
+    return pickValue(latestRowsOfMetric(metricRows(metric)), metric, bucket, stat);
   };
 
-  const leadBySize = latestBySize(latestRows.filter((r) => r.metric_name === "lead-time-by-size"));
-  const cycleBySize = latestBySize(latestRows.filter((r) => r.metric_name === "cycle-time-by-size"));
+  const kpis = {
+    leadTimeMedian: pickLatest("lead-time", "", "median"),
+    cycleTimeMedian: pickLatest("cycle-time", "", "median"),
+    throughputCount: pickLatest("throughput", "", "count"),
+    wipCount: pickLatest("wip", "", "count"),
+    bugThroughputCount: pickLatest("bug-throughput", "", "count"),
+    bugCycleTimeMedian: pickLatest("bug-cycle-time", "", "median"),
+    flowEfficiencyAggregate: pickLatest("flow-efficiency", "", "aggregate"),
+    devTimeAvgBugRatio: pickLatest("dev-time-allocation", "", "bugRatio"),
+    stageTimeDevMedian: pickLatest("stage-time-breakdown", "dev", "median"),
+    stageTimeQaMedian:  pickLatest("stage-time-breakdown", "qa",  "median"),
+    stageTimePoMedian:  pickLatest("stage-time-breakdown", "po",  "median"),
+    wipDev: pickLatest("wip-per-role", "dev", "count"),
+    wipQa:  pickLatest("wip-per-role", "qa",  "count"),
+    wipPo:  pickLatest("wip-per-role", "po",  "count"),
+    reworkRatio: pickLatest("handoff-rework", "", "reworkRatio"),
+    avgReworks:  pickLatest("handoff-rework", "", "avgReworks"),
+    ftrDev: pickLatest("first-time-right", "dev", "ftrRate"),
+    ftrQa:  pickLatest("first-time-right", "qa",  "ftrRate"),
+    ftrPo:  pickLatest("first-time-right", "po",  "ftrRate"),
+    reworkTotalDays:  pickLatest("rework-cost", "", "totalReworkDays"),
+    reworkCostRatio:  pickLatest("rework-cost", "", "reworkCostRatio"),
+  };
+
+  const leadBySize = latestBySize(latestRowsOfMetric(metricRows("lead-time-by-size")));
+  const cycleBySize = latestBySize(latestRowsOfMetric(metricRows("cycle-time-by-size")));
 
   const leadBySizeRows = metricRows("lead-time-by-size");
   const cycleBySizeRows = metricRows("cycle-time-by-size");

@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createTestDb } from "../helpers/db";
 import { makeIssue, seedIssueWithTransitions, TEST_CONFIG, resetSeq } from "../helpers/seeders";
-import { generateWeekEndings, extractStats, backfillSnapshots } from "../../src/snapshots/compute";
+import { generateWeekEndings, generateDailyDates, extractStats, backfillSnapshots } from "../../src/snapshots/compute";
 import { SqliteStore } from "../../src/store/sqlite";
+import { initClock } from "../../src/clock";
 import type Database from "better-sqlite3";
 import type { DurationStats } from "../../src/metrics/utils";
 
@@ -339,6 +340,100 @@ describe("extractStats (shape avgNetByRole — stage-throughput-gap)", () => {
     expect(rows.find((r) => r.bucket === "dev" && r.stat === "in")?.value).toBe(7);
     expect(rows.find((r) => r.bucket === "dev" && r.stat === "out")?.value).toBe(6);
     expect(rows.find((r) => r.bucket === "qa"  && r.stat === "avgNet")?.value).toBeCloseTo(-0.5, 5);
+  });
+});
+
+// ─── generateDailyDates ───────────────────────────────────────────────────────
+
+describe("generateDailyDates", () => {
+  afterEach(() => { initClock(); });
+
+  it("produit une date par jour entre cutoff et aujourd'hui (inclusifs)", () => {
+    initClock("2025-01-10T12:00:00Z");
+    const dates = generateDailyDates("2025-01-05");
+    expect(dates).toEqual([
+      "2025-01-05", "2025-01-06", "2025-01-07",
+      "2025-01-08", "2025-01-09", "2025-01-10",
+    ]);
+  });
+
+  it("cutoff futur → tableau vide", () => {
+    initClock("2025-01-10T12:00:00Z");
+    expect(generateDailyDates("2099-01-01")).toHaveLength(0);
+  });
+
+  it("cutoff = aujourd'hui → une seule date", () => {
+    initClock("2025-01-10T12:00:00Z");
+    expect(generateDailyDates("2025-01-10")).toEqual(["2025-01-10"]);
+  });
+});
+
+// ─── backfillSnapshots WIP daily ──────────────────────────────────────────────
+
+describe("backfillSnapshots — WIP daily granularity", () => {
+  afterEach(() => { initClock(); });
+
+  it("génère une ligne WIP par jour entre cutoff et today", () => {
+    initClock("2025-01-15T12:00:00Z");
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1" }), [
+      { to: "In Progress", at: "2025-01-08T09:00:00Z" },
+    ]);
+
+    backfillSnapshots(new SqliteStore(db), { ...TEST_CONFIG, cutoffDate: "2025-01-10" });
+
+    const dates = db
+      .prepare("SELECT DISTINCT snapshot_date FROM metric_snapshots WHERE metric_name = 'wip' ORDER BY snapshot_date")
+      .all() as { snapshot_date: string }[];
+
+    expect(dates.map((r) => r.snapshot_date)).toEqual([
+      "2025-01-10", "2025-01-11", "2025-01-12",
+      "2025-01-13", "2025-01-14", "2025-01-15",
+    ]);
+  });
+
+  it("wip-per-role aussi quotidien (dev + qa + po par jour)", () => {
+    initClock("2025-01-12T12:00:00Z");
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1" }), [
+      { to: "In Progress", at: "2025-01-08T09:00:00Z" },
+    ]);
+
+    backfillSnapshots(new SqliteStore(db), {
+      ...TEST_CONFIG,
+      devStatuses: ["In Progress"],
+      qaStatuses: ["In Review"],
+      poStatuses: [],
+      cutoffDate: "2025-01-10",
+    });
+
+    const counts = db
+      .prepare("SELECT snapshot_date, bucket FROM metric_snapshots WHERE metric_name = 'wip-per-role' ORDER BY snapshot_date, bucket")
+      .all() as { snapshot_date: string; bucket: string }[];
+
+    const uniqueDates = [...new Set(counts.map((c) => c.snapshot_date))];
+    expect(uniqueDates).toEqual(["2025-01-10", "2025-01-11", "2025-01-12"]);
+    // 3 rôles × 3 jours = 9 lignes
+    expect(counts).toHaveLength(9);
+  });
+
+  it("WIP daily ≠ WIP hebdo : valeur calculée pour chaque jour, pas répétée", () => {
+    initClock("2025-01-15T12:00:00Z");
+    // Issue entre In Progress le 12, sort le 14 — WIP=1 sur [12,13], 0 ailleurs
+    seedIssueWithTransitions(db, makeIssue({ key: "PROJ-1" }), [
+      { to: "In Progress", at: "2025-01-12T09:00:00Z" },
+      { to: "Done",        at: "2025-01-14T09:00:00Z" },
+    ]);
+
+    backfillSnapshots(new SqliteStore(db), { ...TEST_CONFIG, cutoffDate: "2025-01-10" });
+
+    const byDate = db
+      .prepare("SELECT snapshot_date, value FROM metric_snapshots WHERE metric_name = 'wip' AND stat = 'count' ORDER BY snapshot_date")
+      .all() as { snapshot_date: string; value: number }[];
+
+    const map = Object.fromEntries(byDate.map((r) => [r.snapshot_date, r.value]));
+    expect(map["2025-01-11"]).toBe(0);
+    expect(map["2025-01-12"]).toBe(1);
+    expect(map["2025-01-13"]).toBe(1);
+    expect(map["2025-01-14"]).toBe(0);
   });
 });
 

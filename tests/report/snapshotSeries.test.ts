@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildAllChartData, buildBucketSeries, buildRoleSeries } from "../../src/report/generate";
+import { latestRowsOfMetric } from "../../src/report/snapshotSeries";
 import { CHART_DEFS } from "../../src/report/chartDefs";
 import type { SnapshotRow } from "../../src/snapshots/compute";
 
@@ -118,6 +119,37 @@ describe("buildAllChartData", () => {
     expect(result["leadTime"].dates).toEqual(["2025-01-05"]);
     expect(result["leadTime"].series["median"]).toEqual([4]);
     expect(result["leadTime"].series["p85"]).toEqual([10]);
+  });
+
+  it("latestRowsOfMetric : retourne uniquement les lignes à la date max", () => {
+    // pourquoi : régression — `lastDate` global (max toutes métriques) sélectionnait
+    // la date du snapshot WIP quotidien, écartant les by-size hebdomadaires.
+    // Le sélecteur doit calculer le max par sous-ensemble fourni.
+    const rows: SnapshotRow[] = [
+      { snapshot_date: "2025-01-05", metric_name: "lead-time-by-size", bucket: "M", stat: "median", value: 3 },
+      { snapshot_date: "2025-01-05", metric_name: "lead-time-by-size", bucket: "M", stat: "p85",    value: 5 },
+      { snapshot_date: "2025-01-12", metric_name: "lead-time-by-size", bucket: "M", stat: "median", value: 4 },
+      { snapshot_date: "2025-01-12", metric_name: "lead-time-by-size", bucket: "M", stat: "p85",    value: 6 },
+      { snapshot_date: "2025-01-12", metric_name: "lead-time-by-size", bucket: "M", stat: "count",  value: 8 },
+    ];
+    const latest = latestRowsOfMetric(rows);
+    expect(latest).toHaveLength(3);
+    expect(latest.every((r) => r.snapshot_date === "2025-01-12")).toBe(true);
+  });
+
+  it("latestRowsOfMetric : rows vides → tableau vide (pas d'erreur)", () => {
+    expect(latestRowsOfMetric([])).toEqual([]);
+  });
+
+  it("latestRowsOfMetric : dates non triées → max correct", () => {
+    const rows: SnapshotRow[] = [
+      { snapshot_date: "2025-01-12", metric_name: "x", bucket: "", stat: "v", value: 1 },
+      { snapshot_date: "2025-01-26", metric_name: "x", bucket: "", stat: "v", value: 3 },
+      { snapshot_date: "2025-01-19", metric_name: "x", bucket: "", stat: "v", value: 2 },
+    ];
+    const latest = latestRowsOfMetric(rows);
+    expect(latest).toHaveLength(1);
+    expect(latest[0].snapshot_date).toBe("2025-01-26");
   });
 
   it("data.mode=roleSeries appelle buildRoleSeries via def.key", () => {

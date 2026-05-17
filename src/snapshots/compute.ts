@@ -46,7 +46,8 @@ function toSnapshotRecord(row: SnapshotRow): SnapshotRecord {
 
 export function backfillSnapshots(store: Store, baseConfig: MetricConfig): number {
   const cutoff = baseConfig.cutoffDate ?? "2024-01-01";
-  const dates = generateWeekEndings(cutoff);
+  const weekDates = generateWeekEndings(cutoff);
+  const dailyDates = generateDailyDates(cutoff);
 
   // pourquoi : indexes lourds (issues, transitions, transitionsByIssue, deliveredAt…)
   // sont stables sur tout le run de backfill — `cutoffDate` / `windowEndDate` varient
@@ -57,8 +58,16 @@ export function backfillSnapshots(store: Store, baseConfig: MetricConfig): numbe
   const allIssues = baseCtx.issues;
 
   const allRows: SnapshotRecord[] = [];
-  for (const date of dates) {
+  for (const date of weekDates) {
     for (const row of computeSnapshot(baseCtx, allTransitions, allIssues, date, baseConfig)) {
+      allRows.push(toSnapshotRecord(row));
+    }
+  }
+  // pourquoi : WIP est point-in-time et stocké en quotidien — graphe rendu en daily
+  // au report, et KPI/health-thresholds raisonnent en offset par date (cf. delta4w
+  // et computeDynamicThresholds).
+  for (const date of dailyDates) {
+    for (const row of computeWipSnapshotRows(allTransitions, allIssues, date, baseConfig)) {
       allRows.push(toSnapshotRecord(row));
     }
   }
@@ -68,7 +77,7 @@ export function backfillSnapshots(store: Store, baseConfig: MetricConfig): numbe
   const currentWindow = baseConfig.snapshotWindowDays ?? DEFAULT_ROLLING_WINDOW_DAYS;
   store.appConfig.set("snapshot_window_days", String(currentWindow));
 
-  return dates.length;
+  return weekDates.length;
 }
 
 export function generateWeekEndings(cutoffISO: string): string[] {
@@ -83,6 +92,19 @@ export function generateWeekEndings(cutoffISO: string): string[] {
   while (start <= today) {
     dates.push(start.toISOString().slice(0, 10));
     start.setUTCDate(start.getUTCDate() + 7);
+  }
+  return dates;
+}
+
+export function generateDailyDates(cutoffISO: string): string[] {
+  const dates: string[] = [];
+  const start = new Date(cutoffISO + "T00:00:00Z");
+  const today = now();
+  const todayISO = today.toISOString().slice(0, 10);
+  const todayUTC = new Date(todayISO + "T00:00:00Z");
+  while (start <= todayUTC) {
+    dates.push(start.toISOString().slice(0, 10));
+    start.setUTCDate(start.getUTCDate() + 1);
   }
   return dates;
 }
@@ -103,15 +125,6 @@ function computeSnapshot(
   const rows: SnapshotRow[] = [];
   const rollingWindow = baseConfig.snapshotWindowDays ?? DEFAULT_ROLLING_WINDOW_DAYS;
 
-  // WIP historique (pas de contexte de métriques — logique point-in-time sur transitions brutes)
-  const wipValue = computeHistoricWip(allTransitions, allIssues, date, baseConfig);
-  rows.push({ snapshot_date: date, metric_name: "wip", bucket: "", stat: "count", value: wipValue });
-
-  const wipPerRole = computeHistoricWipPerRole(allTransitions, allIssues, date, baseConfig);
-  for (const role of ["dev", "qa", "po"] as const) {
-    rows.push({ snapshot_date: date, metric_name: "wip-per-role", bucket: role, stat: "count", value: wipPerRole[role] });
-  }
-
   // Pour chaque métrique non exclue, dériver un contexte (filtre cycleTimePopulation
   // par fenêtre) à partir du baseCtx partagé — pas de relecture DB.
   for (const metric of ALL_METRICS) {
@@ -131,6 +144,23 @@ function computeSnapshot(
     rows.push(...extractStats(date, metric.name, result));
   }
 
+  return rows;
+}
+
+export function computeWipSnapshotRows(
+  allTransitions: TransitionRecord[],
+  allIssues: IssueRecord[],
+  date: string,
+  baseConfig: MetricConfig,
+): SnapshotRow[] {
+  const rows: SnapshotRow[] = [];
+  const wipValue = computeHistoricWip(allTransitions, allIssues, date, baseConfig);
+  rows.push({ snapshot_date: date, metric_name: "wip", bucket: "", stat: "count", value: wipValue });
+
+  const wipPerRole = computeHistoricWipPerRole(allTransitions, allIssues, date, baseConfig);
+  for (const role of ["dev", "qa", "po"] as const) {
+    rows.push({ snapshot_date: date, metric_name: "wip-per-role", bucket: role, stat: "count", value: wipPerRole[role] });
+  }
   return rows;
 }
 

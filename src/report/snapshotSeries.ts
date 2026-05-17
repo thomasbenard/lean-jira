@@ -90,6 +90,18 @@ export function pickValue(rows: SnapshotRow[], metric: string, bucket: string, s
   return r ? r.value : null;
 }
 
+// pourquoi : WIP snapshotté quotidiennement, autres métriques hebdomadairement.
+// Filtrer par max(snapshot_date) global écarterait les métriques weekly du jour
+// du dernier snapshot daily WIP. Chaque métrique doit résoudre sa propre date max.
+export function latestRowsOfMetric(rows: SnapshotRow[]): SnapshotRow[] {
+  if (rows.length === 0) {return [];}
+  let maxDate = rows[0].snapshot_date;
+  for (const r of rows) {
+    if (r.snapshot_date > maxDate) {maxDate = r.snapshot_date;}
+  }
+  return rows.filter((r) => r.snapshot_date === maxDate);
+}
+
 export function latestBySize(rows: SnapshotRow[]): Partial<Record<string, BucketStats>> {
   const out: Partial<Record<string, BucketStats>> = {};
   for (const r of rows) {
